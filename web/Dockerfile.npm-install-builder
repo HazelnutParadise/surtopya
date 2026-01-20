@@ -1,0 +1,14 @@
+FROM node:20-bookworm
+
+WORKDIR /work
+
+# copy only package files first for better cache
+COPY package.json package-lock.json ./
+# install deps and capture logs (no .npmrc copy to avoid build errors if missing)
+RUN npm install --no-audit --no-fund --legacy-peer-deps > /work/npm-install.log 2>&1 || true
+
+# copy rest of files (not strictly necessary for install but keep layout)
+COPY . .
+
+# keep container alive
+CMD ["sleep", "infinity"]
