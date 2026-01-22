@@ -15,7 +15,6 @@ web/
 │   ├── lib/           # Logic (api.ts, supabase/, utils.ts)
 │   └── types/         # TypeScript definitions
 ├── messages/          # i18n JSON files (Source: zh-TW.json)
-└── scripts/           # translate.ts (LLM-powered translation)
 ```
 
 ## WHERE TO LOOK
@@ -25,7 +24,7 @@ web/
 | Survey Builder | `src/components/builder/` | Main logic in `survey-builder.tsx` |
 | Survey Rendering | `src/components/survey/` | Dynamic renderer for responses |
 | API Integration | `src/lib/api.ts` | Backend communication client |
-| Translations | `messages/` | Auto-sync via `npm run translate` |
+| Translations | `messages/` | Manual sync from zh-TW.json |
 
 ## CONVENTIONS
 
@@ -41,7 +40,7 @@ web/
 
 ### 3. Internationalization (i18n)
 - **Source of Truth**: `messages/zh-TW.json`.
-- **Automation**: Run `npm run translate` to update `en.json` and `ja.json` using Ollama.
+- **Maintenance**: Manually keep `en.json` and `ja.json` in sync.
 - **Routing**: Dynamic `[locale]` prefixing for SEO and locale persistence.
 
 ## ANTI-PATTERNS

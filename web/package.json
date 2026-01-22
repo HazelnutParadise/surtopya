@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "translate": "tsx scripts/translate.ts",
     "test": "vitest"
   },
   "dependencies": {

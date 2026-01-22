@@ -20,7 +20,6 @@ surtopya/
 │   │   ├── components/     # UI components (ui/, builder/, survey/)
 │   │   └── lib/          # API client, Supabase integration, utilities
 │   ├── messages/          # i18n JSON files (zh-TW, en, ja)
-│   └── scripts/           # Custom scripts (translate.ts - LLM-powered)
 └── docker-compose.yml       # Full-stack orchestration
 ```
 
@@ -29,7 +28,7 @@ surtopya/
 |------|----------|-------|
 | Backend API routes | `api/internal/routes/router.go` | All API surface + middleware chain |
 | Survey builder logic | `web/src/components/builder/survey-builder.tsx` | **TECHNICAL DEBT**: 1134 lines, needs refactoring |
-| i18n translations | `web/messages/` | Source of truth: zh-TW.json, run `npm run translate` for updates |
+| i18n translations | `web/messages/` | Source of truth: zh-TW.json; update other locales manually |
 | Privacy logic | `api/internal/models/models.go` + handlers | Public surveys force dataset sharing |
 | Deployment | `docker-compose.yml` | Orchestrates web, api, postgres services |
 
@@ -76,11 +75,9 @@ surtopya/
 
 ## UNIQUE FEATURES
 
-### 1. LLM-Powered i18n
-- **Script**: `web/scripts/translate.ts` uses Ollama (llama3) to auto-translate
+### 1. i18n Workflow
 - **Source**: `web/messages/zh-TW.json` (truth)
-- **Cache**: MD5 content hashing in `.translation-cache.json`
-- **Usage**: `npm run translate` after updating source
+- **Maintenance**: Manually keep `en.json` and `ja.json` in sync with the source
 
 ### 2. Dynamic Environment Variables
 - **Problem**: Next.js `PUBLIC_` vars baked at build time breaks Docker portability
@@ -108,7 +105,6 @@ docker compose up --build
 # Frontend dev (inside web container)
 npm run dev          # Start Next.js dev server
 npm run build        # Production build
-npm run translate    # Auto-translate i18n files (Ollama required)
 
 # Backend dev (inside api container)
 go run cmd/server/main.go
@@ -122,8 +118,6 @@ go build -o bin/server cmd/server/main.go
 | Variable | Purpose | Example |
 |-----------|---------|---------|
 | `PUBLIC_API_URL` | Frontend → API endpoint | `http://localhost:8080/api/v1` |
-| `OLLAMA_BASE_URL` | LLM translation service | `http://host.docker.internal:11434` |
-| `OLLAMA_MODEL` | Translation model | `llama3` |
 
 ## NOTES
 
@@ -142,5 +136,5 @@ go build -o bin/server cmd/server/main.go
 ### Next Steps for New Development
 1. **Backend**: Add handlers in `api/internal/handlers`, register in `routes/router.go`
 2. **Frontend**: Create components in `web/src/components`, use Radix primitives
-3. **i18n**: Update `web/messages/zh-TW.json`, run `npm run translate`
+3. **i18n**: Update `web/messages/zh-TW.json`, then sync `en.json` and `ja.json` manually
 4. **Testing**: Add Go tests using `github.com/stretchr/testify` (already installed)
