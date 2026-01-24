@@ -4,8 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, ArrowRight, Gift } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 export default function ThankYouPage() {
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
       <Card className="max-w-md w-full border-0 shadow-2xl overflow-hidden">
@@ -32,13 +38,13 @@ export default function ThankYouPage() {
 
           <div className="space-y-3">
             <Button asChild className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-              <Link href="/explore">
+              <Link href={withLocalePath("/explore")}>
                 Find More Surveys
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild variant="outline" className="w-full">
-              <Link href="/dashboard">
+              <Link href={withLocalePath("/dashboard")}>
                 Go to Dashboard
               </Link>
             </Button>

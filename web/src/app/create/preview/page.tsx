@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Survey, SurveyTheme } from "@/types/survey";
 import { SurveyRenderer } from "@/components/survey/survey-renderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 export default function PreviewPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [theme, setTheme] = useState<SurveyTheme | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +57,7 @@ export default function PreviewPage() {
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">No Preview Data</h1>
           <p className="text-gray-500">Please open preview from the survey builder.</p>
-          <Button onClick={() => router.push("/create")} variant="outline">
+          <Button onClick={() => router.push(withLocalePath("/create"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Builder
           </Button>

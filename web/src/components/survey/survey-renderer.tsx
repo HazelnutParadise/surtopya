@@ -17,9 +17,10 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Eye } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Survey, Question, SurveyTheme } from "@/types/survey";
 import { getContrastColor } from "@/lib/utils";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 interface SurveyRendererProps {
   survey: Survey;
@@ -30,6 +31,9 @@ interface SurveyRendererProps {
 
 export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }: SurveyRendererProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
@@ -90,7 +94,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
             if (onComplete) {
               onComplete(answers);
             } else {
-              router.push("/survey/thank-you");
+              router.push(withLocalePath("/survey/thank-you"));
             }
             return;
           }
@@ -114,7 +118,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
       if (onComplete) {
         onComplete(answers);
       } else {
-        router.push("/survey/thank-you");
+        router.push(withLocalePath("/survey/thank-you"));
       }
     }
   };

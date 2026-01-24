@@ -9,6 +9,7 @@ import { Database, Download, Code, FileText, Info, BarChart, Globe, Terminal, Co
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { MOCK_DATASETS } from "@/lib/datasets-data";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -19,6 +20,8 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
   const dataset = MOCK_DATASETS.find(ds => ds.id === id);
@@ -38,7 +41,7 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
       <div className="min-h-screen flex flex-col items-center justify-center p-4">
         <h2 className="text-2xl font-bold mb-4">找不到數據集</h2>
         <Button asChild>
-          <Link href="/datasets">返回數據市集</Link>
+          <Link href={withLocalePath("/datasets")}>返回數據市集</Link>
         </Button>
       </div>
     );
@@ -49,7 +52,7 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
       {/* Navigation */}
       <div className="container px-4 py-6 md:px-6">
         <Button variant="ghost" asChild className="mb-4">
-          <Link href="/datasets">
+          <Link href={withLocalePath("/datasets")}>
             <ChevronLeft className="mr-2 h-4 w-4" /> 返回
           </Link>
         </Button>

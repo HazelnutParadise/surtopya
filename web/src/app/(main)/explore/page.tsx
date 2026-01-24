@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SurveyCard } from "@/components/survey-card";
 import { Search, Filter, ArrowUpDown } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 // Mock Data
 const MOCK_SURVEYS_LIST = [
@@ -99,6 +100,9 @@ const MOCK_SURVEYS_LIST = [
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   
   const searchQuery = searchParams.get('q') || '';
   const category = searchParams.get('category') || 'all';
@@ -112,7 +116,7 @@ function ExploreContent() {
     } else {
       params.delete('q');
     }
-    router.replace(`/explore?${params.toString()}`);
+    router.replace(withLocalePath(`/explore?${params.toString()}`));
   };
 
   const updateCategory = (val: string) => {
@@ -122,7 +126,7 @@ function ExploreContent() {
     } else {
       params.delete('category');
     }
-    router.push(`/explore?${params.toString()}`);
+    router.push(withLocalePath(`/explore?${params.toString()}`));
   };
 
   const updateSort = (val: string) => {
@@ -132,7 +136,7 @@ function ExploreContent() {
     } else {
       params.delete('sort');
     }
-    router.push(`/explore?${params.toString()}`);
+    router.push(withLocalePath(`/explore?${params.toString()}`));
   };
 
   // Filter Logic
@@ -229,7 +233,7 @@ function ExploreContent() {
       <div className="container px-4 py-8 md:px-6">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredSurveys.map((survey) => (
-            <SurveyCard key={survey.id} {...survey} />
+            <SurveyCard key={survey.id} {...survey} locale={locale} />
           ))}
           {filteredSurveys.length === 0 && (
              <div className="col-span-full py-12 text-center text-gray-500">

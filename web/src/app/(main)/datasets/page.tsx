@@ -8,6 +8,7 @@ import { Database, Download, Search, Filter, ArrowUpDown, FileText, Globe, Lock 
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 import { MOCK_DATASETS } from "@/lib/datasets-data";
 
@@ -15,6 +16,8 @@ function DatasetsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
 
   // Category mapping for URL parameters
   const CATEGORY_MAP: Record<string, string> = {
@@ -171,7 +174,7 @@ function DatasetsContent() {
             <div className="grid grid-cols-1 gap-6">
               {displayDatasets.map((ds) => (
                 <Card key={ds.id} className="group overflow-hidden border-0 shadow-lg ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-purple-500/50 transition-all duration-300">
-                  <Link href={`/datasets/${ds.id}`} className="block">
+                  <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">

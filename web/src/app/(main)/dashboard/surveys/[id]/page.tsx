@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { Survey, SurveyTheme } from "@/types/survey";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import {
   Lock,
   Send
 } from "lucide-react";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 // Mock Survey Data
 const MOCK_MY_SURVEYS: Record<string, Survey & { 
@@ -83,6 +84,9 @@ const MOCK_MY_SURVEYS: Record<string, Survey & {
 export default function SurveyManagementPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   const surveyId = params.id as string;
   
   const [survey, setSurvey] = useState<typeof MOCK_MY_SURVEYS[string] | null>(null);
@@ -111,13 +115,13 @@ export default function SurveyManagementPage() {
       };
       sessionStorage.setItem('preview_survey', JSON.stringify(surveyData));
       sessionStorage.setItem('preview_theme', JSON.stringify(survey.theme || {}));
-      window.open('/survey/preview', '_blank');
+      window.open(withLocalePath('/survey/preview'), '_blank');
     }
   };
 
   const handleEdit = () => {
     // In production, this would load the survey into the builder
-    router.push(`/create?edit=${surveyId}`);
+    router.push(withLocalePath(`/create?edit=${surveyId}`));
   };
 
   const handleTogglePublish = (status: boolean) => {
@@ -133,7 +137,7 @@ export default function SurveyManagementPage() {
   };
 
   const handleCopyLink = () => {
-    const link = `${window.location.origin}/survey/${surveyId}`;
+    const link = `${window.location.origin}${withLocalePath(`/survey/${surveyId}`)}`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link);
       setCopied(true);
@@ -169,7 +173,7 @@ export default function SurveyManagementPage() {
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Survey Not Found</h1>
           <p className="text-gray-500">The survey you're looking for doesn't exist.</p>
-          <Button onClick={() => router.push("/dashboard")} variant="outline">
+          <Button onClick={() => router.push(withLocalePath("/dashboard"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Dashboard
           </Button>
@@ -185,7 +189,7 @@ export default function SurveyManagementPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')}>
+              <Button variant="ghost" size="icon" onClick={() => router.push(withLocalePath('/dashboard'))}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
@@ -296,7 +300,7 @@ export default function SurveyManagementPage() {
                     <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
                       <BarChart3 className="h-12 w-12 mb-4 text-gray-300" />
                       <p>Response analytics will appear here once you have responses.</p>
-                      <Button variant="outline" className="mt-4" onClick={() => router.push(`/survey/${surveyId}`)}>
+                      <Button variant="outline" className="mt-4" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
                         <ExternalLink className="mr-2 h-4 w-4" />
                         View Survey
                       </Button>
@@ -391,7 +395,7 @@ export default function SurveyManagementPage() {
                 <div className="flex gap-2">
                   <Input 
                     readOnly 
-                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}/survey/${surveyId}`}
+                    value={`${typeof window !== 'undefined' ? window.location.origin : ''}${withLocalePath(`/survey/${surveyId}`)}`}
                     className="text-sm"
                   />
                   <Button variant="outline" size="icon" onClick={handleCopyLink}>
@@ -414,7 +418,7 @@ export default function SurveyManagementPage() {
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit Survey
                 </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => router.push(`/survey/${surveyId}`)}>
+                <Button variant="outline" className="w-full justify-start" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Open Survey Page
                 </Button>

@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SurveyCard } from "@/components/survey-card";
 import { Plus, BarChart3, Wallet, Award } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { withLocale } from "@/lib/locale";
 
 // Mock Data for Dashboard
 const MY_SURVEYS = [
@@ -48,7 +50,9 @@ const MY_SURVEYS = [
   },
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const localeCookieStore = await cookies();
+  const locale = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
       {/* Dashboard Header */}
@@ -60,7 +64,7 @@ export default function DashboardPage() {
               <p className="text-gray-500 dark:text-gray-400">Welcome back, User</p>
             </div>
             <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white">
-              <Link href="/create">
+              <Link href={withLocale("/create", locale)}>
                 <Plus className="mr-2 h-4 w-4" /> Create New Survey
               </Link>
             </Button>
@@ -108,11 +112,11 @@ export default function DashboardPage() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">My Surveys</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {MY_SURVEYS.map((survey) => (
-              <SurveyCard key={survey.id} {...survey} variant="dashboard" />
+              <SurveyCard key={survey.id} {...survey} variant="dashboard" locale={locale} />
             ))}
             
             {/* Create New Card Placeholder */}
-            <Link href="/create" className="group flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-6 transition-all hover:border-purple-500 hover:bg-purple-50/50 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20">
+            <Link href={withLocale("/create", locale)} className="group flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-6 transition-all hover:border-purple-500 hover:bg-purple-50/50 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20">
               <div className="mb-4 rounded-full bg-gray-100 p-4 group-hover:bg-purple-100 dark:bg-gray-800 dark:group-hover:bg-purple-900">
                 <Plus className="h-6 w-6 text-gray-500 group-hover:text-purple-600 dark:text-gray-400 dark:group-hover:text-purple-400" />
               </div>

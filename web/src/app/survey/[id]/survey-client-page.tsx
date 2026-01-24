@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { SurveyRenderer } from "@/components/survey/survey-renderer";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { MockSurveyData } from "@/lib/data";
 import { SurveyTheme } from "@/types/survey";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 // Helper to format rich text description (simple markdown)
 const RichText = ({ content }: { content: string }) => {
@@ -57,7 +58,10 @@ interface SurveyClientPageProps {
 
 export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }: SurveyClientPageProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   
   const [survey, setSurvey] = useState<MockSurveyData | null>(initialSurvey || null);
   const [theme, setTheme] = useState<SurveyTheme | undefined>(undefined);
@@ -101,7 +105,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
     const expectedTitleSlug = encodeURIComponent(survey.title.replace(/\s+/g, '-').toLowerCase());
 
     if (currentTitleParam !== expectedTitleSlug) {
-      const newPath = `/survey/${surveyId}?title=${expectedTitleSlug}`;
+      const newPath = withLocalePath(`/survey/${surveyId}?title=${expectedTitleSlug}`);
       // Use router.replace but don't depend on 'survey' itself to avoid loop
       // Only run if the title in URL is actually different
       router.replace(newPath, { scroll: false });
@@ -131,7 +135,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
       window.close();
     } else {
       console.log("Survey responses:", answers);
-      router.push("/survey/thank-you");
+      router.push(withLocalePath("/survey/thank-you"));
     }
   };
 
@@ -153,7 +157,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
               ? "Please open preview from the survey builder." 
               : "The survey you're looking for doesn't exist or has been removed."}
           </p>
-          <Button onClick={() => router.push(isPreview ? "/create" : "/explore")} variant="outline">
+          <Button onClick={() => router.push(withLocalePath(isPreview ? "/create" : "/explore"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
             {isPreview ? "Back to Builder" : "Back to Marketplace"}
           </Button>
@@ -331,7 +335,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
 
                     <Button 
                       variant="ghost" 
-                      onClick={() => router.push("/explore")}
+                      onClick={() => router.push(withLocalePath("/explore"))}
                       className="w-full"
                     >
                       <ArrowLeft className="mr-2 h-4 w-4" />

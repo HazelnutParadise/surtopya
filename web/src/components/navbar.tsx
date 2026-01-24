@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { 
   Menu, 
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,6 +32,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 export function Navbar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   
   // Mock Auth State
   const isAuthenticated = true; 
@@ -61,7 +64,7 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/80">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={withLocalePath("/")} className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600"></div>
           <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
             Surtopya
@@ -73,10 +76,10 @@ export function Navbar() {
           {navItems.map((item) => (
             <Link
               key={item.href}
-              href={item.href}
+              href={withLocalePath(item.href)}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-purple-600 dark:hover:text-purple-400",
-                pathname === item.href
+                pathname === withLocalePath(item.href)
                   ? "text-purple-600 dark:text-purple-400"
                   : "text-gray-600 dark:text-gray-300"
               )}
@@ -89,7 +92,7 @@ export function Navbar() {
              {isAuthenticated ? (
                <>
                  <Button asChild variant="ghost" className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400">
-                   <Link href="/create">Create</Link>
+                   <Link href={withLocalePath("/create")}>Create</Link>
                  </Button>
                  
                  <DropdownMenu>
@@ -115,19 +118,19 @@ export function Navbar() {
                      <DropdownMenuSeparator />
                      <DropdownMenuGroup>
                        <DropdownMenuItem asChild>
-                         <Link href="/dashboard" className="flex w-full items-center cursor-pointer">
+                         <Link href={withLocalePath("/dashboard")} className="flex w-full items-center cursor-pointer">
                            <LayoutDashboard className="mr-2 h-4 w-4" />
                            <span>Dashboard</span>
                          </Link>
                        </DropdownMenuItem>
                        <DropdownMenuItem asChild>
-                         <Link href="/dashboard/profile" className="flex w-full items-center cursor-pointer">
+                         <Link href={withLocalePath("/dashboard/profile")} className="flex w-full items-center cursor-pointer">
                            <User className="mr-2 h-4 w-4" />
                            <span>Profile</span>
                          </Link>
                        </DropdownMenuItem>
                        <DropdownMenuItem asChild>
-                         <Link href="/dashboard/settings" className="flex w-full items-center cursor-pointer">
+                         <Link href={withLocalePath("/dashboard/settings")} className="flex w-full items-center cursor-pointer">
                            <Settings className="mr-2 h-4 w-4" />
                            <span>Settings</span>
                          </Link>
@@ -166,11 +169,11 @@ export function Navbar() {
             {allItems.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={withLocalePath(item.href)}
                 onClick={() => setIsMenuOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-900",
-                  pathname === item.href
+                  pathname === withLocalePath(item.href)
                     ? "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
                     : "text-gray-600 dark:text-gray-300"
                 )}
@@ -184,7 +187,7 @@ export function Navbar() {
                {isAuthenticated ? (
                   <div className="flex flex-col gap-2">
                     <Button asChild variant="outline" className="w-full justify-start rounded-xl h-12">
-                      <Link href="/dashboard" onClick={() => setIsMenuOpen(false)}>
+                      <Link href={withLocalePath("/dashboard")} onClick={() => setIsMenuOpen(false)}>
                         <LayoutDashboard className="mr-3 h-5 w-5" />
                         Dashboard
                       </Link>

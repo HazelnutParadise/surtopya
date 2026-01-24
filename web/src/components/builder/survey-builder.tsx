@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Save, Eye, Palette, Layout, Split, ArrowLeft, Settings, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket, RotateCcw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { ThemeEditor } from "./theme-editor";
 import { LogicEditor } from "./logic-editor";
 import { SurveyTheme, LogicRule } from "@/types/survey";
 import { QuestionCard } from "./question-card";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import {
   Tooltip,
   TooltipContent,
@@ -48,6 +49,9 @@ const calculateEstimatedTime = (questions: Question[]) => {
 
 export function SurveyBuilder() {
   const router = useRouter();
+  const pathname = usePathname();
+  const locale = getLocaleFromPath(pathname);
+  const withLocalePath = (href: string) => withLocale(href, locale);
   const [questions, setQuestions] = useState<Question[]>([
     {
         id: 'page-1',
@@ -484,14 +488,14 @@ export function SurveyBuilder() {
     sessionStorage.setItem('preview_theme', JSON.stringify(theme));
     
     // Open preview in new tab
-    window.open('/survey/preview', '_blank');
+    window.open(withLocalePath('/survey/preview'), '_blank');
   };
 
   if (!mounted) return null;
 
   if (!consentGiven) {
     return (
-      <Dialog open={true} onOpenChange={(open) => { if (!open) router.push('/dashboard'); }}>
+      <Dialog open={true} onOpenChange={(open) => { if (!open) router.push(withLocalePath('/dashboard')); }}>
         <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
@@ -529,7 +533,7 @@ export function SurveyBuilder() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => router.push('/dashboard')}>Cancel</Button>
+            <Button variant="ghost" onClick={() => router.push(withLocalePath('/dashboard'))}>Cancel</Button>
             <Button className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => setConsentGiven(true)}>
               I Understand and Agree
             </Button>
@@ -544,7 +548,7 @@ export function SurveyBuilder() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm z-10 dark:bg-gray-900 dark:border-gray-800">
            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard')}>
+                <Button variant="ghost" size="icon" onClick={() => router.push(withLocalePath('/dashboard'))}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex flex-col">

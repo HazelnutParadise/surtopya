@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Clock, Users, Star, ChevronRight, Lock, Globe } from "lucide-react";
+import { withLocale } from "@/lib/locale";
 
 interface SurveyCardProps {
   id: string;
@@ -21,6 +22,7 @@ interface SurveyCardProps {
   variant?: 'explore' | 'dashboard'; // explore = go to intro page, dashboard = go to management page
   visibility?: 'public' | 'non-public';
   hasUnpublishedChanges?: boolean;
+  locale?: string;
 }
 
 export function SurveyCard({
@@ -37,14 +39,16 @@ export function SurveyCard({
   variant = 'explore',
   visibility = 'public',
   hasUnpublishedChanges = false,
+  locale,
 }: SurveyCardProps) {
   // Determine link based on variant
   const href = variant === 'dashboard' 
     ? `/dashboard/surveys/${id}` 
     : `/survey/${id}?title=${encodeURIComponent(title.replace(/\s+/g, '-').toLowerCase())}`;
+  const localizedHref = locale ? withLocale(href, locale) : href;
     
   return (
-    <Link href={href} className="block h-full">
+    <Link href={localizedHref} className="block h-full">
       <Card className="group relative flex h-full flex-col overflow-hidden border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-purple-500/50 hover:shadow-xl dark:border-gray-800 dark:bg-gray-950 dark:hover:border-purple-400/50">
         {isHot && (
           <div className="absolute -right-12 top-6 rotate-45 bg-gradient-to-r from-red-500 to-pink-500 py-1 pl-12 pr-12 text-xs font-bold text-white shadow-sm">

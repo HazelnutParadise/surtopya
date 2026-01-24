@@ -2,8 +2,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 import { Navbar } from "@/components/navbar";
+import { cookies } from "next/headers";
+import { withLocale } from "@/lib/locale";
 
-export default function Home() {
+export default async function Home() {
+  const localeCookieStore = await cookies();
+  const locale = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -21,10 +25,10 @@ export default function Home() {
               </div>
               <div className="space-x-4">
                 <Button asChild className="bg-white text-black hover:bg-gray-200">
-                  <Link href="/create">Get Started</Link>
+                  <Link href={withLocale("/create", locale)}>Get Started</Link>
                 </Button>
                 <Button variant="outline" asChild className="border-white bg-transparent text-white hover:bg-white hover:text-black">
-                  <Link href="/explore">Browse Surveys</Link>
+                  <Link href={withLocale("/explore", locale)}>Browse Surveys</Link>
                 </Button>
               </div>
             </div>
