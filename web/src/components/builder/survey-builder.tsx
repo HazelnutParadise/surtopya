@@ -561,17 +561,21 @@ export function SurveyBuilder() {
                 </div>
            </div>
            <div className="flex items-center gap-3">
-                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                <div className="relative flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                    <span
+                        aria-hidden
+                        className={`absolute left-1 top-1 h-7 w-20 rounded-md bg-white shadow-sm transition-transform duration-200 dark:bg-gray-900 ${viewMode === 'settings' ? 'translate-x-20' : 'translate-x-0'}`}
+                    />
                     <Button 
-                        variant={viewMode === 'builder' ? 'secondary' : 'ghost'} 
+                        variant="ghost"
                         size="sm" 
                         onClick={() => setViewMode('builder')} 
-                        className={`text-xs h-7 ${viewMode === 'builder' ? 'bg-white shadow-sm' : ''}`}
+                        className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'builder' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
                     >
                         Builder
                     </Button>
                     <Button
-                        variant={viewMode === 'settings' ? 'secondary' : 'ghost'}
+                        variant="ghost"
                         size="sm"
                         onClick={() => {
                             if (isDirty) notifyChange();
@@ -585,7 +589,7 @@ export function SurveyBuilder() {
                             });
                             setViewMode('settings');
                         }}
-                        className={`text-xs h-7 ${viewMode === 'settings' ? 'bg-white shadow-sm' : ''}`}
+                        className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'settings' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
                     >
                         Settings
                     </Button>

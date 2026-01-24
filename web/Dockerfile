@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-bookworm AS builder
+FROM oven/bun:1.3-slim AS builder
 
 WORKDIR /app
 
@@ -13,22 +13,24 @@ COPY package*.json ./
 
 # Ensure npm runs postinstall scripts with proper permissions
 ENV npm_config_unsafe_perm=true
-# Force LightningCSS to use WASM transformer fallback when available to avoid native .node binary issues
-ENV CSS_TRANSFORMER_WASM=1
+
 
 # Install dependencies (deterministic)
-# Use npm ci now that package-lock.json includes the platform package
-RUN npm ci --no-audit --prefer-offline --no-fund --legacy-peer-deps
+RUN bun install --no-audit --prefer-offline --no-fund --legacy-peer-deps
 
 # Rebuild native binaries for lightningcss if needed (prevents missing platform binary)
-RUN npm rebuild lightningcss --update-binary || true
-RUN npm rebuild @swc/core --update-binary || true
-# Diagnostic: list lightningcss and swc files so build logs show what exists
+RUN bun rebuild lightningcss --update-binary || true
+RUN bun rebuild @swc/core --update-binary || true
+# Ensure tailwind oxide binary installed for linux x64 gnu (fixes missing native binding during PostCSS)
+RUN bun rebuild @tailwindcss/oxide-linux-x64-gnu --update-binary || true
+# Diagnostic: list lightningcss, swc and tailwind oxide files so build logs show what exists
 RUN ls -la node_modules/lightningcss || true
 RUN ls -la node_modules/lightningcss/node || true
 RUN find node_modules/lightningcss -type f -name '*.node' -exec ls -la {} \; || true
 RUN sed -n '1,240p' node_modules/lightningcss/node/index.js || true
 RUN ls -la node_modules/@swc || true
+RUN ls -la node_modules/@tailwindcss || true
+RUN find node_modules\/@tailwindcss -type f -name '*oxide*' -exec ls -la {} \; || true
 # Diagnostic: print Node platform/arch/version
 RUN node -e "console.log('platform', process.platform, 'arch', process.arch, 'node', process.versions.node)" || true
 
@@ -36,10 +38,10 @@ RUN node -e "console.log('platform', process.platform, 'arch', process.arch, 'no
 COPY . .
 
 # Build the application
-RUN npm run build
+RUN bun run build
 
 # Production stage
-FROM node:20-bullseye-slim AS runner
+FROM oven/bun:1.3-slim AS runner
 
 WORKDIR /app
 
@@ -53,4 +55,4 @@ COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["bun", "run", "start"]
