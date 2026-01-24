@@ -8,27 +8,29 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Bell, Shield, Palette, Globe, Trash2, AlertTriangle } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 export default function SettingsClient() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const localeOptions = [
-    { value: "zh-TW", label: "繁體中文" },
+    { value: "zh-TW", label: "Chinese (Traditional)" },
     { value: "en", label: "English (US)" },
-    { value: "ja", label: "日本語" },
+    { value: "ja", label: "Japanese" },
   ]
   const activeLocale = (() => {
     const segment = pathname.split("/").filter(Boolean)[0]
     return localeOptions.some((option) => option.value === segment) ? segment : "zh-TW"
   })()
+  const [selectedLocale, setSelectedLocale] = useState(activeLocale)
+  const [loadingLocale, setLoadingLocale] = useState(true)
 
   const [notifications, setNotifications] = useState({
     email: true,
     push: false,
     surveys: true,
-    marketing: false
+    marketing: false,
   })
 
   const handleLocaleChange = (nextLocale: string) => {
@@ -38,6 +40,51 @@ export default function SettingsClient() {
     const nextPath = `/${nextLocale}/${rest.join("/")}`.replace(/\/$/, "")
     const query = searchParams.toString()
     router.push(query ? `${nextPath}?${query}` : nextPath)
+  }
+
+  useEffect(() => {
+    let isActive = true
+    const loadLocale = async () => {
+      try {
+        const response = await fetch("/api/user-settings", { cache: "no-store" })
+        if (!response.ok) {
+          return
+        }
+        const data = await response.json()
+        if (!isActive || !data?.locale) {
+          return
+        }
+        setSelectedLocale(data.locale)
+        if (data.locale !== activeLocale) {
+          handleLocaleChange(data.locale)
+        }
+      } catch {
+        // Ignore locale sync errors for unauthenticated users
+      } finally {
+        if (isActive) {
+          setLoadingLocale(false)
+        }
+      }
+    }
+
+    loadLocale()
+    return () => {
+      isActive = false
+    }
+  }, [])
+
+  const saveLocalePreference = async (nextLocale: string) => {
+    try {
+      await fetch("/api/user-settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ locale: nextLocale }),
+      })
+    } catch {
+      // Ignore persistence errors for unauthenticated users
+    }
   }
 
   return (
@@ -68,7 +115,7 @@ export default function SettingsClient() {
                   <Label className="text-base">Email Notifications</Label>
                   <p className="text-sm text-gray-500">Receive survey results and account alerts via email.</p>
                 </div>
-                <Switch checked={notifications.email} onCheckedChange={(val) => setNotifications({...notifications, email: val})} />
+                <Switch checked={notifications.email} onCheckedChange={(val) => setNotifications({ ...notifications, email: val })} />
               </div>
               <Separator className="dark:bg-gray-800" />
               <div className="flex items-center justify-between">
@@ -76,7 +123,7 @@ export default function SettingsClient() {
                   <Label className="text-base">Survey Invitations</Label>
                   <p className="text-sm text-gray-500">Be notified when new surveys matching your profile are available.</p>
                 </div>
-                <Switch checked={notifications.surveys} onCheckedChange={(val) => setNotifications({...notifications, surveys: val})} />
+                <Switch checked={notifications.surveys} onCheckedChange={(val) => setNotifications({ ...notifications, surveys: val })} />
               </div>
               <Separator className="dark:bg-gray-800" />
               <div className="flex items-center justify-between">
@@ -84,7 +131,7 @@ export default function SettingsClient() {
                   <Label className="text-base">Marketing Updates</Label>
                   <p className="text-sm text-gray-500">Get news about new features and promotions.</p>
                 </div>
-                <Switch checked={notifications.marketing} onCheckedChange={(val) => setNotifications({...notifications, marketing: val})} />
+                <Switch checked={notifications.marketing} onCheckedChange={(val) => setNotifications({ ...notifications, marketing: val })} />
               </div>
             </CardContent>
           </Card>
@@ -146,7 +193,15 @@ export default function SettingsClient() {
                   </Label>
                   <p className="text-sm text-gray-500">Choose your preferred language for the interface.</p>
                 </div>
-                <Select value={activeLocale} onValueChange={handleLocaleChange}>
+                <Select
+                  value={selectedLocale}
+                  onValueChange={async (nextLocale) => {
+                    setSelectedLocale(nextLocale)
+                    await saveLocalePreference(nextLocale)
+                    handleLocaleChange(nextLocale)
+                  }}
+                  disabled={loadingLocale}
+                >
                   <SelectTrigger className="h-8 w-[160px]">
                     <SelectValue />
                   </SelectTrigger>

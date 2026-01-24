@@ -21,6 +21,7 @@ WORKDIR /root/
 
 # Copy the binary from the builder
 COPY --from=builder /app/main .
+COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 8080
 

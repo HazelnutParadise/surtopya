@@ -22,6 +22,11 @@ func main() {
 		log.Println("Starting server without database connection (limited functionality)")
 	} else {
 		log.Println("Successfully connected to database")
+		if err := database.RunMigrations(); err != nil {
+			log.Printf("Warning: Failed to run migrations: %v", err)
+		} else {
+			log.Println("Database migrations are up to date")
+		}
 		defer database.Close()
 	}
 

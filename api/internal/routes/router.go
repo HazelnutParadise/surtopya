@@ -60,6 +60,14 @@ func SetupRouter() *gin.Engine {
 			datasets.GET("/:id", datasetHandler.GetDataset)
 			datasets.POST("/:id/download", datasetHandler.DownloadDataset)
 		}
+
+		// User settings routes
+		userSettingsHandler := handlers.NewUserSettingsHandler()
+		me := api.Group("/me", middleware.RequireAuth())
+		{
+			me.GET("/settings", userSettingsHandler.GetSettings)
+			me.PATCH("/settings", userSettingsHandler.UpdateSettings)
+		}
 	}
 
 	return r

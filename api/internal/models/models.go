@@ -15,6 +15,7 @@ type User struct {
 	AvatarURL     *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
 	PointsBalance int       `json:"pointsBalance" db:"points_balance"`
 	IsPro         bool      `json:"isPro" db:"is_pro"`
+	Locale        string    `json:"locale" db:"locale"`
 	CreatedAt     time.Time `json:"createdAt" db:"created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" db:"updated_at"`
 }
