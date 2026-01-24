@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LocaleSync } from "@/components/locale-sync";
+import { cookies } from "next/headers";
+import path from "path";
+import { readFile } from "fs/promises";
+import { I18nProvider } from "@/components/i18n-provider";
+import { defaultLocale, locales } from "@/lib/locale";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,18 +23,31 @@ export const metadata: Metadata = {
   description: "Create surveys and share de-identified datasets securely.",
 };
 
-export default function RootLayout({
+async function getMessages(locale: string) {
+  const messagesPath = path.join(process.cwd(), "messages", `${locale}.json`)
+  const file = await readFile(messagesPath, "utf-8")
+  return JSON.parse(file)
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
+  const locale = (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale;
+  const messages = await getMessages(locale);
+
   return (
-    <html lang="zh-TW" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LocaleSync />
-        {children}
+        <I18nProvider locale={locale} messages={messages}>
+          <LocaleSync />
+          {children}
+        </I18nProvider>
       </body>
     </html>
   );

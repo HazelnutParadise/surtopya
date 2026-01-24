@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTranslations } from "next-intl";
 
 interface QuestionCardProps {
   question: Question;
@@ -29,6 +30,8 @@ interface QuestionCardProps {
 }
 
 export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onDuplicate, onOpenLogic, isHidden, isOverlay, hasLogicWarning, logicWarningMessage }: QuestionCardProps) {
+  const tBuilder = useTranslations("SurveyBuilder");
+  const tQuestion = useTranslations("QuestionTypes");
   const {
     attributes,
     listeners,
@@ -53,7 +56,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
 
   const addOption = () => {
     if (!question.options) return;
-    onUpdate(question.id, { options: [...question.options, `Option ${question.options.length + 1}`] });
+    onUpdate(question.id, { options: [...question.options, tBuilder("optionLabel", { index: question.options.length + 1 })] });
   };
 
   const removeOption = (index: number) => {
@@ -94,11 +97,11 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                     ? 'text-xl text-white w-full text-center placeholder:text-white/50' 
                     : 'hover:border-gray-200 focus:border-purple-500'
               }`}
-              placeholder={question.type === 'section' ? "Page Title" : "Question Title"}
+              placeholder={question.type === 'section' ? tBuilder("pageTitlePlaceholder") : tBuilder("questionTitlePlaceholder")}
             />
             {question.type !== 'section' && (
                 <Badge variant="outline" className="capitalize text-xs text-gray-500">
-                {question.type}
+                {tQuestion(question.type)}
                 </Badge>
             )}
             {hasLogicWarning && (
@@ -110,7 +113,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-sm">{logicWarningMessage || 'Logic jump may be invalid'}</p>
+                    <p className="text-sm">{logicWarningMessage || tBuilder("logicWarningGeneric")}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -122,7 +125,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                 value={question.description || ''} 
                 onChange={(e) => onUpdate(question.id, { description: e.target.value })}
                 className="text-white/80 border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 text-sm w-full text-center placeholder:text-white/40"
-                placeholder="Page Description (Optional)"
+                placeholder={tBuilder("pageDescriptionPlaceholder")}
             />
           )}
 
@@ -144,13 +147,13 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                   </div>
                 ))}
                 <Button variant="ghost" size="sm" onClick={addOption} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50">
-                  <Plus className="mr-2 h-3 w-3" /> Add Option
+                  <Plus className="mr-2 h-3 w-3" /> {tBuilder("addOption")}
                 </Button>
               </div>
             )}
 
             {question.type === 'text' && (
-              <Input disabled placeholder="Long answer text..." className="bg-gray-50 border-dashed" />
+              <Input disabled placeholder={tBuilder("longAnswerPlaceholder")} className="bg-gray-50 border-dashed" />
             )}
 
             {question.type === 'date' && (
@@ -167,18 +170,18 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
 
             {question.type === 'section' && (
               <div className="flex flex-col items-center justify-center py-2 mt-2">
-                <div className="text-xs text-white/80">Questions below this line will appear on this page</div>
+                <div className="text-xs text-white/80">{tBuilder("questionsBelowLine")}</div>
               </div>
             )}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-purple-600 hover:bg-purple-50" onClick={() => onDuplicate(question.id)} title="Duplicate">
+          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-purple-600 hover:bg-purple-50" onClick={() => onDuplicate(question.id)} title={tBuilder("duplicate")}>
             <Copy className="h-5 w-5" />
           </Button>
           {(question.type === 'single' || question.type === 'select') && (
-            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => onOpenLogic(question.id)} title="Logic Jumps">
+            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => onOpenLogic(question.id)} title={tBuilder("logicJumps")}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
             </Button>
           )}
@@ -187,7 +190,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
             size="icon" 
             className={`text-gray-400 ${isFirstSection ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-500 hover:bg-red-50'}`} 
             onClick={() => !isFirstSection && onDelete(question.id)} 
-            title={isFirstSection ? "Cannot delete first page" : "Delete"}
+            title={isFirstSection ? tBuilder("cannotDeleteFirstPage") : tBuilder("delete")}
             disabled={isFirstSection}
           >
             <Trash2 className="h-5 w-5" />
@@ -199,7 +202,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
         <div className="border-t border-gray-100 bg-gray-50/50 p-2 px-4 flex justify-end gap-4 items-center text-xs text-gray-500">
             {question.type === 'rating' && (
                <div className="flex items-center gap-2">
-                <span>Max Stars</span>
+                <span>{tBuilder("maxStars")}</span>
                 <Input 
                     type="number" 
                     min={1}
@@ -216,14 +219,14 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                </div>
             )}
             <div className="flex items-center gap-2">
-            <span>Required</span>
+            <span>{tBuilder("required")}</span>
             <Switch 
                 checked={question.required} 
                 onCheckedChange={(checked) => onUpdate(question.id, { required: checked })} 
             />
             </div>
             <div className="flex items-center gap-2">
-            <span>Points</span>
+            <span>{tBuilder("points")}</span>
             <Input 
                 type="number" 
                 value={question.points} 

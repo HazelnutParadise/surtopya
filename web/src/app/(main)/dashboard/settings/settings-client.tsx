@@ -9,15 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bell, Shield, Palette, Globe, Trash2, AlertTriangle } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 
 export default function SettingsClient() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const t = useTranslations("Settings")
   const localeOptions = [
-    { value: "zh-TW", label: "Chinese (Traditional)" },
-    { value: "en", label: "English (US)" },
-    { value: "ja", label: "Japanese" },
+    { value: "zh-TW", label: t("languageZhTw") },
+    { value: "en", label: t("languageEn") },
+    { value: "ja", label: t("languageJa") },
   ]
   const activeLocale = (() => {
     const segment = pathname.split("/").filter(Boolean)[0]
@@ -91,9 +93,9 @@ export default function SettingsClient() {
     <div className="container mx-auto py-10 px-4 md:px-6 max-w-4xl animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{t("title")}</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Manage your account preferences and application settings.
+            {t("description")}
           </p>
         </div>
 
@@ -105,31 +107,31 @@ export default function SettingsClient() {
                 <Bell className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>Control how you receive updates and survey invitations.</CardDescription>
+                <CardTitle>{t("notificationsTitle")}</CardTitle>
+                <CardDescription>{t("notificationsDescription")}</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Email Notifications</Label>
-                  <p className="text-sm text-gray-500">Receive survey results and account alerts via email.</p>
+                  <Label className="text-base">{t("emailNotifications")}</Label>
+                  <p className="text-sm text-gray-500">{t("emailNotificationsDescription")}</p>
                 </div>
                 <Switch checked={notifications.email} onCheckedChange={(val) => setNotifications({ ...notifications, email: val })} />
               </div>
               <Separator className="dark:bg-gray-800" />
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Survey Invitations</Label>
-                  <p className="text-sm text-gray-500">Be notified when new surveys matching your profile are available.</p>
+                  <Label className="text-base">{t("surveyInvitations")}</Label>
+                  <p className="text-sm text-gray-500">{t("surveyInvitationsDescription")}</p>
                 </div>
                 <Switch checked={notifications.surveys} onCheckedChange={(val) => setNotifications({ ...notifications, surveys: val })} />
               </div>
               <Separator className="dark:bg-gray-800" />
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Marketing Updates</Label>
-                  <p className="text-sm text-gray-500">Get news about new features and promotions.</p>
+                  <Label className="text-base">{t("marketingUpdates")}</Label>
+                  <p className="text-sm text-gray-500">{t("marketingUpdatesDescription")}</p>
                 </div>
                 <Switch checked={notifications.marketing} onCheckedChange={(val) => setNotifications({ ...notifications, marketing: val })} />
               </div>
@@ -143,23 +145,23 @@ export default function SettingsClient() {
                 <Shield className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Privacy</CardTitle>
-                <CardDescription>Manage your data visibility and privacy settings.</CardDescription>
+                <CardTitle>{t("privacyTitle")}</CardTitle>
+                <CardDescription>{t("privacyDescription")}</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Public Profile</Label>
-                  <p className="text-sm text-gray-500">Show your profile to other researchers and survey creators.</p>
+                  <Label className="text-base">{t("publicProfile")}</Label>
+                  <p className="text-sm text-gray-500">{t("publicProfileDescription")}</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <Separator className="dark:bg-gray-800" />
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Data Sharing</Label>
-                  <p className="text-sm text-gray-500">Anonymously share your responses for larger market studies.</p>
+                  <Label className="text-base">{t("dataSharing")}</Label>
+                  <p className="text-sm text-gray-500">{t("dataSharingDescription")}</p>
                 </div>
                 <Switch defaultChecked />
               </div>
@@ -173,15 +175,15 @@ export default function SettingsClient() {
                 <Palette className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle>Appearance & Locale</CardTitle>
-                <CardDescription>Personalize the visual language of Surtopya.</CardDescription>
+                <CardTitle>{t("appearanceTitle")}</CardTitle>
+                <CardDescription>{t("appearanceDescription")}</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label className="text-base">Dark Mode</Label>
-                  <p className="text-sm text-gray-500">Toggle between light and dark themes.</p>
+                  <Label className="text-base">{t("darkMode")}</Label>
+                  <p className="text-sm text-gray-500">{t("darkModeDescription")}</p>
                 </div>
                 <Switch />
               </div>
@@ -189,9 +191,9 @@ export default function SettingsClient() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="text-base flex items-center gap-2">
-                    <Globe className="h-4 w-4" /> Language
+                    <Globe className="h-4 w-4" /> {t("language")}
                   </Label>
-                  <p className="text-sm text-gray-500">Choose your preferred language for the interface.</p>
+                  <p className="text-sm text-gray-500">{t("languageDescription")}</p>
                 </div>
                 <Select
                   value={selectedLocale}
@@ -222,17 +224,17 @@ export default function SettingsClient() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2 text-red-600">
                 <AlertTriangle className="h-5 w-5" />
-                <CardTitle className="text-lg">Danger Zone</CardTitle>
+            <CardTitle className="text-lg">{t("dangerZone")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-0.5">
-                  <p className="font-semibold text-gray-900 dark:text-white">Delete Account</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Permanently delete your account and all associated data. This action is irreversible.</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{t("deleteAccount")}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t("deleteAccountDescription")}</p>
                 </div>
                 <Button variant="destructive" className="flex items-center gap-2">
-                  <Trash2 className="h-4 w-4" /> Delete Account
+                  <Trash2 className="h-4 w-4" /> {t("deleteAccount")}
                 </Button>
               </div>
             </CardContent>

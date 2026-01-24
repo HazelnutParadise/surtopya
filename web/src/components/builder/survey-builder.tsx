@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 
 // Simple ID generator if nanoid causes issues or for simplicity
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -52,18 +53,23 @@ export function SurveyBuilder() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const tBuilder = useTranslations("SurveyBuilder");
+  const tCommon = useTranslations("Common");
+  const tConsent = useTranslations("ConsentModal");
+  const tDashboard = useTranslations("Dashboard");
+  const defaultPageTitle = tBuilder("defaultPageTitle");
   const [questions, setQuestions] = useState<Question[]>([
     {
         id: 'page-1',
         type: 'section',
-        title: 'Page 1',
+        title: defaultPageTitle,
         required: false,
         points: 0,
     }
   ]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<any>(null); // Track active item data
-  const [title, setTitle] = useState("Untitled Survey");
+  const [title, setTitle] = useState(tBuilder("untitledSurvey"));
   const [isDirty, setIsDirty] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'toolbox' | 'theme'>('toolbox');
   const [theme, setTheme] = useState<SurveyTheme>({
@@ -159,10 +165,13 @@ export function SurveyBuilder() {
           const placeholder: Question = {
             id: 'placeholder',
             type,
-            title: "New Question",
+            title: tBuilder("newQuestion"),
             required: false,
             points: 10,
-            options: type === 'single' || type === 'multi' || type === 'select' ? ['Option 1', 'Option 2'] : undefined,
+            options: type === 'single' || type === 'multi' || type === 'select' ? [
+              tBuilder("optionLabel", { index: 1 }),
+              tBuilder("optionLabel", { index: 2 }),
+            ] : undefined,
           };
 
           setQuestions(items => {
@@ -227,10 +236,13 @@ export function SurveyBuilder() {
       const newQuestion: Question = {
         id: generateId(),
         type,
-        title: "New Question",
+        title: tBuilder("newQuestion"),
         required: false,
         points: 10,
-        options: type === 'single' || type === 'multi' || type === 'select' ? ['Option 1', 'Option 2'] : undefined,
+        options: type === 'single' || type === 'multi' || type === 'select' ? [
+          tBuilder("optionLabel", { index: 1 }),
+          tBuilder("optionLabel", { index: 2 }),
+        ] : undefined,
       };
 
       // Replace placeholder with real question
@@ -397,7 +409,7 @@ export function SurveyBuilder() {
     itemsToDuplicate.push({
         ...item,
         id: generateId(),
-        title: `${item.title} (Copy)`,
+        title: `${item.title} (${tBuilder("copySuffix")})`,
         logic: [],
     });
 
@@ -437,7 +449,7 @@ export function SurveyBuilder() {
     const newSection: Question = {
         id: generateId(),
         type: 'section',
-        title: "New Page",
+        title: tBuilder("newPage"),
         required: false,
         points: 0,
     };
@@ -460,12 +472,12 @@ export function SurveyBuilder() {
       // Check if destination exists
       const destIndex = questions.findIndex(q => q.id === rule.destinationQuestionId);
       if (destIndex === -1) {
-        return 'Logic jump points to a deleted question';
+        return tBuilder("logicWarningDeleted");
       }
       
       // Check if destination is AFTER current question (forward jump only)
       if (destIndex <= questionIndex) {
-        return 'Logic jump points to a question before or at current position';
+        return tBuilder("logicWarningBackwards");
       }
     }
     
@@ -500,10 +512,10 @@ export function SurveyBuilder() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Database className="h-5 w-5 text-purple-600" />
-              Data Usage Consent
+              {tConsent("title")}
             </DialogTitle>
             <DialogDescription className="text-base pt-2">
-              Before you start building, please note how your survey data will be used:
+              {tConsent("description")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -512,7 +524,7 @@ export function SurveyBuilder() {
                 <Layout className="h-4 w-4 text-purple-600" />
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>De-identification:</strong> All survey responses are automatically de-identified to protect participant privacy.
+                <strong>{tConsent("deidentification")}:</strong> {tConsent("deidentificationText")}
               </p>
             </div>
             <div className="flex gap-3">
@@ -520,7 +532,7 @@ export function SurveyBuilder() {
                 <Globe className="h-4 w-4 text-blue-600" />
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Marketplace:</strong> By default, de-identified datasets are contributed to our Open Marketplace to keep Surtopya free.
+                <strong>{tConsent("marketplace")}:</strong> {tConsent("marketplaceText")}
               </p>
             </div>
             <div className="flex gap-3">
@@ -528,20 +540,24 @@ export function SurveyBuilder() {
                 <Lock className="h-4 w-4 text-amber-600" />
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                <strong>Paid Opt-out:</strong> Pro users can opt-out of data sharing for non-public surveys.
+                <strong>{tConsent("paidOptout")}:</strong> {tConsent("paidOptoutText")}
               </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => router.push(withLocalePath('/dashboard'))}>Cancel</Button>
+            <Button variant="ghost" onClick={() => router.push(withLocalePath('/dashboard'))}>{tCommon("cancel")}</Button>
             <Button className="bg-purple-600 hover:bg-purple-700 text-white" onClick={() => setConsentGiven(true)}>
-              I Understand and Agree
+              {tConsent("agree")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     );
   }
+
+  const questionCount = questions.filter(q => q.type !== 'section').length;
+  const deletingQuestion = deletingQuestionId ? questions.find(q => q.id === deletingQuestionId) : null;
+  const deletingIsSection = deletingQuestion?.type === 'section';
 
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
@@ -559,9 +575,11 @@ export function SurveyBuilder() {
                             notifyChange();
                         }}
                         className="h-7 text-sm font-bold border-transparent hover:border-gray-200 focus:border-purple-500 bg-transparent px-1 w-auto min-w-[150px]"
-                        placeholder="Untitled Survey"
+                        placeholder={tBuilder("untitledSurvey")}
                     />
-                    <span className="text-[10px] text-gray-400 capitalize px-1">{isPublished ? 'Published' : 'Draft'} • {questions.filter(q => q.type !== 'section').length} Questions</span>
+                    <span className="text-[10px] text-gray-400 capitalize px-1">
+                      {isPublished ? tDashboard("published") : tDashboard("draft")} • {tBuilder("questionCount", { count: questionCount })}
+                    </span>
                 </div>
            </div>
            <div className="flex items-center gap-3">
@@ -576,7 +594,7 @@ export function SurveyBuilder() {
                         onClick={() => setViewMode('builder')} 
                         className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'builder' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
                     >
-                        Builder
+                        {tBuilder("builder")}
                     </Button>
                     <Button
                         variant="ghost"
@@ -595,7 +613,7 @@ export function SurveyBuilder() {
                         }}
                         className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'settings' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
                     >
-                        Settings
+                        {tBuilder("settings")}
                     </Button>
                 </div>
                <Separator orientation="vertical" className="h-6" />
@@ -604,16 +622,16 @@ export function SurveyBuilder() {
                       <TooltipProvider>
                           <Tooltip>
                               <TooltipTrigger asChild>
-                                  <span className="cursor-help">{calculateEstimatedTime(questions)}m</span>
+                                  <span className="cursor-help">{tBuilder("minutesShort", { minutes: calculateEstimatedTime(questions) })}</span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                  <p>Estimated time to complete the survey</p>
+                                  <p>{tBuilder("estimatedTime")}</p>
                               </TooltipContent>
                           </Tooltip>
                       </TooltipProvider>
                </span>
                <Button size="sm" variant="outline" onClick={() => setActiveSidebar('theme')} className="h-8">
-                      <Palette className="mr-2 h-3 w-3" /> Theme
+                      <Palette className="mr-2 h-3 w-3" /> {tBuilder("theme")}
                </Button>
                <Button 
                       size="sm" 
@@ -621,16 +639,16 @@ export function SurveyBuilder() {
                       onClick={() => {
                           setIsDirty(false);
                           // Mock save logic
-                          alert("Survey saved successfully!");
+                          alert(tBuilder("saveSuccess"));
                       }} 
                       className="h-8"
                       disabled={!isDirty}
                  >
-                      <Save className="mr-2 h-3 w-3" /> Save
+                      <Save className="mr-2 h-3 w-3" /> {tCommon("save")}
                </Button>
-               <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-8">
-                      <Eye className="mr-2 h-3 w-3" /> Preview
-               </Button>
+                <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-8">
+                       <Eye className="mr-2 h-3 w-3" /> {tCommon("preview")}
+                </Button>
                <Button 
                       size="sm" 
                       onClick={() => setPublishSettingsOpen(true)} 
@@ -638,7 +656,7 @@ export function SurveyBuilder() {
                       disabled={!hasUnpublishedChanges}
                   >
                       <Send className="mr-2 h-3 w-3" />
-                      {isPublished ? "Republish" : "Publish"}
+                      {isPublished ? tBuilder("republish") : tCommon("publish")}
                </Button>
            </div>
       </div>
@@ -649,17 +667,17 @@ export function SurveyBuilder() {
         {viewMode === 'settings' ? (
             <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 p-8">
                 <div className="mx-auto max-w-2xl bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 p-8">
-                    <h2 className="text-2xl font-bold mb-6">Survey Settings</h2>
+                    <h2 className="text-2xl font-bold mb-6">{tBuilder("surveySettingsTitle")}</h2>
                     <div className="space-y-6">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Survey Title</label>
+                            <label className="text-sm font-medium">{tBuilder("surveyTitle")}</label>
                             <Input 
                             value={settingsDraft?.title || ''} 
                             onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, title: e.target.value }) : null)}
-                            placeholder="Enter survey title"
+                            placeholder={tBuilder("surveyTitlePlaceholder")}
                         />    </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Description</label>
+                            <label className="text-sm font-medium">{tBuilder("description")}</label>
                             <div className="border border-gray-200 dark:border-gray-800 rounded-md overflow-hidden">
                                 {/* Formatting Toolbar */}
                                 <div className="flex items-center gap-1 p-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
@@ -675,7 +693,7 @@ export function SurveyBuilder() {
                                         setSettingsDraft(prev => prev ? ({ ...prev, description: newText }) : null);
                                     }}    
                                         className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                                        title="Bold"
+                                        title={tBuilder("formatBold")}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
                                     </button>
@@ -691,7 +709,7 @@ export function SurveyBuilder() {
                                         setSettingsDraft(prev => prev ? ({ ...prev, description: newText }) : null);
                                     }}    
                                         className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                                        title="Italic"
+                                        title={tBuilder("formatItalic")}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg>
                                     </button>
@@ -703,14 +721,15 @@ export function SurveyBuilder() {
                                             const end = textarea.selectionEnd;
                                             const text = textarea.value;
                                             const selected = text.substring(start, end);
-                                            const url = prompt('Enter URL:', 'https://');
+                                            const url = prompt(tBuilder("linkPrompt"), 'https://');
                                             if (url) {
-                                            const newText = text.substring(0, start) + '[' + (selected || 'link text') + '](' + url + ')' + text.substring(end);
+                                            const linkText = selected || tBuilder("linkText");
+                                            const newText = text.substring(0, start) + '[' + linkText + '](' + url + ')' + text.substring(end);
                                             setSettingsDraft(prev => prev ? ({ ...prev, description: newText }) : null);
                                         }
                                     }}    
                                         className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                                        title="Add Link"
+                                        title={tBuilder("formatLink")}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                     </button>
@@ -725,7 +744,7 @@ export function SurveyBuilder() {
                                         setSettingsDraft(prev => prev ? ({ ...prev, description: newText }) : null);
                                     }}    
                                         className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-                                        title="Bullet List"
+                                        title={tBuilder("formatBulletList")}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
                                     </button>
@@ -735,55 +754,55 @@ export function SurveyBuilder() {
                                     id="description-textarea"
                                 value={settingsDraft?.description || ''} 
                                 onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, description: e.target.value }) : null)}
-                                placeholder="Describe what this survey is about..."
+                                placeholder={tBuilder("descriptionPlaceholder")}
                                     className="w-full min-h-[100px] bg-transparent px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none resize-none"
                                 />
                             </div>
-                            <p className="text-xs text-gray-500">Supports Markdown formatting</p>
+                            <p className="text-xs text-gray-500">{tBuilder("supportsMarkdown")}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Points Reward</label>
+                                <label className="text-sm font-medium">{tBuilder("pointsReward")}</label>
                                 <Input 
                                     type="number" 
                                 value={settingsDraft?.pointsReward || 0} 
                                 onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, pointsReward: Number(e.target.value) }) : null)}
                                 min={0}
                                 />
-                                <p className="text-xs text-gray-500">Points awarded to respondents</p>
+                                <p className="text-xs text-gray-500">{tBuilder("pointsRewardDescription")}</p>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Expiration Date</label>
+                                <label className="text-sm font-medium">{tBuilder("expirationDate")}</label>
                                 <Input 
                                     type="date" 
                                     defaultValue=""
                                     className="dark:bg-gray-800"
                                 />
-                                <p className="text-xs text-gray-500 italic">Optional</p>
+                                <p className="text-xs text-gray-500 italic">{tBuilder("optional")}</p>
                             </div>
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Visibility</label>
+                            <label className="text-sm font-medium">{tBuilder("visibility")}</label>
                             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
                                 <button
                                     onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: true, includeInDatasets: true }) : null)}
                                     className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
-                                    Public
+                                    {tBuilder("visibilityPublic")}
                                 </button>
                                 <button
                                     onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: false, includeInDatasets: false }) : null)}
                                     className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${!settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
-                                    Non-public
+                                    {tBuilder("visibilityNonPublic")}
                                 </button>
                             </div>
                             <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                                 {settingsDraft?.isPublic 
-                                    ? 'Visible in marketplace and searchable by search engines.' 
-                                    : 'Hidden from marketplace. Link only. (Manual Opt-in still available for marketplace sharing)'}
+                                    ? tBuilder("visibilityPublicDescription")
+                                    : tBuilder("visibilityNonPublicDescription")}
                             </p>
                         </div>
 
@@ -794,18 +813,18 @@ export function SurveyBuilder() {
                                 <div className="space-y-0.5">
                                     <label className="text-sm font-bold flex items-center gap-2">
                                         <Database className="h-4 w-4 text-purple-600" />
-                                        Include de-identified data in Marketplace
+                                        {tBuilder("includeDatasetLabel")}
                                     </label>
                                     <p className="text-xs text-gray-500 max-w-[400px]">
                                         {settingsDraft?.isPublic 
-                                            ? 'Public surveys are automatically enrolled. Opt-out requires Paid Membership.' 
-                                            : 'Contribute de-identified results to our marketplace. (Manual Opt-in required for non-public surveys).'}
+                                            ? tBuilder("publicDatasetNote")
+                                            : tBuilder("nonPublicDatasetNote")}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Switch 
                                         checked={settingsDraft?.includeInDatasets}
-                                        disabled={settingsDraft?.isPublic} // Simplified: Public must opt-in unless paid (mock-disabled)
+                                        disabled={settingsDraft?.isPublic} // Simplified: {tBuilder("visibilityPublic")} must opt-in unless paid (mock-disabled)
                                         onCheckedChange={(checked: boolean) => setSettingsDraft(prev => prev ? ({ ...prev, includeInDatasets: checked }) : null)}
                                     />
                                 </div>
@@ -814,8 +833,7 @@ export function SurveyBuilder() {
                                 <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 flex items-start gap-3">
                                     <AlertTriangle className="h-4 w-4 text-purple-600 mt-0.5" />
                                     <p className="text-xs text-purple-700 dark:text-purple-400">
-                                        <strong>Dataset Enrollment</strong> is mandatory for free users publishing <strong>Public</strong> surveys. 
-                                        Upgrade to Pro to publish public surveys without contributing data.
+                                        <strong>{tBuilder("datasetEnrollmentTitle")}</strong> {tBuilder("datasetEnrollmentNotice", { visibility: tBuilder("visibilityPublic") })}
                                     </p>
                                 </div>
                             )}
@@ -823,7 +841,7 @@ export function SurveyBuilder() {
                         
                         <div className="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
                              <Button variant="ghost" onClick={() => setViewMode('builder')} className="text-gray-500 hover:text-gray-700">
-                                Cancel
+                                {tCommon("cancel")}
                              </Button>
                              <Button 
                                 disabled={!hasUnsavedSettings}
@@ -838,7 +856,7 @@ export function SurveyBuilder() {
                                      setViewMode('builder');
                                  }
                              }} className={hasUnsavedSettings ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 text-gray-500 hover:bg-gray-200"}>
-                                Save Changes
+                                {tCommon("save")}
                              </Button>
                         </div>
                     </div>
@@ -858,7 +876,7 @@ export function SurveyBuilder() {
                   <aside className="w-64 border-r border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 overflow-y-auto">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
-                            {activeSidebar === 'toolbox' ? 'Toolbox' : 'Theme'}
+                            {activeSidebar === 'toolbox' ? tBuilder("toolbox") : tBuilder("theme")}
                         </h2>
                         {activeSidebar === 'theme' && (
                             <Button variant="ghost" size="icon" onClick={() => setActiveSidebar('toolbox')} className="h-6 w-6">
@@ -880,11 +898,10 @@ export function SurveyBuilder() {
                         <div className="mt-8 p-4 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/50">
                             <div className="flex items-center gap-2 text-purple-600 font-bold text-xs uppercase tracking-widest mb-2">
                                 <Database className="h-3.5 w-3.5" />
-                                Dataset Notice
+                                {tBuilder("datasetNotice")}
                             </div>
                             <p className="text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed">
-                                Responses to this survey will be de-identified and added to our <strong>Open Dataset Marketplace</strong>. 
-                                This helps us keep the platform free for everyone.
+                                {tBuilder("datasetNoticeText")}
                             </p>
                         </div>
                     )}
@@ -932,9 +949,9 @@ export function SurveyBuilder() {
                          >
                             <div className="flex items-center gap-2 font-bold">
                                <Layout className="h-4 w-4" />
-                               Add New Page
+                               {tBuilder("addPage")}
                             </div>
-                            <span className="text-[10px] font-normal opacity-60">Pages help organize long surveys into sections</span>
+                            <span className="text-[10px] font-normal opacity-60">{tBuilder("addPageDescription")}</span>
                          </Button>
                        </div>
                     </div>
@@ -959,14 +976,16 @@ export function SurveyBuilder() {
                 <Dialog open={!!deletingQuestionId} onOpenChange={(open) => !open && setDeletingQuestionId(null)}>
                     <DialogContent onInteractOutside={(e) => e.preventDefault()}>
                         <DialogHeader>
-                            <DialogTitle>Delete {questions.find(q => q.id === deletingQuestionId)?.type === 'section' ? 'Page' : 'Question'}?</DialogTitle>
+                            <DialogTitle>
+                              {deletingIsSection ? tBuilder("deletePageTitle") : tBuilder("deleteQuestionTitle")}
+                            </DialogTitle>
                             <DialogDescription>
-                                Are you sure you want to delete this {questions.find(q => q.id === deletingQuestionId)?.type === 'section' ? 'page and all questions inside it' : 'question'}? This action cannot be undone.
+                                {deletingIsSection ? tBuilder("deletePageDescription") : tBuilder("deleteQuestionDescription")}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setDeletingQuestionId(null)}>Cancel</Button>
-                            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+                            <Button variant="outline" onClick={() => setDeletingQuestionId(null)}>{tCommon("cancel")}</Button>
+                            <Button variant="destructive" onClick={confirmDelete}>{tCommon("delete")}</Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -1039,8 +1058,10 @@ export function SurveyBuilder() {
             <Dialog open={publishSettingsOpen} onOpenChange={setPublishSettingsOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Publish Settings</DialogTitle>
-                        <DialogDescription>Configured visibility and dataset options before {isPublished ? 'republishing' : 'publishing'}.</DialogDescription>
+                        <DialogTitle>{tBuilder("publishSettings")}</DialogTitle>
+                        <DialogDescription>
+                          {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}
+                        </DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-6 py-4">
@@ -1048,7 +1069,7 @@ export function SurveyBuilder() {
                             <div className="p-3 bg-blue-50 text-blue-700 text-sm rounded-lg flex gap-2">
                                 <AlertTriangle className="h-5 w-5 shrink-0" />
                                 <div>
-                                    <strong>First Publish Notice:</strong> Once published, dataset sharing settings will be locked. Non-public surveys cannot be switched to public later.
+                                    <strong>{tBuilder("firstPublishNotice")}:</strong> {tBuilder("firstPublishWarning")}
                                 </div>
                             </div>
                         )}
@@ -1057,17 +1078,17 @@ export function SurveyBuilder() {
                             <div className="space-y-0.5">
                                 <label className="text-sm font-medium flex items-center gap-2">
                                     {isPublic ? <Globe className="h-4 w-4 text-emerald-500" /> : <Lock className="h-4 w-4 text-amber-500" />}
-                                    Visibility
+                                    {tBuilder("visibility")}
                                 </label>
                                 <p className="text-xs text-gray-500">
-                                    {isPublic ? "Visible to everyone in the marketplace" : "Only accessible via direct link"}
+                                    {isPublic ? tBuilder("visibilityPublic") : tBuilder("visibilityNonPublic")}
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-xs font-medium">{isPublic ? "Public" : "Non-public"}</span>
+                                <span className="text-xs font-medium">{isPublic ? tBuilder("visibilityPublic") : tBuilder("visibilityNonPublic")}</span>
                                 <Switch 
                                     checked={isPublic}
-                                    disabled={publishedCount > 0 && !isPublic} // Cannot switch to Public if already published as Non-public
+                                    disabled={publishedCount > 0 && !isPublic} // Cannot switch to {tBuilder("visibilityPublic")} if already published as {tBuilder("visibilityNonPublic")}
                                     onCheckedChange={(checked) => {
                                         setIsPublic(checked);
                                         // Auto-force dataset logic
@@ -1085,25 +1106,25 @@ export function SurveyBuilder() {
                              <div className="space-y-0.5">
                                 <label className="text-sm font-medium flex items-center gap-2">
                                     <Database className="h-4 w-4 text-purple-500" />
-                                    Dataset Contributions
+                                    {tBuilder("datasetContributions")}
                                 </label>
                                 <p className="text-xs text-gray-500">
                                     {isPublic 
-                                        ? "Public surveys must contribute to the dataset marketplace." 
-                                        : "Non-public surveys can opt-in to contribute to the dataset marketplace."}
+                                        ? tBuilder("publicDatasetNote")
+                                        : tBuilder("nonPublicDatasetNote")}
                                 </p>
                             </div>
                             <Switch 
                                 checked={includeInDatasets}
-                                disabled={isPublic} // Only disabled (forced true) if Public
+                                disabled={isPublic} // Only disabled (forced true) if {tBuilder("visibilityPublic")}
                                 onCheckedChange={setIncludeInDatasets}
                             />
                         </div>
 
                         <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <label className="text-sm font-medium">Points Reward</label>
-                                <p className="text-xs text-gray-500">Points awarded to respondents</p>
+                                <label className="text-sm font-medium">{tBuilder("pointsReward")}</label>
+                                <p className="text-xs text-gray-500">{tBuilder("pointsRewardDescription")}</p>
                             </div>
                             <Input 
                                 type="number" 
@@ -1115,7 +1136,7 @@ export function SurveyBuilder() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setPublishSettingsOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setPublishSettingsOpen(false)}>{tCommon("cancel")}</Button>
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
                             onClick={() => {
@@ -1129,7 +1150,7 @@ export function SurveyBuilder() {
                             }}
                         >
                             <Rocket className="mr-2 h-4 w-4" />
-                            Confirm & {isPublished ? 'Republish' : 'Publish'}
+                            {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SurveyTheme } from "@/types/survey";
+import { useTranslations } from "next-intl";
 
 interface ThemeEditorProps {
   theme: SurveyTheme;
@@ -10,10 +11,12 @@ interface ThemeEditorProps {
 }
 
 export function ThemeEditor({ theme, onUpdate }: ThemeEditorProps) {
+  const t = useTranslations("ThemeEditor");
+
   return (
     <div className="space-y-6 p-4">
       <div className="space-y-2">
-        <Label>Primary Color</Label>
+        <Label>{t("primaryColor")}</Label>
         <div className="flex items-center gap-3">
           <Input 
             type="color" 
@@ -26,7 +29,7 @@ export function ThemeEditor({ theme, onUpdate }: ThemeEditorProps) {
       </div>
 
       <div className="space-y-2">
-        <Label>Background Color</Label>
+        <Label>{t("backgroundColor")}</Label>
         <div className="flex items-center gap-3">
           <Input 
             type="color" 
@@ -39,19 +42,19 @@ export function ThemeEditor({ theme, onUpdate }: ThemeEditorProps) {
       </div>
 
       <div className="space-y-2">
-        <Label>Font Family</Label>
+        <Label>{t("fontFamily")}</Label>
         <Select 
           value={theme.fontFamily} 
           onValueChange={(value) => onUpdate({ fontFamily: value })}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select Font" />
+            <SelectValue placeholder={t("selectFont")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="inter">Inter (Default)</SelectItem>
-            <SelectItem value="serif">Serif</SelectItem>
-            <SelectItem value="mono">Monospace</SelectItem>
-            <SelectItem value="comic">Comic Sans</SelectItem>
+            <SelectItem value="inter">{t("fontInter")}</SelectItem>
+            <SelectItem value="serif">{t("fontSerif")}</SelectItem>
+            <SelectItem value="mono">{t("fontMono")}</SelectItem>
+            <SelectItem value="comic">{t("fontComic")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

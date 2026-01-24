@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Clock, Users, Star, ChevronRight, Lock, Globe } from "lucide-react";
 import { withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 interface SurveyCardProps {
   id: string;
@@ -41,6 +44,7 @@ export function SurveyCard({
   hasUnpublishedChanges = false,
   locale,
 }: SurveyCardProps) {
+  const t = useTranslations("SurveyCard");
   // Determine link based on variant
   const href = variant === 'dashboard' 
     ? `/dashboard/surveys/${id}` 
@@ -52,7 +56,7 @@ export function SurveyCard({
       <Card className="group relative flex h-full flex-col overflow-hidden border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-purple-500/50 hover:shadow-xl dark:border-gray-800 dark:bg-gray-950 dark:hover:border-purple-400/50">
         {isHot && (
           <div className="absolute -right-12 top-6 rotate-45 bg-gradient-to-r from-red-500 to-pink-500 py-1 pl-12 pr-12 text-xs font-bold text-white shadow-sm">
-            HOT
+            {t("hot")}
           </div>
         )}
         
@@ -71,7 +75,7 @@ export function SurveyCard({
                 ))}
                 {hasUnpublishedChanges && (
                   <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] h-5 px-1.5 font-bold">
-                    NEW CHANGES
+                    {t("newChanges")}
                   </Badge>
                 )}
               </div>
@@ -90,11 +94,11 @@ export function SurveyCard({
           <div className="mt-4 flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
               <Clock className="h-3.5 w-3.5" />
-              {duration} min
+              {t("minutes", { count: duration })}
             </div>
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
               <Users className="h-3.5 w-3.5" />
-              {responses}
+              {t("responses", { count: responses })}
             </div>
             <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
               <Star className="h-3.5 w-3.5 fill-current" />
@@ -111,12 +115,12 @@ export function SurveyCard({
                       {visibility === 'public' ? (
                           <>
                               <Globe className="h-3.5 w-3.5 text-emerald-500" />
-                              <span className="text-emerald-600 dark:text-emerald-400">Public</span>
+                              <span className="text-emerald-600 dark:text-emerald-400">{t("public")}</span>
                           </>
                       ) : (
                           <>
                               <Lock className="h-3.5 w-3.5 text-amber-500" />
-                              <span className="text-amber-600 dark:text-amber-400">Non-public</span>
+                              <span className="text-amber-600 dark:text-amber-400">{t("nonPublic")}</span>
                           </>
                       )}
                   </div>
@@ -135,7 +139,7 @@ export function SurveyCard({
             
             <div className="flex items-center gap-3">
               <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm border-0">
-                {points} PTS
+                {t("points", { count: points })}
               </Badge>
             </div>
           </div>

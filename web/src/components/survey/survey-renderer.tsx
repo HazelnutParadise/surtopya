@@ -21,6 +21,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Survey, Question, SurveyTheme } from "@/types/survey";
 import { getContrastColor } from "@/lib/utils";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 interface SurveyRendererProps {
   survey: Survey;
@@ -34,6 +35,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const t = useTranslations("SurveyRenderer");
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
 
@@ -77,7 +79,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
     if (!isPreview) {
       const missingRequired = renderableQuestions.filter(q => q.required && !answers[q.id]);
       if (missingRequired.length > 0) {
-        alert("Please answer all required questions.");
+        alert(t("requiredAlert"));
         return;
       }
     }
@@ -149,7 +151,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
             style={{ backgroundColor: activeTheme.primaryColor }}
           >
             <Eye className="h-4 w-4" />
-            Preview Mode - Responses are not saved
+            {t("previewBanner")}
           </div>
         )}
 
@@ -164,8 +166,8 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
         {/* Progress Header */}
         <div className="space-y-2">
           <div className={`flex justify-between text-sm font-medium ${mutedTextColorClass}`}>
-            <span>Page {currentStep + 1} of {totalSteps}</span>
-            <span>{Math.round(progress)}% completed</span>
+            <span>{t("pageProgress", { current: currentStep + 1, total: totalSteps })}</span>
+            <span>{t("percentComplete", { percent: Math.round(progress) })}</span>
           </div>
           <Progress 
             value={progress} 
@@ -191,7 +193,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
                 <p className="text-sm text-gray-500">{question.description}</p>
               )}
               {question.required && (
-                <span className="text-xs font-medium text-red-500 uppercase tracking-wider">Required</span>
+                <span className="text-xs font-medium text-red-500 uppercase tracking-wider">{t("requiredLabel")}</span>
               )}
             </CardHeader>
             
@@ -241,7 +243,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
 
               {(question.type === "text" || question.type === "long") && (
                 <Textarea 
-                  placeholder="Type your answer here..." 
+                  placeholder={t("textPlaceholder")}
                   className="min-h-[150px] text-base resize-none bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
                   value={answers[question.id] || ""}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
@@ -250,7 +252,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
 
               {question.type === "short" && (
                 <Input 
-                  placeholder="Type your answer here..." 
+                  placeholder={t("textPlaceholder")}
                   className="h-12 text-base bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
                   value={answers[question.id] || ""}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
@@ -284,7 +286,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
                   onValueChange={(value) => handleAnswer(question.id, value)}
                 >
                   <SelectTrigger className="w-full h-12 text-base">
-                    <SelectValue placeholder="Select an option" />
+                    <SelectValue placeholder={t("selectPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {question.options?.map((option) => (
@@ -315,14 +317,14 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
             disabled={currentStep === 0}
             className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            <ArrowLeft className="mr-2 h-4 w-4" /> {t("back")}
           </Button>
           <Button 
             onClick={handleNext}
             style={{ backgroundColor: activeTheme.primaryColor }}
             className="text-white min-w-[120px] hover:opacity-90"
           >
-            {currentStep === totalSteps - 1 ? "Submit" : "Next"} <ArrowRight className="ml-2 h-4 w-4" />
+            {currentStep === totalSteps - 1 ? t("submit") : t("next")} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>

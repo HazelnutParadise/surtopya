@@ -16,6 +16,7 @@ import {
   LogOut
 } from "lucide-react";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import {
@@ -34,6 +35,7 @@ export function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const t = useTranslations("Navigation");
   
   // Mock Auth State
   const isAuthenticated = true; 
@@ -44,14 +46,14 @@ export function Navbar() {
   };
 
   const navItems = [
-    { name: "Explore", href: "/explore", icon: Compass },
-    { name: "Datasets", href: "/datasets", icon: Info },
-    { name: "Pricing", href: "/pricing", icon: CreditCard },
-    { name: "About", href: "/about", icon: Info },
+    { name: t("explore"), href: "/explore", icon: Compass },
+    { name: t("datasets"), href: "/datasets", icon: Info },
+    { name: t("pricing"), href: "/pricing", icon: CreditCard },
+    { name: t("about"), href: "/about", icon: Info },
   ];
 
   const authItems = [
-    { name: "Create", href: "/create", icon: PlusCircle },
+    { name: t("create"), href: "/create", icon: PlusCircle },
   ];
 
   const allItems = isAuthenticated ? [...navItems, ...authItems] : navItems;
@@ -92,7 +94,7 @@ export function Navbar() {
              {isAuthenticated ? (
                <>
                  <Button asChild variant="ghost" className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400">
-                   <Link href={withLocalePath("/create")}>Create</Link>
+                   <Link href={withLocalePath("/create")}>{t("create")}</Link>
                  </Button>
                  
                  <DropdownMenu>
@@ -120,34 +122,34 @@ export function Navbar() {
                        <DropdownMenuItem asChild>
                          <Link href={withLocalePath("/dashboard")} className="flex w-full items-center cursor-pointer">
                            <LayoutDashboard className="mr-2 h-4 w-4" />
-                           <span>Dashboard</span>
+                           <span>{t("dashboard")}</span>
                          </Link>
                        </DropdownMenuItem>
                        <DropdownMenuItem asChild>
                          <Link href={withLocalePath("/dashboard/profile")} className="flex w-full items-center cursor-pointer">
                            <User className="mr-2 h-4 w-4" />
-                           <span>Profile</span>
+                           <span>{t("profile")}</span>
                          </Link>
                        </DropdownMenuItem>
                        <DropdownMenuItem asChild>
                          <Link href={withLocalePath("/dashboard/settings")} className="flex w-full items-center cursor-pointer">
                            <Settings className="mr-2 h-4 w-4" />
-                           <span>Settings</span>
+                           <span>{t("settings")}</span>
                          </Link>
                        </DropdownMenuItem>
                      </DropdownMenuGroup>
                      <DropdownMenuSeparator />
                      <DropdownMenuItem className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-950/20 cursor-pointer" onClick={handleLogout}>
                        <LogOut className="mr-2 h-4 w-4" />
-                       <span>Log out</span>
+                       <span>{t("logout")}</span>
                      </DropdownMenuItem>
                    </DropdownMenuContent>
                  </DropdownMenu>
                </>
              ) : (
                <>
-                 <Button variant="ghost" size="sm">Sign In</Button>
-                 <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20">Get Started</Button>
+                 <Button variant="ghost" size="sm">{t("login")}</Button>
+                 <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20">{t("getStarted")}</Button>
                </>
              )}
           </div>
@@ -189,18 +191,18 @@ export function Navbar() {
                     <Button asChild variant="outline" className="w-full justify-start rounded-xl h-12">
                       <Link href={withLocalePath("/dashboard")} onClick={() => setIsMenuOpen(false)}>
                         <LayoutDashboard className="mr-3 h-5 w-5" />
-                        Dashboard
+                        {t("dashboard")}
                       </Link>
                     </Button>
                     <Button variant="ghost" className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl h-12" onClick={handleLogout}>
                       <LogOut className="mr-3 h-5 w-5" />
-                      Log out
+                      {t("logout")}
                     </Button>
                   </div>
                ) : (
                   <div className="flex flex-col gap-3">
-                    <Button variant="outline" className="w-full rounded-xl h-12 text-base">Sign In</Button>
-                    <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-12 text-base shadow-lg shadow-purple-500/20">Get Started</Button>
+                    <Button variant="outline" className="w-full rounded-xl h-12 text-base">{t("login")}</Button>
+                    <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-12 text-base shadow-lg shadow-purple-500/20">{t("getStarted")}</Button>
                   </div>
                )}
             </div>

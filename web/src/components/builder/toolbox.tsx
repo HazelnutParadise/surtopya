@@ -2,6 +2,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { Type, ListChecks, CheckSquare, Star, Calendar, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuestionType } from "@/types/survey";
+import { useTranslations } from "next-intl";
 
 interface ToolboxItemProps {
   type: QuestionType;
@@ -34,14 +35,16 @@ function ToolboxItem({ type, label, icon }: ToolboxItemProps) {
 }
 
 export function Toolbox() {
+  const tQuestion = useTranslations("QuestionTypes");
+
   return (
     <div className="space-y-1">
-      <ToolboxItem type="single" label="Single Choice" icon={<ListChecks className="h-4 w-4" />} />
-      <ToolboxItem type="multi" label="Multiple Choice" icon={<CheckSquare className="h-4 w-4" />} />
-      <ToolboxItem type="text" label="Text Answer" icon={<Type className="h-4 w-4" />} />
-      <ToolboxItem type="rating" label="Rating Scale" icon={<Star className="h-4 w-4" />} />
-      <ToolboxItem type="select" label="Dropdown" icon={<ChevronDown className="h-4 w-4" />} />
-      <ToolboxItem type="date" label="Date" icon={<Calendar className="h-4 w-4" />} />
+      <ToolboxItem type="single" label={tQuestion("single")} icon={<ListChecks className="h-4 w-4" />} />
+      <ToolboxItem type="multi" label={tQuestion("multi")} icon={<CheckSquare className="h-4 w-4" />} />
+      <ToolboxItem type="text" label={tQuestion("text")} icon={<Type className="h-4 w-4" />} />
+      <ToolboxItem type="rating" label={tQuestion("rating")} icon={<Star className="h-4 w-4" />} />
+      <ToolboxItem type="select" label={tQuestion("select")} icon={<ChevronDown className="h-4 w-4" />} />
+      <ToolboxItem type="date" label={tQuestion("date")} icon={<Calendar className="h-4 w-4" />} />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 import { MockSurveyData } from "@/lib/data";
 import { SurveyTheme } from "@/types/survey";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 // Helper to format rich text description (simple markdown)
 const RichText = ({ content }: { content: string }) => {
@@ -62,6 +63,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
   const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const t = useTranslations("SurveyPage");
   
   const [survey, setSurvey] = useState<MockSurveyData | null>(initialSurvey || null);
   const [theme, setTheme] = useState<SurveyTheme | undefined>(undefined);
@@ -131,7 +133,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
 
   const handleComplete = (answers: Record<string, any>) => {
     if (isPreview) {
-      alert("Preview Complete!\n\nIn a real survey, responses would be saved.\n\nResponses:\n" + JSON.stringify(answers, null, 2));
+      alert(`${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` + JSON.stringify(answers, null, 2));
       window.close();
     } else {
       console.log("Survey responses:", answers);
@@ -151,15 +153,15 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-950 dark:to-gray-900 p-4">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Survey Not Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("notFoundTitle")}</h1>
           <p className="text-gray-500">
             {isPreview 
-              ? "Please open preview from the survey builder." 
-              : "The survey you're looking for doesn't exist or has been removed."}
+              ? t("notFoundPreviewDescription") 
+              : t("notFoundDescription")}
           </p>
           <Button onClick={() => router.push(withLocalePath(isPreview ? "/create" : "/explore"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {isPreview ? "Back to Builder" : "Back to Marketplace"}
+            {isPreview ? t("backToBuilder") : t("backToMarketplace")}
           </Button>
         </div>
       </div>
@@ -179,7 +181,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
             className="bg-white/90 backdrop-blur shadow-lg hover:bg-white"
           >
             <X className="mr-2 h-4 w-4" />
-            {isPreview ? "Exit Preview" : "Exit Survey"}
+            {isPreview ? t("exitPreview") : t("exitSurvey")}
           </Button>
         </div>
 
@@ -194,19 +196,19 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
         <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
           <DialogContent onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle>Exit Survey?</DialogTitle>
-              <DialogDescription>
-                Your progress will not be saved. Are you sure you want to exit?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowExitDialog(false)}>
-                Continue Survey
-              </Button>
-              <Button variant="destructive" onClick={handleConfirmExit}>
-                Exit Without Saving
-              </Button>
-            </DialogFooter>
+            <DialogTitle>{t("exitSurveyTitle")}</DialogTitle>
+            <DialogDescription>
+                {t("exitSurveyDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+                {t("continueSurvey")}
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmExit}>
+                {t("exitWithoutSaving")}
+            </Button>
+          </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
@@ -218,13 +220,13 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
   
   const getTypeDescription = (type: string) => {
       switch(type) {
-          case 'single': return 'Multiple choice single selection';
-          case 'multi': return 'Multiple choice multiple selection';
-          case 'text': return 'Text response';
-          case 'rating': return 'Rating scale';
-          case 'select': return 'Dropdown list';
-          case 'date': return 'Date picker';
-          default: return 'Question';
+          case 'single': return t('typeDescriptionSingle');
+          case 'multi': return t('typeDescriptionMulti');
+          case 'text': return t('typeDescriptionText');
+          case 'rating': return t('typeDescriptionRating');
+          case 'select': return t('typeDescriptionSelect');
+          case 'date': return t('typeDescriptionDate');
+          default: return t('typeDescriptionDefault');
       }
   };
   
@@ -251,7 +253,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
             <div className="flex items-center gap-2 mb-6">
               <Badge className="bg-white/20 text-white border-0 hover:bg-white/30 text-sm px-3 py-1">
                 <Award className="mr-1.5 h-4 w-4" />
-                Earn {survey.settings.pointsReward} Points
+                {t("earnPoints", { points: survey.settings.pointsReward })}
               </Badge>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{survey.title}</h1>
@@ -265,13 +267,13 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
             {/* Main content */}
             <article className="md:col-span-2 space-y-8">
               <section>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">About this Survey</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t("aboutTitle")}</h2>
                 {/* Rich Text Description */}
                 <RichText content={survey.description} />
               </section>
 
               <section>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">What You'll Be Asked</h3>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("questionPreviewTitle")}</h3>
                 <ul className="space-y-3 text-gray-600 dark:text-gray-400">
                   {questionTypes.length > 0 ? questionTypes.map(type => (
                       <li key={type} className="flex items-center gap-3">
@@ -281,16 +283,15 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                           <span>{getTypeDescription(type)}</span>
                       </li>
                   )) : (
-                      <li className="text-gray-500 italic">No questions preview available.</li>
+                      <li className="text-gray-500 italic">{t("noQuestions")}</li>
                   )}
                 </ul>
               </section>
 
               <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Privacy & Data</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{t("privacyTitle")}</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Your responses are anonymous and will only be used for research purposes. 
-                  You can exit the survey at any time without saving your progress.
+                  {t("privacyDescription")}
                 </p>
               </div>
             </article>
@@ -299,8 +300,8 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
             <aside className="space-y-6">
               <Card className="border-0 shadow-xl overflow-hidden sticky top-8">
                 <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4">
-                  <p className="text-white/80 text-sm">Reward</p>
-                  <p className="text-3xl font-bold text-white">{survey.settings.pointsReward} Points</p>
+                  <p className="text-white/80 text-sm">{t("rewardLabel")}</p>
+                  <p className="text-3xl font-bold text-white">{t("pointsValue", { points: survey.settings.pointsReward })}</p>
                 </div>
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center gap-3">
@@ -308,7 +309,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                       <Clock className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Estimated Time</p>
+                      <p className="text-sm text-gray-500">{t("estimatedTime")}</p>
                       <p className="font-semibold text-gray-900 dark:text-white">{survey.estimatedTime}</p>
                     </div>
                   </div>
@@ -317,7 +318,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                       <Users className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500">Responses</p>
+                      <p className="text-sm text-gray-500">{t("responsesLabel")}</p>
                       <p className="font-semibold text-gray-900 dark:text-white">{survey.responseCount.toLocaleString()}</p>
                     </div>
                   </div>
@@ -329,7 +330,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                       size="lg"
                       className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
                     >
-                      Start Survey
+                      {t("startSurvey")}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
 
@@ -339,7 +340,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                       className="w-full"
                     >
                       <ArrowLeft className="mr-2 h-4 w-4" />
-                      Back to Marketplace
+                      {t("backToMarketplace")}
                     </Button>
                 </div>
               </Card>

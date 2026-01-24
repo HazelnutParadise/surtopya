@@ -28,6 +28,7 @@ import {
   Send
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 // Mock Survey Data
 const MOCK_MY_SURVEYS: Record<string, Survey & { 
@@ -82,6 +83,9 @@ const MOCK_MY_SURVEYS: Record<string, Survey & {
 };
 
 export default function SurveyManagementPage() {
+  const t = useTranslations("SurveyManagement");
+  const tCommon = useTranslations("Common");
+  const tDashboard = useTranslations("Dashboard");
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -171,11 +175,11 @@ export default function SurveyManagementPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-4">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Survey Not Found</h1>
-          <p className="text-gray-500">The survey you're looking for doesn't exist.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("notFoundTitle")}</h1>
+          <p className="text-gray-500">{t("notFoundDescription")}</p>
           <Button onClick={() => router.push(withLocalePath("/dashboard"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
+            {t("backToDashboard")}
           </Button>
         </div>
       </div>
@@ -194,31 +198,31 @@ export default function SurveyManagementPage() {
               </Button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{survey.title}</h1>
-                <p className="text-sm text-gray-500">Created on {survey.createdAt}</p>
+                <p className="text-sm text-gray-500">{t("createdOn", { date: survey.createdAt })}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Badge className={survey.settings.isPublished ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"}>
-                {survey.settings.isPublished ? "Published" : "Draft"}
+                {survey.settings.isPublished ? tDashboard("published") : tDashboard("draft")}
               </Badge>
               <Button variant="outline" onClick={handlePreview}>
                 <Eye className="mr-2 h-4 w-4" />
-                Preview
+                {tCommon("preview")}
               </Button>
               {survey.settings.isPublished ? (
                 <Button variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50" onClick={() => handleTogglePublish(false)}>
                   <Lock className="mr-2 h-4 w-4" />
-                  Unpublish
+                  {tCommon("unpublish")}
                 </Button>
               ) : (
                 <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleTogglePublish(true)}>
                   <Send className="mr-2 h-4 w-4" />
-                  Publish
+                  {tCommon("publish")}
                 </Button>
               )}
               <Button onClick={handleEdit} variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
                 <Pencil className="mr-2 h-4 w-4" />
-                Edit
+                {tCommon("edit")}
               </Button>
             </div>
           </div>
@@ -236,7 +240,7 @@ export default function SurveyManagementPage() {
                   <Users className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Total Responses</p>
+                  <p className="text-sm text-gray-500">{t("totalResponses")}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{survey.responseCount}</p>
                 </div>
               </CardContent>
@@ -247,7 +251,7 @@ export default function SurveyManagementPage() {
                   <TrendingUp className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Completion Rate</p>
+                  <p className="text-sm text-gray-500">{t("completionRate")}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">87%</p>
                 </div>
               </CardContent>
@@ -258,7 +262,7 @@ export default function SurveyManagementPage() {
                   <Calendar className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Last Response</p>
+                  <p className="text-sm text-gray-500">{t("lastResponse")}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{survey.lastResponse}</p>
                 </div>
               </CardContent>
@@ -269,7 +273,7 @@ export default function SurveyManagementPage() {
                   <MessageSquare className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Questions</p>
+                  <p className="text-sm text-gray-500">{t("questions")}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{survey.questions.filter(q => q.type !== 'section').length}</p>
                 </div>
               </CardContent>
@@ -282,27 +286,27 @@ export default function SurveyManagementPage() {
               <TabsList className="w-full justify-start bg-white dark:bg-gray-900 border-b rounded-none p-0 h-auto">
                 <TabsTrigger value="responses" className="rounded-none border-b-2 border-transparent data-[state=active]:border-purple-600 px-6 py-3">
                   <BarChart3 className="mr-2 h-4 w-4" />
-                  Responses
+                  {t("responsesTab")}
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-purple-600 px-6 py-3">
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  {tCommon("settings")}
                 </TabsTrigger>
               </TabsList>
               
               <TabsContent value="responses" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Response Summary</CardTitle>
-                    <CardDescription>Overview of collected responses</CardDescription>
+                    <CardTitle>{t("responseSummaryTitle")}</CardTitle>
+                    <CardDescription>{t("responseSummaryDescription")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
                       <BarChart3 className="h-12 w-12 mb-4 text-gray-300" />
-                      <p>Response analytics will appear here once you have responses.</p>
+                      <p>{t("responseAnalyticsPlaceholder")}</p>
                       <Button variant="outline" className="mt-4" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
                         <ExternalLink className="mr-2 h-4 w-4" />
-                        View Survey
+                        {t("viewSurvey")}
                       </Button>
                     </div>
                   </CardContent>
@@ -312,40 +316,40 @@ export default function SurveyManagementPage() {
               <TabsContent value="settings" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Survey Settings</CardTitle>
-                    <CardDescription>Configure your survey options</CardDescription>
+                    <CardTitle>{t("surveySettingsTitle")}</CardTitle>
+                    <CardDescription>{t("surveySettingsDescription")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-1">
-                      <Label className="text-base">Visibility</Label>
+                      <Label className="text-base">{t("visibilityLabel")}</Label>
                       <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
                         <button 
                           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${survey.settings.visibility === 'public' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-500'}`}
                           onClick={() => setSurvey({...survey, settings: {...survey.settings, visibility: 'public'}})}
                         >
-                          Public
+                          {t("public")}
                         </button>
                         <button 
                           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${survey.settings.visibility === 'non-public' ? 'bg-white dark:bg-gray-700 shadow-sm' : 'text-gray-500'}`}
                           onClick={() => setSurvey({...survey, settings: {...survey.settings, visibility: 'non-public'}})}
                         >
-                          Non-public
+                          {t("nonPublic")}
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         {survey.settings.visibility === 'public' 
-                          ? 'Visible in marketplace and searchable by search engines.' 
-                          : 'Hidden from marketplace and search engines. Only accessible via link.'}
+                          ? t("visibilityPublicDescription")
+                          : t("visibilityNonPublicDescription")}
                       </p>
                     </div>
 
                     <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-6">
                       <div className="space-y-0.5">
-                        <Label htmlFor="dataset" className="text-base">Dataset Marketplace Program</Label>
+                        <Label htmlFor="dataset" className="text-base">{t("datasetProgramLabel")}</Label>
                         <p className="text-xs text-gray-500">
                           {survey.settings.visibility === 'public' 
-                            ? 'Public surveys are automatically enrolled. Opt-out requires Paid Membership.' 
-                            : 'Manually opt-in to share de-identified data in our marketplace.'}
+                            ? t("datasetProgramPublicDescription")
+                            : t("datasetProgramNonPublicDescription")}
                         </p>
                       </div>
                       <Switch 
@@ -357,7 +361,7 @@ export default function SurveyManagementPage() {
                     </div>
 
                     <div className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-6">
-                      <Label htmlFor="expires">Expiration Date</Label>
+                      <Label htmlFor="expires">{t("expirationDate")}</Label>
                       <div className="flex gap-4 items-center">
                         <Input 
                           id="expires" 
@@ -365,19 +369,19 @@ export default function SurveyManagementPage() {
                           defaultValue={survey.settings.expiresAt}
                           className="max-w-[200px]"
                         />
-                        <span className="text-xs text-gray-500 italic">Leaves blank for no expiration</span>
+                        <span className="text-xs text-gray-500 italic">{t("expirationHint")}</span>
                       </div>
                     </div>
                     
                     <div className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-6">
-                      <Label htmlFor="points">Points Reward</Label>
+                      <Label htmlFor="points">{t("pointsReward")}</Label>
                       <Input 
                         id="points" 
                         type="number" 
                         defaultValue={survey.settings.pointsReward}
                         className="w-32"
                       />
-                      <p className="text-sm text-gray-500">Points awarded to respondents</p>
+                      <p className="text-sm text-gray-500">{t("pointsRewardDescription")}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -389,7 +393,7 @@ export default function SurveyManagementPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Share Link</CardTitle>
+                <CardTitle className="text-base">{t("shareLink")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
@@ -407,20 +411,20 @@ export default function SurveyManagementPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Quick Actions</CardTitle>
+                <CardTitle className="text-base">{t("quickActions")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button variant="outline" className="w-full justify-start" onClick={handlePreview}>
                   <Eye className="mr-2 h-4 w-4" />
-                  Preview Survey
+                  {t("previewSurvey")}
                 </Button>
                 <Button variant="outline" className="w-full justify-start" onClick={handleEdit}>
                   <Pencil className="mr-2 h-4 w-4" />
-                  Edit Survey
+                  {t("editSurvey")}
                 </Button>
                 <Button variant="outline" className="w-full justify-start" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Survey Page
+                  {t("openSurveyPage")}
                 </Button>
               </CardContent>
             </Card>

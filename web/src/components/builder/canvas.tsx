@@ -2,6 +2,7 @@ import React from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { Question } from "@/types/survey";
 import { QuestionCard } from "./question-card";
+import { useTranslations } from "next-intl";
 
 interface CanvasProps {
   questions: Question[];
@@ -14,6 +15,7 @@ interface CanvasProps {
 }
 
 export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic, activeId, getLogicWarning }: CanvasProps) {
+  const t = useTranslations("SurveyBuilder");
   const { setNodeRef } = useDroppable({
     id: 'canvas-droppable',
   });
@@ -39,8 +41,8 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
   if (questions.length === 0) {
     return (
       <div ref={setNodeRef} className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-900 transition-colors hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/20">
-        <p className="text-lg font-medium">Drag items here from the toolbox</p>
-        <p className="text-sm">Start building your survey</p>
+        <p className="text-lg font-medium">{t("emptyCanvasTitle")}</p>
+        <p className="text-sm">{t("emptyCanvasDescription")}</p>
       </div>
     );
   }

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGr
 import { Label } from "@/components/ui/label";
 import { Question, LogicRule } from "@/types/survey";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 interface LogicEditorProps {
   question: Question;
@@ -15,6 +16,7 @@ interface LogicEditorProps {
 }
 
 export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave }: LogicEditorProps) {
+  const t = useTranslations("LogicEditor");
   const [rules, setRules] = React.useState<LogicRule[]>(question.logic || []);
 
   // Reset rules when opening for a different question
@@ -64,18 +66,18 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Logic Jumps for "{question.title}"</DialogTitle>
+          <DialogTitle>{t("title", { title: question.title })}</DialogTitle>
         </DialogHeader>
 
         {!isCompatible ? (
           <div className="py-6 text-center text-gray-500">
-            Logic jumps are only available for Single Choice and Dropdown questions.
+            {t("unsupported")}
           </div>
         ) : (
           <div className="space-y-4 py-4">
             {rules.length === 0 ? (
               <div className="text-center text-sm text-gray-500 py-4 border-2 border-dashed rounded-lg">
-                No logic rules defined. Click "Add Rule" to start.
+                {t("empty")}
               </div>
             ) : (
               <div className="space-y-3">
@@ -83,13 +85,13 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                   <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
                     <div className="flex-1 grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
                       <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">If answer is</Label>
+                        <Label className="text-xs text-gray-500">{t("ifAnswerIs")}</Label>
                         <Select 
                           value={rule.triggerOption} 
                           onValueChange={(val) => updateRule(index, 'triggerOption', val)}
                         >
                           <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Select Option" />
+                            <SelectValue placeholder={t("selectOption")} />
                           </SelectTrigger>
                           <SelectContent>
                             {question.options?.map(opt => (
@@ -102,7 +104,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                       <ArrowRight className="h-4 w-4 text-gray-400 mt-5" />
 
                       <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">Jump to</Label>
+                        <Label className="text-xs text-gray-500">{t("jumpTo")}</Label>
                         {(() => {
                           // Check if current destination is invalid
                           const destId = rule.destinationQuestionId;
@@ -114,9 +116,9 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                             destIndex <= currentQuestionIndex // Question is before or at current position
                           );
                           const invalidReason = !destQuestion 
-                            ? '(Deleted)' 
+                            ? t("invalidDeleted")
                             : destIndex <= currentQuestionIndex 
-                              ? '(Invalid position)' 
+                              ? t("invalidPosition")
                               : '';
                           
                           return (
@@ -128,36 +130,36 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                                 <SelectTrigger className={`h-9 flex-1 ${isInvalid ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}>
                                   <SelectValue placeholder="Select Question">
                                     {isInvalid && destQuestion ? (
-                                      <span className="text-red-600">{destQuestion.title || 'Untitled'} {invalidReason}</span>
+                                      <span className="text-red-600">{destQuestion.title || t("untitledQuestion")} {invalidReason}</span>
                                     ) : isInvalid && !destQuestion ? (
-                                      <span className="text-red-600">Deleted Question {invalidReason}</span>
+                                      <span className="text-red-600">{t("deletedQuestion")} {invalidReason}</span>
                                     ) : undefined}
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="end_survey">Submit Survey (End)</SelectItem>
+                                  <SelectItem value="end_survey">{t("endSurvey")}</SelectItem>
                                   
                                   {samePageQuestions.length > 0 && (
                                       <SelectGroup>
-                                          <SelectLabel>Current Page</SelectLabel>
+                                          <SelectLabel>{t("currentPage")}</SelectLabel>
                                           {samePageQuestions.map(q => (
-                                              <SelectItem key={q.id} value={q.id}>{q.title || "Untitled Question"}</SelectItem>
+                                              <SelectItem key={q.id} value={q.id}>{q.title || t("untitledQuestion")}</SelectItem>
                                           ))}
                                       </SelectGroup>
                                   )}
 
                                   {subsequentPages.length > 0 && (
                                       <SelectGroup>
-                                          <SelectLabel>Go to Page</SelectLabel>
+                                          <SelectLabel>{t("goToPage")}</SelectLabel>
                                           {subsequentPages.map(q => (
-                                              <SelectItem key={q.id} value={q.id}>{q.title || "Untitled Page"}</SelectItem>
+                                              <SelectItem key={q.id} value={q.id}>{q.title || t("untitledPage")}</SelectItem>
                                           ))}
                                       </SelectGroup>
                                   )}
                                 </SelectContent>
                               </Select>
                               {isInvalid && (
-                                <div className="text-red-500" title={`Logic jump is invalid: ${invalidReason}`}>
+                                <div className="text-red-500" title={t("invalidTitle", { reason: invalidReason })}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
                                     <path d="M12 9v4"/>
@@ -180,14 +182,14 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
             )}
 
             <Button variant="outline" onClick={addRule} className="w-full border-dashed">
-              <Plus className="mr-2 h-4 w-4" /> Add Logic Rule
+              <Plus className="mr-2 h-4 w-4" /> {t("addRule")}
             </Button>
           </div>
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!isCompatible}>Save Logic</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
+          <Button onClick={handleSave} disabled={!isCompatible}>{t("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

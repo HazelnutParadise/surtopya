@@ -8,6 +8,7 @@ import { SurveyCard } from "@/components/survey-card";
 import { Search, Filter, ArrowUpDown } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 // Mock Data
 const MOCK_SURVEYS_LIST = [
@@ -103,6 +104,8 @@ function ExploreContent() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const t = useTranslations("Explore");
+  const tCategories = useTranslations("Categories");
   
   const searchQuery = searchParams.get('q') || '';
   const category = searchParams.get('category') || 'all';
@@ -167,11 +170,10 @@ function ExploreContent() {
         <div className="container px-4 py-12 md:px-6 md:py-16">
           <div className="max-w-2xl">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
-              探索 <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">所有問卷</span>
+              {t("title")} <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">{t("titleHighlight")}</span>
             </h1>
             <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">
-              發現付費問卷，貢獻您的見解，並獲得獎勵。
-              加入成千上萬塑造未來的參與者行列。
+              {t("description")}
             </p>
           </div>
         </div>
@@ -186,7 +188,7 @@ function ExploreContent() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input 
                 type="search"
-                placeholder="搜尋問卷、主題或關鍵字..." 
+                placeholder={t("searchPlaceholder")}
                 className="pl-10 bg-gray-50 border-gray-200 focus-visible:ring-purple-500 dark:bg-gray-800 dark:border-gray-700 w-full"
                 defaultValue={searchQuery}
                 onChange={(e) => updateSearch(e.target.value)}
@@ -199,14 +201,14 @@ function ExploreContent() {
                 <SelectTrigger className="w-full sm:w-[180px] bg-white dark:bg-gray-900">
                   <div className="flex items-center gap-2">
                     <Filter className="h-3.5 w-3.5 text-gray-500" />
-                    <SelectValue placeholder="選擇類別" />
+                    <SelectValue placeholder={t("filterPlaceholder")} />
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">所有類別</SelectItem>
-                  <SelectItem value="academic">學術研究</SelectItem>
-                  <SelectItem value="market">市場調查</SelectItem>
-                  <SelectItem value="ux">UX 研究</SelectItem>
+                  <SelectItem value="all">{t("categoryAll")}</SelectItem>
+                  <SelectItem value="academic">{tCategories("social-science")}</SelectItem>
+                  <SelectItem value="market">{tCategories("market-research")}</SelectItem>
+                  <SelectItem value="ux">{t("categoryUx")}</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -214,14 +216,14 @@ function ExploreContent() {
                 <SelectTrigger className="w-full sm:w-[180px] bg-white dark:bg-gray-900">
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-500" />
-                    <SelectValue placeholder="排序依據" />
+                    <SelectValue placeholder={t("sortPlaceholder")} />
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recommended">推薦排序</SelectItem>
-                  <SelectItem value="newest">最新上架</SelectItem>
-                  <SelectItem value="points-high">最高積分</SelectItem>
-                  <SelectItem value="duration-short">最短用時</SelectItem>
+                  <SelectItem value="recommended">{t("sortRecommended")}</SelectItem>
+                  <SelectItem value="newest">{t("sortNewest")}</SelectItem>
+                  <SelectItem value="points-high">{t("sortPointsHigh")}</SelectItem>
+                  <SelectItem value="duration-short">{t("sortDurationShort")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -237,7 +239,7 @@ function ExploreContent() {
           ))}
           {filteredSurveys.length === 0 && (
              <div className="col-span-full py-12 text-center text-gray-500">
-               沒有找到符合條件的問卷。
+               {t("noSurveys")}
              </div>
           )}
         </div>
@@ -246,7 +248,7 @@ function ExploreContent() {
         {filteredSurveys.length > 0 && (
           <div className="mt-12 flex justify-center">
             <Button variant="outline" size="lg" className="min-w-[200px]">
-              載入更多問卷
+              {t("loadMore")}
             </Button>
           </div>
         )}

@@ -7,8 +7,11 @@ import { SurveyRenderer } from "@/components/survey/survey-renderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 export default function PreviewPage() {
+  const tPreview = useTranslations("PreviewPage");
+  const tSurveyPage = useTranslations("SurveyPage");
   const router = useRouter();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
@@ -40,7 +43,7 @@ export default function PreviewPage() {
   };
 
   const handleComplete = (answers: Record<string, any>) => {
-    alert("Preview Complete!\n\nIn a real survey, responses would be saved.\n\nResponses:\n" + JSON.stringify(answers, null, 2));
+    alert(`${tSurveyPage("previewCompleteTitle")}\n\n${tSurveyPage("previewCompleteDescription")}\n\n${tSurveyPage("previewCompleteResponses")}\n` + JSON.stringify(answers, null, 2));
   };
 
   if (loading) {
@@ -55,11 +58,11 @@ export default function PreviewPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-4">
         <div className="text-center space-y-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">No Preview Data</h1>
-          <p className="text-gray-500">Please open preview from the survey builder.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tPreview("noPreviewDataTitle")}</h1>
+          <p className="text-gray-500">{tPreview("noPreviewDataDescription")}</p>
           <Button onClick={() => router.push(withLocalePath("/create"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Builder
+            {tPreview("backToBuilder")}
           </Button>
         </div>
       </div>
@@ -77,7 +80,7 @@ export default function PreviewPage() {
           className="bg-white/90 backdrop-blur shadow-lg hover:bg-white"
         >
           <X className="mr-2 h-4 w-4" />
-          Exit Preview
+          {tPreview("exitPreview")}
         </Button>
       </div>
 

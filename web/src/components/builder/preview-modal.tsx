@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useTranslations } from "next-intl";
 
 interface PreviewModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ interface PreviewModalProps {
 }
 
 export function PreviewModal({ open, onClose, title, questions, theme }: PreviewModalProps) {
+  const t = useTranslations("PreviewModal");
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
 
@@ -66,7 +68,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
   };
 
   const handleSubmit = () => {
-    alert("Preview mode: Survey submitted!\n\nResponses:\n" + JSON.stringify(responses, null, 2));
+    alert(`${t("submitAlertTitle")}\n\n${t("submitAlertResponses")}\n${JSON.stringify(responses, null, 2)}`);
   };
 
   const renderQuestion = (question: Question, index: number) => {
@@ -85,7 +87,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             )}
             <Input
               className="mt-2"
-              placeholder="Your answer"
+              placeholder={t("yourAnswer")}
               value={responses[question.id] || ''}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             />
@@ -104,7 +106,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             )}
             <Textarea
               className="mt-2"
-              placeholder="Your answer"
+              placeholder={t("yourAnswer")}
               value={responses[question.id] || ''}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             />
@@ -189,7 +191,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               value={responses[question.id] || ''}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             >
-              <option value="">Select an option</option>
+              <option value="">{t("selectOption")}</option>
               {question.options?.map((option, i) => (
                 <option key={i} value={option}>{option}</option>
               ))}
@@ -251,8 +253,8 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
         {/* Progress */}
         <div className="px-4 pt-4">
           <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-            <span>Page {currentPageIndex + 1} of {pages.length}</span>
-            <span>{Math.round(progress)}% complete</span>
+            <span>{t("pageOf", { current: currentPageIndex + 1, total: pages.length })}</span>
+            <span>{t("percentComplete", { percent: Math.round(progress) })}</span>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
@@ -284,7 +286,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             disabled={currentPageIndex === 0}
           >
             <ChevronLeft className="mr-2 h-4 w-4" />
-            Previous
+            {t("previous")}
           </Button>
 
           {currentPageIndex === pages.length - 1 ? (
@@ -293,7 +295,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               style={{ backgroundColor: theme.primaryColor }}
               className="text-white"
             >
-              Submit
+              {t("submit")}
             </Button>
           ) : (
             <Button
@@ -301,7 +303,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               style={{ backgroundColor: theme.primaryColor }}
               className="text-white"
             >
-              Next
+              {t("next")}
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           )}

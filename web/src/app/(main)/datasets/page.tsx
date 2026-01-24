@@ -4,13 +4,24 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Database, Download, Search, Filter, ArrowUpDown, FileText, Globe, Lock } from "lucide-react";
+import { Database, Download, Search, FileText, Globe, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { useTranslations } from "next-intl";
 
 import { MOCK_DATASETS } from "@/lib/datasets-data";
+
+const CATEGORY_SLUGS = [
+  "all",
+  "market-research",
+  "social-science",
+  "consumer-goods",
+  "technology",
+  "healthcare",
+  "finance",
+];
 
 function DatasetsContent() {
   const router = useRouter();
@@ -18,60 +29,41 @@ function DatasetsContent() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
+  const tDatasets = useTranslations("Datasets");
+  const tCategories = useTranslations("Categories");
 
-  // Category mapping for URL parameters
-  const CATEGORY_MAP: Record<string, string> = {
-    "所有類別": "all",
-    "市場調查": "market-research",
-    "社會科學": "social-science",
-    "消費品": "consumer-goods",
-    "科技": "technology",
-    "醫療保健": "healthcare",
-    "金融": "finance",
-  };
-
-  const REVERSE_CATEGORY_MAP: Record<string, string> = Object.fromEntries(
-    Object.entries(CATEGORY_MAP).map(([zh, en]) => [en, zh])
-  );
-
-  // Initialize state from URL params
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
-  const initialCategoryEn = searchParams.get("category") || "all";
-  const [activeCategory, setActiveCategory] = useState(REVERSE_CATEGORY_MAP[initialCategoryEn] || "所有類別");
+  const [activeCategory, setActiveCategory] = useState(searchParams.get("category") || "all");
   const [sortBy, setSortBy] = useState<"newest" | "downloads" | "samples">((searchParams.get("sort") as any) || "newest");
   const [visibleCount, setVisibleCount] = useState(6);
 
-  // Sync state to URL
+  const getCategoryLabel = (slug: string) => (slug === "all" ? tDatasets("allCategories") : tCategories(slug));
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (searchTerm) params.set("q", searchTerm);
-    
-    const categoryEn = CATEGORY_MAP[activeCategory];
-    if (categoryEn && categoryEn !== "all") params.set("category", categoryEn);
-    
+    if (activeCategory && activeCategory !== "all") params.set("category", activeCategory);
     if (sortBy !== "newest") params.set("sort", sortBy);
-    
+
     const newQuery = params.toString();
     const currentQuery = searchParams.toString();
-    
+
     if (newQuery !== currentQuery) {
       const url = newQuery ? `${pathname}?${newQuery}` : pathname;
       router.replace(url, { scroll: false });
     }
   }, [searchTerm, activeCategory, sortBy, pathname, router, searchParams]);
 
-  // Filter and Sort Logic
   const filteredDatasets = MOCK_DATASETS
     .filter(ds => {
-      const matchesSearch = ds.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           ds.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = activeCategory === "所有類別" || ds.category === activeCategory;
+      const matchesSearch = ds.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ds.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = activeCategory === "all" || ds.category === activeCategory;
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
       if (sortBy === "downloads") return parseInt(b.downloads.replace('k', '000')) - parseInt(a.downloads.replace('k', '000'));
       if (sortBy === "samples") return parseFloat(b.sampleSize.replace('k', '')) - parseFloat(a.sampleSize.replace('k', ''));
-      // Default to newest (mock representation)
       return a.id.localeCompare(b.id);
     });
 
@@ -79,45 +71,44 @@ function DatasetsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Hero Section */}
       <div className="bg-black text-white py-16 md:py-24">
         <div className="container px-4 md:px-6">
           <div className="max-w-3xl space-y-4">
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-              探索 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">數據市集</span>
+              {tDatasets("heroTitle")}{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
+                {tDatasets("heroTitleHighlight")}
+              </span>
             </h1>
             <p className="text-xl text-gray-400">
-              訪問全球研究人員共享的高品質、去識別化數據集。
+              {tDatasets("heroDescription")}
             </p>
             <div className="flex flex-wrap gap-4 pt-4">
               <Button className="bg-white text-black hover:bg-gray-100 font-semibold shadow-xl shadow-white/5 transition-all" onClick={() => {
                 document.getElementById('dataset-list')?.scrollIntoView({ behavior: 'smooth' });
               }}>
-                <Database className="mr-2 h-4 w-4" /> 瀏覽所有類別
+                <Database className="mr-2 h-4 w-4" /> {tDatasets("browseDatasets")}
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="border-white/20 bg-white/5 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm shadow-xl transition-all"
               >
-                <FileText className="mr-2 h-4 w-4 text-purple-400" /> API 文件
+                <FileText className="mr-2 h-4 w-4 text-purple-400" /> {tDatasets("apiDocs")}
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
       <div id="dataset-list" className="container px-4 py-12 md:px-6">
         <div className="flex flex-col md:flex-row gap-8">
-          
-          {/* Sidebar Filters */}
           <aside className="w-full md:w-64 space-y-8">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">搜尋</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">{tDatasets("searchTitle")}</h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input 
-                  placeholder="搜尋數據集..." 
+                <Input
+                  placeholder={tDatasets("searchPlaceholder")}
                   className="pl-10"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -126,16 +117,16 @@ function DatasetsContent() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">類別</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">{tDatasets("categoryTitle")}</h3>
               <div className="space-y-2">
-                {Object.keys(CATEGORY_MAP).map((cat) => (
-                  <Button 
-                    key={cat} 
-                    variant={activeCategory === cat ? "secondary" : "ghost"} 
-                    className={`w-full justify-start ${activeCategory === cat ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'text-gray-600 dark:text-gray-400 hover:text-purple-600'}`}
-                    onClick={() => setActiveCategory(cat)}
+                {CATEGORY_SLUGS.map((slug) => (
+                  <Button
+                    key={slug}
+                    variant={activeCategory === slug ? "secondary" : "ghost"}
+                    className={`w-full justify-start ${activeCategory === slug ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'text-gray-600 dark:text-gray-400 hover:text-purple-600'}`}
+                    onClick={() => setActiveCategory(slug)}
                   >
-                    {cat}
+                    {getCategoryLabel(slug)}
                   </Button>
                 ))}
               </div>
@@ -143,30 +134,29 @@ function DatasetsContent() {
 
             <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800">
               <h4 className="font-bold text-purple-900 dark:text-purple-300 flex items-center gap-2">
-                <Globe className="h-4 w-4" /> 開放數據倡議
+                <Globe className="h-4 w-4" /> {tDatasets("openDatasetNoticeTitle")}
               </h4>
               <p className="text-xs text-purple-700 dark:text-purple-400 mt-2 leading-relaxed">
-                所有數據集均使用我們的專利隱私引擎進行去識別化處理，以保護參與者身份。
+                {tDatasets("openDatasetNoticeText")}
               </p>
             </div>
           </aside>
 
-          {/* Dataset List */}
           <div className="flex-1 space-y-6">
             <div className="flex items-center justify-between pb-4">
               <div className="text-sm text-gray-500">
-                顯示 <span className="font-bold text-gray-900 dark:text-gray-100">{displayDatasets.length}</span> / {filteredDatasets.length} 個數據集
+                {tDatasets("showingResults", { shown: displayDatasets.length, total: filteredDatasets.length })}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 uppercase font-medium">排序依據:</span>
-                <select 
+                <span className="text-xs text-gray-400 uppercase font-medium">{tDatasets("sortLabel")}</span>
+                <select
                   className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                 >
-                  <option value="newest">最新上架</option>
-                  <option value="downloads">最多下載</option>
-                  <option value="samples">最多樣本</option>
+                  <option value="newest">{tDatasets("newest")}</option>
+                  <option value="downloads">{tDatasets("mostDownloads")}</option>
+                  <option value="samples">{tDatasets("mostSamples")}</option>
                 </select>
               </div>
             </div>
@@ -182,7 +172,7 @@ function DatasetsContent() {
                             {ds.title}
                             {!ds.isPublic && (
                               <Badge variant="outline" className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 gap-1 ml-1 px-1.5 cursor-pointer">
-                                <Lock className="h-2.5 w-2.5" /> PAID
+                                <Lock className="h-2.5 w-2.5" /> {tDatasets("paidBadge")}
                               </Badge>
                             )}
                           </CardTitle>
@@ -191,7 +181,7 @@ function DatasetsContent() {
                           </CardDescription>
                         </div>
                         <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
-                          {ds.category}
+                          {getCategoryLabel(ds.category)}
                         </Badge>
                       </div>
                     </CardHeader>
@@ -199,45 +189,44 @@ function DatasetsContent() {
                       <div className="flex flex-wrap gap-6 text-sm text-gray-500 dark:text-gray-400">
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4 text-purple-500" />
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{ds.sampleSize}</span> samples
+                          <span className="font-medium text-gray-900 dark:text-gray-100">{tDatasets("samplesLabel", { count: ds.sampleSize })}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Download className="h-4 w-4 text-purple-500" />
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{ds.downloads}</span> downloads
+                          <span className="font-medium text-gray-900 dark:text-gray-100">{tDatasets("downloadsLabel", { count: ds.downloads })}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Database className="h-4 w-4 text-purple-500" />
-                          <span>Format: {ds.format}</span>
+                          <span>{tDatasets("formatLabel", { format: ds.format })}</span>
                         </div>
                         <div className="md:ml-auto">
-                          更新於 {ds.lastUpdated}
+                          {tDatasets("updatedLabel", { date: ds.lastUpdated })}
                         </div>
                       </div>
                     </CardContent>
                     <CardFooter className="bg-gray-50 dark:bg-gray-900/50 py-3 border-t dark:border-gray-800">
                       <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
-                         <span>查看詳情</span>
-                         {ds.apiAvailable && <span>• API Access Active</span>}
+                         <span>{tDatasets("viewDetails")}</span>
+                         {ds.apiAvailable && <span>{tDatasets("apiAccessActive")}</span>}
                       </div>
                     </CardFooter>
                   </Link>
                 </Card>
               ))}
             </div>
-            
+
             {visibleCount < filteredDatasets.length && (
               <div className="flex justify-center pt-8">
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   className="text-gray-500 hover:text-purple-600"
                   onClick={() => setVisibleCount(prev => prev + 6)}
                 >
-                  載入更多數據集
+                  {tDatasets("loadMore")}
                 </Button>
               </div>
             )}
           </div>
-
         </div>
       </div>
     </div>
@@ -245,10 +234,11 @@ function DatasetsContent() {
 }
 
 export default function DatasetsPage() {
+  const tCommon = useTranslations("Common");
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="animate-pulse text-purple-600 font-medium">Loading Marketplace...</div>
+        <div className="animate-pulse text-purple-600 font-medium">{tCommon("loading")}</div>
       </div>
     }>
       <DatasetsContent />

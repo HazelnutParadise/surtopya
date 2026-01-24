@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/navbar";
 import { cookies } from "next/headers";
 import { withLocale } from "@/lib/locale";
+import { getServerTranslator } from "@/lib/i18n-server";
 
 export default async function Home() {
   const localeCookieStore = await cookies();
   const locale = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
+  const t = await getServerTranslator("Home");
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -17,18 +19,18 @@ export default async function Home() {
             <div className="flex flex-col items-center space-y-4 text-center">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl leading-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
-                  Unlock Insights with Surtopya
+                  {t("heroTitle")}
                 </h1>
                 <p className="mx-auto max-w-[700px] text-gray-400 md:text-xl">
-                  The premium marketplace for high-quality survey data. Create, distribute, and analyze with ease.
+                  {t("heroSubtitle")}
                 </p>
               </div>
               <div className="space-x-4">
                 <Button asChild className="bg-white text-black hover:bg-gray-200">
-                  <Link href={withLocale("/create", locale)}>Get Started</Link>
+                  <Link href={withLocale("/create", locale)}>{t("getStarted")}</Link>
                 </Button>
                 <Button variant="outline" asChild className="border-white bg-transparent text-white hover:bg-white hover:text-black">
-                  <Link href={withLocale("/explore", locale)}>Browse Surveys</Link>
+                  <Link href={withLocale("/explore", locale)}>{t("browseSurveys")}</Link>
                 </Button>
               </div>
             </div>
@@ -55,9 +57,9 @@ export default async function Home() {
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold">Easy Creation</h2>
+                <h2 className="text-xl font-bold">{t("featureOneTitle")}</h2>
                 <p className="text-gray-500 dark:text-gray-400">
-                  Drag-and-drop builder with advanced logic and premium templates.
+                  {t("featureOneDescription")}
                 </p>
               </div>
               <div className="flex flex-col items-center space-y-4 text-center">
@@ -79,9 +81,9 @@ export default async function Home() {
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold">Global Reach</h2>
+                <h2 className="text-xl font-bold">{t("featureTwoTitle")}</h2>
                 <p className="text-gray-500 dark:text-gray-400">
-                  Access a worldwide pool of verified respondents instantly.
+                  {t("featureTwoDescription")}
                 </p>
               </div>
               <div className="flex flex-col items-center space-y-4 text-center">
@@ -102,9 +104,9 @@ export default async function Home() {
                     <path d="M22 12A10 10 0 0 0 12 2v10z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold">Data Insights</h2>
+                <h2 className="text-xl font-bold">{t("featureThreeTitle")}</h2>
                 <p className="text-gray-500 dark:text-gray-400">
-                  Real-time analytics and exportable reports for deep analysis.
+                  {t("featureThreeDescription")}
                 </p>
               </div>
             </div>
@@ -113,14 +115,14 @@ export default async function Home() {
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          © 2024 Surtopya. All rights reserved.
+          {t("footerCopyright")}
         </p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link className="text-xs hover:underline underline-offset-4" href="#">
-            Terms of Service
+            {t("footerTerms")}
           </Link>
           <Link className="text-xs hover:underline underline-offset-4" href="#">
-            Privacy
+            {t("footerPrivacy")}
           </Link>
         </nav>
       </footer>
