@@ -34,7 +34,8 @@
     "logout": "Log Out",
     "profile": "Profile",
     "datasets": "Datasets",
-    "getStarted": "Get Started"
+    "getStarted": "Get Started",
+    "settings": "Settings"
   },
   "Auth": {
     "loginTitle": "Welcome Back",
