@@ -1,7 +1,7 @@
 # Surtopya - PROJECT KNOWLEDGE BASE
 
-**Generated:** 2025-01-12
-**Commit:** [local]
+**Generated:** 2026-01-25
+**Commit:** [current]
 **Branch:** main
 
 ## OVERVIEW
@@ -87,15 +87,18 @@ surtopya/
 ## ANTI-PATTERNS (THIS PROJECT)
 
 ### Forbidden Practices
-- **Large files**: `survey-builder.tsx` at 1134 lines is documented technical debt
-- **Mock data**: Multiple files use placeholders despite API being ready
-- **Missing tests**: Zero `_test.go` files, no frontend tests (Vitest/Jest not installed)
+- **Large files**: `survey-builder.tsx` at 1163 lines is documented technical debt (monolithic component)
+- **Mock data**: Multiple files use placeholders despite API being ready (`lib/data.ts`, `lib/datasets-data.ts`)
+- **Missing tests**: Minimal test coverage - only `health_test.go` and UI component tests exist
 - **Hardcoded env vars**: Use runtime injection pattern instead of baking `NEXT_PUBLIC_` vars
+- **Monolithic handlers**: Backend handlers approaching 500 lines need service layer extraction
 
 ### Known Issues (todo.md)
 - Integration testing pending
 - Error handling/loading states incomplete
 - Draft vs published state inconsistency in UI
+- Unimplemented TODOs in dataset.go (sorting, point deduction)
+- Manual i18n sync required between `zh-TW.json` and other locales
 
 ## COMMANDS
 ```bash

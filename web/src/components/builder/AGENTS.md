@@ -21,7 +21,7 @@ Drag-and-drop interface for survey construction, incorporating question manageme
 - **Question Types**: New question types must be registered in `toolbox.tsx` and handled in `question-card.tsx`.
 
 ## ANTI-PATTERNS
-- **Giant File**: `survey-builder.tsx` (1134 lines) is the primary technical debt; it combines business logic, dnd orchestration, and UI layout.
+- **Giant File**: `survey-builder.tsx` (1163 lines) is the primary technical debt; it combines business logic, dnd orchestration, and UI layout.
 - **State Coupling**: Question editing logic is tightly coupled with the sorting logic in the root component.
 - **Inlined Components**: Several sub-sections (Toolbar, Status Bar) are not yet extracted into separate files.
 

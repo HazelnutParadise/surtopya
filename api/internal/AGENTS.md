@@ -22,6 +22,7 @@ Hexagonal-lite architecture implementing core Surtopya domain logic (Surveys, Da
 | SQL Queries | `repository/` | Direct SQL implementation; manages question sorting and JSON fields |
 | Auth Context | `middleware/auth.go` | Populates `userID` in `gin.Context` from Logto JWT |
 | Domain Schema | `models/models.go` | Defines UUID-based entities and valid enum values |
+| JSONB Handling | All repositories | Uses `[]byte` serialization for JSONB columns |
 
 ## CONVENTIONS
 - **Constructor Injection**: Handlers are initialized with Repositories (e.g., `NewSurveyHandler()`). Avoid global singletons for business logic.
@@ -29,8 +30,10 @@ Hexagonal-lite architecture implementing core Surtopya domain logic (Surveys, Da
 - **Context Handling**: Always retrieve `userID` from `gin.Context` for authenticated operations.
 - **Transaction Safety**: Multi-step operations (like saving a survey with questions) MUST use `tx.Begin()` within the repository layer.
 - **Error Mapping**: Handlers are responsible for mapping internal errors to appropriate HTTP status codes.
+- **Byte Serialization**: JSONB columns use `[]byte` for efficient serialization/deserialization.
 
 ## ANTI-PATTERNS
 - **Logic Leaks**: Avoid placing business logic or SQL in `routes/` or `models/`.
 - **Direct DB Access**: Handlers must never call `sql.DB` directly; always use a Repository.
 - **Implicit States**: Avoid using global variables for request-scoped data; use `gin.Context`.
+- **Fat Handlers**: Business logic should move to service layer as handlers approach 500+ lines.
