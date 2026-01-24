@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from "next/server"
+
+const locales = ["zh-TW", "en", "ja"] as const
+const defaultLocale = "zh-TW"
+
+const getLocaleFromPath = (pathname: string) => {
+  const segment = pathname.split("/").filter(Boolean)[0]
+  return locales.includes(segment as (typeof locales)[number]) ? segment : null
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const locale = getLocaleFromPath(pathname)
+
+  if (locale) {
+    const url = request.nextUrl.clone()
+    const strippedPath = pathname.replace(`/${locale}`, "") || "/"
+    url.pathname = strippedPath
+    const response = NextResponse.rewrite(url)
+    response.cookies.set("NEXT_LOCALE", locale, {
+      maxAge: 60 * 60 * 24 * 365 * 5,
+      path: "/",
+    })
+    return response
+  }
+
+  const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value
+  const preferredLocale = locales.includes(cookieLocale as (typeof locales)[number])
+    ? cookieLocale
+    : defaultLocale
+
+  const url = request.nextUrl.clone()
+  url.pathname = `/${preferredLocale}${pathname === "/" ? "" : pathname}`
+  return NextResponse.redirect(url)
+}
+
+export const config = {
+  matcher: ["/((?!_next|api|.*\\..*).*)"],
+}
