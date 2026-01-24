@@ -9,10 +9,28 @@ const getLocaleFromCookies = async () => {
   return (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale
 }
 
+const mergeMessages = (base: Record<string, any>, overrides: Record<string, any>) => {
+  const result = { ...base }
+  Object.entries(overrides).forEach(([key, value]) => {
+    if (value && typeof value === "object" && !Array.isArray(value) && typeof result[key] === "object") {
+      result[key] = mergeMessages(result[key], value)
+    } else {
+      result[key] = value
+    }
+  })
+  return result
+}
+
 const getMessages = async (locale: string) => {
-  const messagesPath = path.join(process.cwd(), "messages", `${locale}.json`)
-  const file = await readFile(messagesPath, "utf-8")
-  return JSON.parse(file) as Record<string, any>
+  const basePath = path.join(process.cwd(), "messages", "en.json")
+  const localePath = path.join(process.cwd(), "messages", `${locale}.json`)
+  const [baseFile, localeFile] = await Promise.all([
+    readFile(basePath, "utf-8"),
+    readFile(localePath, "utf-8"),
+  ])
+  const baseMessages = JSON.parse(baseFile) as Record<string, any>
+  const localeMessages = JSON.parse(localeFile) as Record<string, any>
+  return mergeMessages(baseMessages, localeMessages)
 }
 
 const resolveMessage = (messages: Record<string, any>, key: string) => {
