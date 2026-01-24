@@ -1,25 +1,32 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Download, Code, FileText, Info, BarChart, Globe, Terminal, Copy, ChevronLeft, Lock, ArrowRightLeft } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Database, Download, Globe, ChevronLeft, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { MOCK_DATASETS } from "@/lib/datasets-data";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
+import type { Dataset } from "@/lib/api";
 
 interface DatasetDetailClientProps {
   id: string;
-  apiUrl: string;
 }
 
-export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+const normalizeCategory = (category: string) => {
+  if (!category) return "other";
+  return category.toLowerCase().replace(/\s+/g, "-");
+};
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+};
+
+export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
@@ -27,17 +34,72 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
   const tCommon = useTranslations("Common");
   const tCategories = useTranslations("Categories");
 
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "overview");
-  const dataset = MOCK_DATASETS.find(ds => ds.id === id);
+  const [dataset, setDataset] = useState<Dataset | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    const currentTab = searchParams.get("tab") || "overview";
-    if (activeTab !== currentTab) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", activeTab);
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchDataset = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/datasets/${id}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          if (isMounted) {
+            setDataset(null);
+          }
+          return;
+        }
+        const payload = await response.json();
+        if (isMounted) {
+          setDataset(payload || null);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Failed to load dataset:", error);
+          setDataset(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDataset();
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [id]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const response = await fetch(`/api/datasets/${id}`, { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Download failed");
+      }
+    } catch (error) {
+      console.error("Download failed:", error);
+    } finally {
+      setDownloading(false);
     }
-  }, [activeTab, pathname, router, searchParams]);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="animate-pulse text-purple-600 font-medium">{tCommon("loading")}</div>
+      </div>
+    );
+  }
 
   if (!dataset) {
     return (
@@ -49,6 +111,9 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
       </div>
     );
   }
+
+  const categorySlug = normalizeCategory(dataset.category);
+  const isPaid = dataset.accessType === "paid";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
@@ -65,37 +130,35 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">
             <div className="space-y-4 max-w-3xl">
               <div className="flex items-center gap-2">
-                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{tCategories(dataset.category)}</Badge>
-                <Badge variant="outline">{tDatasets("version", { version: "2.0.4" })}</Badge>
+                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                  {tCategories(categorySlug)}
+                </Badge>
               </div>
               <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{dataset.title}</h1>
-              <p className="text-lg text-gray-500 dark:text-gray-400">
-                {dataset.description}
-              </p>
+              <p className="text-lg text-gray-500 dark:text-gray-400">{dataset.description}</p>
               <div className="flex flex-wrap gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <Database className="h-4 w-4 text-purple-600" />
                   <span className="font-bold">{tDatasets("sampleSizeLabel", { count: dataset.sampleSize })}</span>
                 </div>
-                <div className={`flex items-center gap-2 ${dataset.isPublic ? 'text-emerald-600' : 'text-amber-600'}`}>
-                  {dataset.isPublic ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                  {dataset.isPublic ? tDatasets("publicAccess") : tDatasets("paidAccess")}
+                <div className={`flex items-center gap-2 ${isPaid ? "text-amber-600" : "text-emerald-600"}`}>
+                  {isPaid ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                  {isPaid ? tDatasets("paidAccess") : tDatasets("publicAccess")}
                 </div>
                 <div className="flex items-center gap-2">
-                  <BarChart className="h-4 w-4 text-purple-600" />
-                  {tDatasets("completionRate", { percent: 98 })}
+                  <Download className="h-4 w-4 text-purple-600" />
+                  {tDatasets("downloadsLabel", { count: dataset.downloadCount })}
                 </div>
               </div>
             </div>
             <div className="flex flex-col gap-3 w-full md:w-auto">
-              <Button className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/30 font-semibold h-11 px-8">
-                <Download className="mr-2 h-4 w-4" strokeWidth={2.5} /> {tDatasets("downloadFormat", { format: dataset.format.split(',')[0] })}
-              </Button>
               <Button
-                variant="outline"
-                className="border-purple-200 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-900/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20 h-11 px-8"
+                className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/30 font-semibold h-11 px-8"
+                onClick={handleDownload}
+                disabled={downloading}
               >
-                <Terminal className="mr-2 h-4 w-4" strokeWidth={2.5} /> {tDatasets("queryApi")}
+                <Download className="mr-2 h-4 w-4" strokeWidth={2.5} />
+                {tDatasets("download")}
               </Button>
             </div>
           </div>
@@ -103,158 +166,44 @@ export function DatasetDetailClient({ id, apiUrl }: DatasetDetailClientProps) {
       </div>
 
       <div className="container px-4 py-10 md:px-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <TabsList className="bg-gray-100 dark:bg-gray-800 p-1 h-12">
-            <TabsTrigger value="overview" className="px-6 h-10"><Info className="h-4 w-4 mr-2" /> {tDatasets("overview")}</TabsTrigger>
-            <TabsTrigger value="data-preview" className="px-6 h-10"><FileText className="h-4 w-4 mr-2" /> {tDatasets("dataPreview")}</TabsTrigger>
-            <TabsTrigger value="api-docs" className="px-6 h-10"><Code className="h-4 w-4 mr-2" /> {tDatasets("apiDocs")}</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <div className="prose dark:prose-invert max-w-none">
-                <h3 className="text-xl font-bold">{tDatasets("about")}</h3>
-                <p>
-                  {dataset.longDescription}
-                </p>
-                <h4 className="text-lg font-bold">{tDatasets("keyColumns")}</h4>
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 list-none pl-0">
-                  {dataset.columns.map((col, i) => (
-                    <li key={i} className="flex flex-col p-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-                      <strong className="text-purple-600 font-mono">{col.name}</strong>
-                      <span className="text-xs text-gray-500 mt-1">{col.type}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="prose dark:prose-invert max-w-none">
+              <h3 className="text-xl font-bold">{tDatasets("about")}</h3>
+              <p>{dataset.description}</p>
             </div>
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">{tDatasets("metadata")}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{tDatasets("license")}</span>
-                    <span className="font-medium">CC BY-NC 4.0</span>
-                  </div>
-                  <div className="flex justify-between items-center group/doi relative">
-                    <span className="text-gray-500 flex items-center gap-1">
-                      DOI
-                      <Info className="h-3.5 w-3.5 cursor-help" />
-                      <div className="absolute bottom-full mb-2 left-0 w-64 p-2 bg-gray-900 text-white text-[10px] rounded shadow-xl opacity-0 group-hover/doi:opacity-100 transition-opacity pointer-events-none z-10">
-                        {tDatasets("doiHelp")}
-                      </div>
-                    </span>
-                    <span className="font-medium text-purple-600">10.5281/surtopya.{dataset.id.replace('-', '.')}.24</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{tDatasets("format")}</span>
-                    <span className="font-medium">{dataset.format}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+          </div>
 
-          <TabsContent value="api-docs">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="space-y-4">
-                  <h3 className="text-2xl font-bold">{tDatasets("apiTitle")}</h3>
-                  <p className="text-gray-500">
-                    {tDatasets("apiDescription")}
-                  </p>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">{tDatasets("metadata")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{tDatasets("category")}</span>
+                  <span className="font-medium">{tCategories(categorySlug)}</span>
                 </div>
-
-                <Card className="bg-black text-gray-300 border-gray-800 shadow-2xl">
-                  <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-                    <span className="text-xs font-mono uppercase text-gray-500">{tDatasets("endpointLabel", { url: `${apiUrl}/v1/datasets/${id}/query` })}</span>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-white">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <CardContent className="p-6 font-mono text-sm overflow-x-auto">
-                    <pre className="text-emerald-500/90">
-{`curl -X GET "${apiUrl}/v1/datasets/${id}/query" \\
-     -H "Authorization: Bearer YOUR_API_KEY" \\
-     -G \\
-     --data-urlencode "limit=10" \\
-     --data-urlencode "filter=${dataset.columns[0]?.name}:value"`}
-                    </pre>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-4">
-                  <h4 className="text-lg font-bold">{tDatasets("pythonExample")}</h4>
-                   <Card className="bg-gray-100 dark:bg-gray-800 border-0">
-                    <CardContent className="p-6 font-mono text-sm overflow-x-auto text-purple-600 dark:text-purple-400">
-                      <pre>
-{`import requests
- 
-url = "${apiUrl}/v1/datasets/${id}/query"
-params = {"limit": 100}
-response = requests.get(url, params=params)
- 
-data = response.json()
-print(f"Retrieved {len(data['results'])} records.")`}
-                      </pre>
-                    </CardContent>
-                  </Card>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{tDatasets("sampleSize")}</span>
+                  <span className="font-medium">{dataset.sampleSize}</span>
                 </div>
-              </div>
-
-              <aside className="space-y-6">
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-700 text-white shadow-xl">
-                  <Terminal className="h-8 w-8 mb-4" />
-                  <h4 className="font-bold text-lg">{tDatasets("streamingTitle")}</h4>
-                  <p className="text-sm text-blue-100 mt-2 leading-relaxed">
-                    {tDatasets("streamingDescription")}
-                  </p>
-                  <Button variant="secondary" className="w-full mt-6 bg-white/20 hover:bg-white/30 text-white border-0">
-                    {tDatasets("viewApiReference")}
-                  </Button>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{tDatasets("downloads")}</span>
+                  <span className="font-medium">{dataset.downloadCount}</span>
                 </div>
-              </aside>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="data-preview">
-            <div className="flex items-center gap-2 mb-4 text-xs text-gray-400 bg-gray-100 dark:bg-gray-800/50 w-fit px-3 py-1.5 rounded-full">
-              <ArrowRightLeft className="h-3 w-3" />
-              <span>{tDatasets("scrollHint")}</span>
-            </div>
-            <Card className="border-0 shadow-xl overflow-hidden ring-1 ring-gray-200 dark:ring-gray-800">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto custom-scrollbar">
-                  <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm sticky top-0 dark:text-gray-400">
-                      <tr>
-                        {Object.keys(dataset.sampleData[0]).map((key) => (
-                          <th key={key} className="px-6 py-4 whitespace-nowrap">{key.toUpperCase()}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y dark:divide-gray-800">
-                      {dataset.sampleData.map((row, i) => (
-                        <tr key={i} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                          {Object.values(row).map((val, j) => (
-                            <td key={j} className={`px-6 py-4 whitespace-nowrap ${j === 0 ? 'font-mono text-xs text-purple-600' : ''} ${typeof val === 'number' ? 'text-gray-900 dark:text-gray-100 font-bold' : ''}`}>
-                              {typeof val === 'number' && j === Object.values(row).length - 1 ? `$${val}` : val}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{tDatasets("created")}</span>
+                  <span className="font-medium">{formatDate(dataset.createdAt)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{tDatasets("updated")}</span>
+                  <span className="font-medium">{formatDate(dataset.updatedAt)}</span>
                 </div>
               </CardContent>
             </Card>
-            <div className="mt-4 text-center text-xs text-gray-500">
-              {tDatasets("sampleCaption", { title: dataset.title })}
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
       </div>
     </div>
   );

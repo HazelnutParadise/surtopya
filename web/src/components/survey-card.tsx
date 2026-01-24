@@ -13,14 +13,14 @@ interface SurveyCardProps {
   title: string;
   description: string;
   points: number;
-  duration: number; // in minutes
+  duration?: number; // in minutes
   responses: number;
-  rating: number;
-  author: {
+  rating?: number;
+  author?: {
     name: string;
     image?: string;
   };
-  tags: string[];
+  tags?: string[];
   isHot?: boolean;
   variant?: 'explore' | 'dashboard'; // explore = go to intro page, dashboard = go to management page
   visibility?: 'public' | 'non-public';
@@ -37,7 +37,7 @@ export function SurveyCard({
   responses,
   rating,
   author,
-  tags,
+  tags = [],
   isHot,
   variant = 'explore',
   visibility = 'public',
@@ -64,10 +64,10 @@ export function SurveyCard({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                {tags.map((tag) => (
-                  <Badge 
-                    key={tag} 
-                    variant="secondary" 
+                {tags.length > 0 && tags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
                     className="bg-gray-100 text-xs font-normal text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                   >
                     {tag}
@@ -92,18 +92,22 @@ export function SurveyCard({
           </p>
           
           <div className="mt-4 flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-              <Clock className="h-3.5 w-3.5" />
-              {t("minutes", { count: duration })}
-            </div>
+            {typeof duration === "number" && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                <Clock className="h-3.5 w-3.5" />
+                {t("minutes", { count: duration })}
+              </div>
+            )}
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
               <Users className="h-3.5 w-3.5" />
               {t("responses", { count: responses })}
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
-              <Star className="h-3.5 w-3.5 fill-current" />
-              {rating.toFixed(1)}
-            </div>
+            {typeof rating === "number" && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-amber-500">
+                <Star className="h-3.5 w-3.5 fill-current" />
+                {rating.toFixed(1)}
+              </div>
+            )}
           </div>
         </CardContent>
 
@@ -124,7 +128,7 @@ export function SurveyCard({
                           </>
                       )}
                   </div>
-              ) : (
+              ) : author ? (
                 <>
                   <Avatar className="h-6 w-6 border border-gray-200 dark:border-gray-700">
                     <AvatarImage src={author.image} />
@@ -134,7 +138,7 @@ export function SurveyCard({
                     {author.name}
                   </span>
                 </>
-              )}
+              ) : null}
             </div>
             
             <div className="flex items-center gap-3">

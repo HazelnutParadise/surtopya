@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MockSurveyData } from "@/lib/data";
+import { SurveyDisplay } from "@/lib/survey-mappers";
 import { SurveyTheme } from "@/types/survey";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
@@ -52,7 +52,7 @@ const RichText = ({ content }: { content: string }) => {
 };
 
 interface SurveyClientPageProps {
-  initialSurvey?: MockSurveyData;
+  initialSurvey?: SurveyDisplay;
   surveyId: string;
   isPreview?: boolean;
 }
@@ -64,8 +64,9 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("SurveyPage");
+  const tCard = useTranslations("SurveyCard");
   
-  const [survey, setSurvey] = useState<MockSurveyData | null>(initialSurvey || null);
+  const [survey, setSurvey] = useState<SurveyDisplay | null>(initialSurvey || null);
   const [theme, setTheme] = useState<SurveyTheme | undefined>(undefined);
   const [loading, setLoading] = useState(!initialSurvey); // Only load if no initial data
   const [isTaking, setIsTaking] = useState(false);
@@ -83,9 +84,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
           const parsed = JSON.parse(surveyData);
           setSurvey({
             ...parsed,
-            estimatedTime: "N/A",
             responseCount: 0,
-            creator: "You (Preview)",
           });
           setIsTaking(true);
         }
@@ -257,7 +256,9 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
               </Badge>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{survey.title}</h1>
-            <p className="text-xl text-white/80">by {survey.creator}</p>
+            {survey.creatorName && (
+              <p className="text-xl text-white/80">by {survey.creatorName}</p>
+            )}
           </div>
         </header>
 
@@ -310,7 +311,11 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">{t("estimatedTime")}</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{survey.estimatedTime}</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {survey.estimatedMinutes
+                          ? tCard("minutes", { count: survey.estimatedMinutes })
+                          : "N/A"}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

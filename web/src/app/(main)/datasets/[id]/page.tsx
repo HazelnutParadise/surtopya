@@ -9,17 +9,14 @@ interface PageProps {
 export default async function DatasetDetailPage({ params }: PageProps) {
   const { id } = await params;
   const tCommon = await getServerTranslator("Common");
-  
-  // This is a Server Component, so process.env reads from the environment at runtime in Docker
-  const API_URL = process.env.PUBLIC_API_URL || "https://api.surtopya.com";
 
   return (
     <Suspense fallback={
-       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="animate-pulse text-purple-600 font-medium">{tCommon("loading")}</div>
       </div>
     }>
-      <DatasetDetailClient id={id} apiUrl={API_URL} />
+      <DatasetDetailClient id={id} />
     </Suspense>
   );
 }

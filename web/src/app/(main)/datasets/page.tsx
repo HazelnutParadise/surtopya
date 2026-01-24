@@ -4,14 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Database, Download, Search, FileText, Globe, Lock } from "lucide-react";
+import { Database, Download, Search, Globe, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
-
-import { MOCK_DATASETS } from "@/lib/datasets-data";
+import type { Dataset } from "@/lib/api";
 
 const CATEGORY_SLUGS = [
   "all",
@@ -21,7 +20,21 @@ const CATEGORY_SLUGS = [
   "technology",
   "healthcare",
   "finance",
+  "other",
 ];
+
+const PAGE_SIZE = 6;
+
+const normalizeCategory = (category: string) => {
+  if (!category) return "other";
+  return category.toLowerCase().replace(/\s+/g, "-");
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString();
+}
 
 function DatasetsContent() {
   const router = useRouter();
@@ -34,8 +47,13 @@ function DatasetsContent() {
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [activeCategory, setActiveCategory] = useState(searchParams.get("category") || "all");
-  const [sortBy, setSortBy] = useState<"newest" | "downloads" | "samples">((searchParams.get("sort") as any) || "newest");
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [sortBy, setSortBy] = useState<"newest" | "downloads" | "samples">(
+    (searchParams.get("sort") as "newest" | "downloads" | "samples") || "newest"
+  );
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   const getCategoryLabel = (slug: string) => (slug === "all" ? tDatasets("allCategories") : tCategories(slug));
 
@@ -54,20 +72,82 @@ function DatasetsContent() {
     }
   }, [searchTerm, activeCategory, sortBy, pathname, router, searchParams]);
 
-  const filteredDatasets = MOCK_DATASETS
-    .filter(ds => {
-      const matchesSearch = ds.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ds.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = activeCategory === "all" || ds.category === activeCategory;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === "downloads") return parseInt(b.downloads.replace('k', '000')) - parseInt(a.downloads.replace('k', '000'));
-      if (sortBy === "samples") return parseFloat(b.sampleSize.replace('k', '')) - parseFloat(a.sampleSize.replace('k', ''));
-      return a.id.localeCompare(b.id);
-    });
+  useEffect(() => {
+    setOffset(0);
+  }, [searchTerm, activeCategory, sortBy]);
 
-  const displayDatasets = filteredDatasets.slice(0, visibleCount);
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const fetchDatasets = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.set("search", searchTerm);
+        if (activeCategory && activeCategory !== "all") params.set("category", activeCategory);
+        if (sortBy) params.set("sort", sortBy);
+        params.set("limit", PAGE_SIZE.toString());
+        params.set("offset", offset.toString());
+
+        const response = await fetch(`/api/datasets?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          if (isMounted) {
+            if (offset === 0) {
+              setDatasets([]);
+            }
+            setHasMore(false);
+          }
+          return;
+        }
+        const payload = await response.json();
+        const items = payload.datasets || [];
+
+        if (isMounted) {
+          if (offset === 0) {
+            setDatasets(items);
+          } else {
+            setDatasets((prev) => [...prev, ...items]);
+          }
+          setHasMore(items.length === PAGE_SIZE);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error("Failed to load datasets:", error);
+          if (offset === 0) {
+            setDatasets([]);
+          }
+          setHasMore(false);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDatasets();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [activeCategory, offset, searchTerm, sortBy]);
+
+  const displayDatasets = [...datasets].sort((a, b) => {
+    switch (sortBy) {
+      case "downloads":
+        return b.downloadCount - a.downloadCount;
+      case "samples":
+        return b.sampleSize - a.sampleSize;
+      case "newest":
+      default:
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -80,20 +160,21 @@ function DatasetsContent() {
                 {tDatasets("heroTitleHighlight")}
               </span>
             </h1>
-            <p className="text-xl text-gray-400">
-              {tDatasets("heroDescription")}
-            </p>
+            <p className="text-xl text-gray-400">{tDatasets("heroDescription")}</p>
             <div className="flex flex-wrap gap-4 pt-4">
-              <Button className="bg-white text-black hover:bg-gray-100 font-semibold shadow-xl shadow-white/5 transition-all" onClick={() => {
-                document.getElementById('dataset-list')?.scrollIntoView({ behavior: 'smooth' });
-              }}>
+              <Button
+                className="bg-white text-black hover:bg-gray-100 font-semibold shadow-xl shadow-white/5 transition-all"
+                onClick={() => {
+                  document.getElementById("dataset-list")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
                 <Database className="mr-2 h-4 w-4" /> {tDatasets("browseDatasets")}
               </Button>
               <Button
                 variant="outline"
                 className="border-white/20 bg-white/5 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm shadow-xl transition-all"
               >
-                <FileText className="mr-2 h-4 w-4 text-purple-400" /> {tDatasets("apiDocs")}
+                {tDatasets("apiDocs")}
               </Button>
             </div>
           </div>
@@ -123,7 +204,11 @@ function DatasetsContent() {
                   <Button
                     key={slug}
                     variant={activeCategory === slug ? "secondary" : "ghost"}
-                    className={`w-full justify-start ${activeCategory === slug ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : 'text-gray-600 dark:text-gray-400 hover:text-purple-600'}`}
+                    className={`w-full justify-start ${
+                      activeCategory === slug
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                        : "text-gray-600 dark:text-gray-400 hover:text-purple-600"
+                    }`}
                     onClick={() => setActiveCategory(slug)}
                   >
                     {getCategoryLabel(slug)}
@@ -145,14 +230,14 @@ function DatasetsContent() {
           <div className="flex-1 space-y-6">
             <div className="flex items-center justify-between pb-4">
               <div className="text-sm text-gray-500">
-                {tDatasets("showingResults", { shown: displayDatasets.length, total: filteredDatasets.length })}
+                {tDatasets("showingResults", { shown: displayDatasets.length, total: displayDatasets.length })}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 uppercase font-medium">{tDatasets("sortLabel")}</span>
                 <select
                   className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
+                  onChange={(e) => setSortBy(e.target.value as "newest" | "downloads" | "samples")}
                 >
                   <option value="newest">{tDatasets("newest")}</option>
                   <option value="downloads">{tDatasets("mostDownloads")}</option>
@@ -162,65 +247,76 @@ function DatasetsContent() {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-              {displayDatasets.map((ds) => (
-                <Card key={ds.id} className="group overflow-hidden border-0 shadow-lg ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-purple-500/50 transition-all duration-300">
-                  <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <CardTitle className="text-xl group-hover:text-purple-600 transition-colors flex items-center gap-2 cursor-pointer">
-                            {ds.title}
-                            {!ds.isPublic && (
-                              <Badge variant="outline" className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 gap-1 ml-1 px-1.5 cursor-pointer">
-                                <Lock className="h-2.5 w-2.5" /> {tDatasets("paidBadge")}
-                              </Badge>
-                            )}
-                          </CardTitle>
-                          <CardDescription className="line-clamp-2 mt-1">
-                            {ds.description}
-                          </CardDescription>
+              {displayDatasets.map((ds) => {
+                const normalizedCategory = normalizeCategory(ds.category);
+                const isPaid = ds.accessType === "paid";
+
+                return (
+                  <Card
+                    key={ds.id}
+                    className="group overflow-hidden border-0 shadow-lg ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-purple-500/50 transition-all duration-300"
+                  >
+                    <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <CardTitle className="text-xl group-hover:text-purple-600 transition-colors flex items-center gap-2 cursor-pointer">
+                              {ds.title}
+                              {isPaid && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 gap-1 ml-1 px-1.5 cursor-pointer"
+                                >
+                                  <Lock className="h-2.5 w-2.5" /> {tDatasets("paidBadge")}
+                                </Badge>
+                              )}
+                            </CardTitle>
+                            <CardDescription className="line-clamp-2 mt-1">{ds.description}</CardDescription>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0"
+                          >
+                            {getCategoryLabel(normalizedCategory)}
+                          </Badge>
                         </div>
-                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
-                          {getCategoryLabel(ds.category)}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-6 text-sm text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-purple-500" />
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{tDatasets("samplesLabel", { count: ds.sampleSize })}</span>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-6 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-purple-500" />
+                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                              {tDatasets("samplesLabel", { count: ds.sampleSize })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Download className="h-4 w-4 text-purple-500" />
+                            <span className="font-medium text-gray-900 dark:text-gray-100">
+                              {tDatasets("downloadsLabel", { count: ds.downloadCount })}
+                            </span>
+                          </div>
+                          <div className="md:ml-auto">
+                            {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt) })}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Download className="h-4 w-4 text-purple-500" />
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{tDatasets("downloadsLabel", { count: ds.downloads })}</span>
+                      </CardContent>
+                      <CardFooter className="bg-gray-50 dark:bg-gray-900/50 py-3 border-t dark:border-gray-800">
+                        <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
+                          <span>{tDatasets("viewDetails")}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Database className="h-4 w-4 text-purple-500" />
-                          <span>{tDatasets("formatLabel", { format: ds.format })}</span>
-                        </div>
-                        <div className="md:ml-auto">
-                          {tDatasets("updatedLabel", { date: ds.lastUpdated })}
-                        </div>
-                      </div>
-                    </CardContent>
-                    <CardFooter className="bg-gray-50 dark:bg-gray-900/50 py-3 border-t dark:border-gray-800">
-                      <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
-                         <span>{tDatasets("viewDetails")}</span>
-                         {ds.apiAvailable && <span>{tDatasets("apiAccessActive")}</span>}
-                      </div>
-                    </CardFooter>
-                  </Link>
-                </Card>
-              ))}
+                      </CardFooter>
+                    </Link>
+                  </Card>
+                );
+              })}
             </div>
 
-            {visibleCount < filteredDatasets.length && (
+            {hasMore && !loading && (
               <div className="flex justify-center pt-8">
                 <Button
                   variant="ghost"
                   className="text-gray-500 hover:text-purple-600"
-                  onClick={() => setVisibleCount(prev => prev + 6)}
+                  onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
                 >
                   {tDatasets("loadMore")}
                 </Button>
@@ -236,11 +332,13 @@ function DatasetsContent() {
 export default function DatasetsPage() {
   const tCommon = useTranslations("Common");
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="animate-pulse text-purple-600 font-medium">{tCommon("loading")}</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+          <div className="animate-pulse text-purple-600 font-medium">{tCommon("loading")}</div>
+        </div>
+      }
+    >
       <DatasetsContent />
     </Suspense>
   );
@@ -248,8 +346,20 @@ export default function DatasetsPage() {
 
 function Users({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }

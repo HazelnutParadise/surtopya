@@ -1,44 +1,46 @@
-
 import { Metadata } from "next";
 import { Suspense } from "react";
-import { MOCK_SURVEYS, MockSurveyData } from "@/lib/data";
 import { SurveyClientPage } from "./survey-client-page";
+import { API_BASE_URL } from "@/lib/api-server";
+import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
+import type { Survey as ApiSurvey } from "@/lib/api";
 
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ mode?: string }>;
 };
 
-// Helper to robustly extract ID
-// Supports: "1", "1-consumer-prefs", "1-typo-slug"
-function getSurveyId(paramId: string): string {
+const normalizeSurveyId = (paramId: string) => {
   if (!paramId) return "";
-  if (paramId === 'preview') return 'preview';
-  
-  // If exact match in DB (unlikely for "1-slug" but check anyway)
-  if (MOCK_SURVEYS[paramId]) return paramId;
+  if (paramId === "preview") return "preview";
 
-  // Try splitting by hyphen if using numeric/short IDs combined with slugs
-  // Assuming ID is the first part
-  const parts = paramId.split('-');
-  if (parts.length > 0) {
-      const potentialId = parts[0];
-      if (MOCK_SURVEYS[potentialId]) return potentialId;
+  const uuidMatch = paramId.match(/[0-9a-fA-F-]{36}/);
+  if (uuidMatch) {
+    return uuidMatch[0];
   }
 
-  // Fallback: return original to let component handle "Not Found"
   return paramId;
-}
+};
 
-async function getSurvey(idParam: string): Promise<MockSurveyData | null> {
-  const id = getSurveyId(idParam);
-  if (id === 'preview') return MOCK_SURVEYS['preview'];
-  return MOCK_SURVEYS[id] || null;
-}
+const fetchSurvey = async (paramId: string): Promise<SurveyDisplay | null> => {
+  const id = normalizeSurveyId(paramId);
+  if (id === "preview") return null;
+
+  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as ApiSurvey;
+  return mapApiSurveyToUi(payload);
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const survey = await getSurvey(id);
+  const survey = await fetchSurvey(id);
 
   if (!survey) {
     return {
@@ -47,15 +49,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const isNonPublic = survey.settings?.visibility === 'non-public';
+  const isNonPublic = survey.settings?.visibility === "non-public";
 
   return {
     title: `${survey.title} | Surtopya`,
     description: survey.description,
-    robots: isNonPublic ? {
-      index: false,
-      follow: true,
-    } : undefined,
+    robots: isNonPublic
+      ? {
+          index: false,
+          follow: true,
+        }
+      : undefined,
     openGraph: {
       title: survey.title,
       description: survey.description,
@@ -67,45 +71,41 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params, searchParams }: Props) {
   const { id } = await params;
   const { mode } = await searchParams;
-  const isPreview = id === 'preview' || mode === 'preview';
-  const survey = await getSurvey(id);
+  const isPreview = id === "preview" || mode === "preview";
+  const survey = await fetchSurvey(id);
 
-  // Generate JSON-LD Structured Data
-  const jsonLd = survey ? {
-    "@context": "https://schema.org",
-    "@type": "Survey", // Note: schema.org doesn't have a strict 'Survey' type, often 'CreativeWork' or 'Questionnaire' is used. 'Dataset' is also possible.
-    "name": survey.title,
-    "description": survey.description,
-    "creator": {
-      "@type": "Organization",
-      "name": survey.creator
-    },
-    "interactionStatistic": {
-      "@type": "InteractionCounter",
-      "userInteractionCount": survey.responseCount
-    },
-    "dateCreated": new Date().toISOString(), // Mock
-    "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD",
-        "availability": "https://schema.org/Online"
-    }
-  } : null;
+  const jsonLd = survey
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Survey",
+        name: survey.title,
+        description: survey.description,
+        interactionStatistic: {
+          "@type": "InteractionCounter",
+          userInteractionCount: survey.responseCount,
+        },
+      }
+    : null;
 
   return (
     <>
-      {survey && (
+      {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div>}>
-        <SurveyClientPage 
-          initialSurvey={survey || undefined} 
-          surveyId={id} 
-          isPreview={isPreview} 
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          </div>
+        }
+      >
+        <SurveyClientPage
+          initialSurvey={survey || undefined}
+          surveyId={normalizeSurveyId(id)}
+          isPreview={isPreview}
         />
       </Suspense>
     </>
