@@ -11,13 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Save, Eye, Palette, Layout, Split, ArrowLeft, Settings, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket, RotateCcw } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { nanoid } from "nanoid";
 import { ThemeEditor } from "./theme-editor";
 import { LogicEditor } from "./logic-editor";
 import { SurveyTheme, LogicRule } from "@/types/survey";
 import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import {
   Tooltip,
   TooltipContent,
@@ -51,12 +52,14 @@ const calculateEstimatedTime = (questions: Question[]) => {
 export function SurveyBuilder() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tBuilder = useTranslations("SurveyBuilder");
   const tCommon = useTranslations("Common");
   const tConsent = useTranslations("ConsentModal");
   const tDashboard = useTranslations("Dashboard");
+  const editId = searchParams.get("edit");
   const defaultPageTitle = tBuilder("defaultPageTitle");
   const [questions, setQuestions] = useState<Question[]>([
     {
@@ -84,6 +87,10 @@ export function SurveyBuilder() {
   const [viewMode, setViewMode] = useState<'builder' | 'settings'>('builder');
   const [description, setDescription] = useState("");
   const [pointsReward, setPointsReward] = useState(0);
+  const [surveyId, setSurveyId] = useState<string | null>(null);
+  const [loadingSurvey, setLoadingSurvey] = useState(false);
+  const [savingSurvey, setSavingSurvey] = useState(false);
+  const [publishingSurvey, setPublishingSurvey] = useState(false);
 
   // Consent Modal State
   const [consentGiven, setConsentGiven] = useState(false);
@@ -122,6 +129,68 @@ export function SurveyBuilder() {
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (!editId) return;
+    let isActive = true;
+
+    const loadSurvey = async () => {
+      setLoadingSurvey(true);
+      try {
+        const response = await fetch(`/api/surveys/${editId}`, { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const payload = await response.json();
+        const mapped = mapApiSurveyToUi(payload);
+        const defaultSection: Question = {
+          id: generateId(),
+          type: 'section',
+          title: defaultPageTitle,
+          required: false,
+          points: 0,
+        };
+
+        const safeQuestions: Question[] =
+          mapped.questions.length > 0 && mapped.questions[0].type === "section"
+            ? mapped.questions
+            : [defaultSection, ...mapped.questions];
+
+        if (!isActive) return;
+
+        setSurveyId(mapped.id);
+        setTitle(mapped.title);
+        setDescription(mapped.description);
+        setQuestions(safeQuestions);
+        setTheme(
+          mapped.theme || {
+            primaryColor: "#9333ea",
+            backgroundColor: "#f9fafb",
+            fontFamily: "inter",
+          }
+        );
+        setPointsReward(mapped.settings.pointsReward);
+        setIsPublic(mapped.settings.visibility === "public");
+        setIncludeInDatasets(mapped.settings.isDatasetActive);
+        setIsPublished(mapped.settings.isPublished);
+        setPublishedCount(mapped.settings.publishedCount || 0);
+        setHasUnpublishedChanges(!mapped.settings.isPublished);
+        setIsDirty(false);
+      } catch (error) {
+        console.error("Failed to load survey:", error);
+      } finally {
+        if (isActive) {
+          setLoadingSurvey(false);
+        }
+      }
+    };
+
+    loadSurvey();
+
+    return () => {
+      isActive = false;
+    };
+  }, [defaultPageTitle, editId]);
 
   // Warn on exit if unsaved
   React.useEffect(() => {
@@ -484,6 +553,112 @@ export function SurveyBuilder() {
     return null;
   };
 
+  const buildQuestionsPayload = () => {
+    return questions
+      .filter(q => q.id !== "placeholder")
+      .map((q) => ({
+        id: q.id,
+        type: q.type,
+        title: q.title,
+        description: q.description || "",
+        options: q.options || [],
+        required: q.required,
+        points: q.points,
+        maxRating: q.maxRating || 0,
+        logic: q.logic || [],
+      }));
+  };
+
+  const saveSurvey = async () => {
+    setSavingSurvey(true);
+    try {
+      const payload = {
+        title,
+        description,
+        visibility: isPublic ? "public" : "non-public",
+        includeInDatasets,
+        theme,
+        pointsReward,
+        questions: buildQuestionsPayload(),
+      };
+
+      const response = await fetch(surveyId ? `/api/surveys/${surveyId}` : "/api/surveys", {
+        method: surveyId ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || "Failed to save survey");
+      }
+
+      const data = await response.json();
+      const mapped = mapApiSurveyToUi(data);
+
+      setSurveyId(mapped.id);
+      setIsPublic(mapped.settings.visibility === "public");
+      setIncludeInDatasets(mapped.settings.isDatasetActive);
+      setIsPublished(mapped.settings.isPublished);
+      setPublishedCount(mapped.settings.publishedCount || 0);
+      setHasUnpublishedChanges((prev) => prev || !mapped.settings.isPublished);
+      setIsDirty(false);
+
+      return mapped;
+    } finally {
+      setSavingSurvey(false);
+    }
+  };
+
+  const publishSurvey = async () => {
+    setPublishingSurvey(true);
+    try {
+      let currentId = surveyId;
+      if (!currentId) {
+        const saved = await saveSurvey();
+        currentId = saved?.id || null;
+      }
+      if (!currentId) {
+        throw new Error("Missing survey id");
+      }
+
+      const response = await fetch(`/api/surveys/${currentId}/publish`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          visibility: isPublic ? "public" : "non-public",
+          includeInDatasets,
+          pointsReward,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}));
+        throw new Error(errorPayload?.error || "Failed to publish survey");
+      }
+
+      const data = await response.json();
+      const mapped = mapApiSurveyToUi(data);
+
+      setSurveyId(mapped.id);
+      setIsPublic(mapped.settings.visibility === "public");
+      setIncludeInDatasets(mapped.settings.isDatasetActive);
+      setIsPublished(mapped.settings.isPublished);
+      setPublishedCount(mapped.settings.publishedCount || 0);
+      setHasUnpublishedChanges(false);
+      setIsDirty(false);
+      setPublishSettingsOpen(false);
+    } catch (error) {
+      console.error("Failed to publish survey:", error);
+    } finally {
+      setPublishingSurvey(false);
+    }
+  };
+
   const openPreview = () => {
     // Save survey data to sessionStorage for the preview page
     const surveyData = {
@@ -636,13 +811,9 @@ export function SurveyBuilder() {
                <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => {
-                          setIsDirty(false);
-                          // Mock save logic
-                          alert(tBuilder("saveSuccess"));
-                      }} 
+                      onClick={saveSurvey}
                       className="h-8"
-                      disabled={!isDirty}
+                      disabled={!isDirty || savingSurvey || loadingSurvey}
                  >
                       <Save className="mr-2 h-3 w-3" /> {tCommon("save")}
                </Button>
@@ -653,7 +824,7 @@ export function SurveyBuilder() {
                       size="sm" 
                       onClick={() => setPublishSettingsOpen(true)} 
                       className={`h-8 ${hasUnpublishedChanges ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                      disabled={!hasUnpublishedChanges}
+                      disabled={!hasUnpublishedChanges || publishingSurvey || loadingSurvey}
                   >
                       <Send className="mr-2 h-3 w-3" />
                       {isPublished ? tBuilder("republish") : tCommon("publish")}
@@ -1139,15 +1310,8 @@ export function SurveyBuilder() {
                         <Button variant="outline" onClick={() => setPublishSettingsOpen(false)}>{tCommon("cancel")}</Button>
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
-                            onClick={() => {
-                                setIsPublished(true);
-                                setHasUnpublishedChanges(false);
-                                setPublishedCount(prev => prev + 1);
-                                setPublishSettingsOpen(false);
-                                // Here you would trigger API call
-                                notifyChange(); // Just to clear dirty state in real app
-                                setIsDirty(false); // Clear dirty
-                            }}
+                            onClick={publishSurvey}
+                            disabled={publishingSurvey || loadingSurvey}
                         >
                             <Rocket className="mr-2 h-4 w-4" />
                             {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}

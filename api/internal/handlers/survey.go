@@ -193,11 +193,13 @@ func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 
 // UpdateSurveyRequest represents the request body for updating a survey
 type UpdateSurveyRequest struct {
-	Title        *string             `json:"title"`
-	Description  *string             `json:"description"`
-	Theme        *models.SurveyTheme `json:"theme"`
-	PointsReward *int                `json:"pointsReward"`
-	Questions    []QuestionRequest   `json:"questions"`
+	Title             *string             `json:"title"`
+	Description       *string             `json:"description"`
+	Visibility        *string             `json:"visibility"`
+	IncludeInDatasets *bool               `json:"includeInDatasets"`
+	Theme             *models.SurveyTheme `json:"theme"`
+	PointsReward      *int                `json:"pointsReward"`
+	Questions         []QuestionRequest   `json:"questions"`
 }
 
 // UpdateSurvey handles PUT /api/v1/surveys/:id
@@ -243,6 +245,27 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 	if req.Description != nil {
 		survey.Description = *req.Description
+	}
+	if req.Visibility != nil {
+		if *req.Visibility != "public" && *req.Visibility != "non-public" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visibility option"})
+			return
+		}
+		if survey.PublishedCount > 0 && *req.Visibility != survey.Visibility {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
+			return
+		}
+		survey.Visibility = *req.Visibility
+		if survey.Visibility == "public" {
+			survey.IncludeInDatasets = true
+		}
+	}
+	if req.IncludeInDatasets != nil {
+		if survey.Visibility == "public" {
+			survey.IncludeInDatasets = true
+		} else {
+			survey.IncludeInDatasets = *req.IncludeInDatasets
+		}
 	}
 	if req.Theme != nil {
 		survey.Theme = req.Theme
