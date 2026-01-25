@@ -613,6 +613,15 @@
     "activeOnly": "Active only",
     "inactiveOnly": "Inactive only",
     "deleteSurveyConfirm": "Delete this survey?",
-    "deleteDatasetConfirm": "Delete this dataset?"
+    "deleteDatasetConfirm": "Delete this dataset?",
+    "adminsTab": "Admins",
+    "adminsTitle": "Admin Management",
+    "searchAdmins": "Search users",
+    "superAdminOnlyHint": "Only super admins can change roles",
+    "noAdmins": "No users found",
+    "adminCount": "{count} users",
+    "superAdmin": "Super admin",
+    "admin": "Admin",
+    "adminToggleLabel": "Admin access"
   }
 }

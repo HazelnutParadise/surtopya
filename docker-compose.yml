@@ -10,12 +10,12 @@ services:
     env_file:
       - .env
     environment:
-      - PUBLIC_API_URL=${PUBLIC_API_URL}
-      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
-      - LOGTO_ENDPOINT=${LOGTO_ENDPOINT}
-      - LOGTO_APP_ID=${LOGTO_APP_ID}
-      - LOGTO_APP_SECRET=${LOGTO_APP_SECRET}
-      - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET}
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:8080/api/v1}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - LOGTO_ENDPOINT=${LOGTO_ENDPOINT:-}
+      - LOGTO_APP_ID=${LOGTO_APP_ID:-}
+      - LOGTO_APP_SECRET=${LOGTO_APP_SECRET:-}
+      - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
     volumes:
       - ./web/messages:/app/messages
     depends_on:
@@ -34,14 +34,12 @@ services:
       - GIN_MODE=release
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${DB_NAME:-surtopya}
       - DB_SSLMODE=disable
-      - JWT_SECRET=${JWT_SECRET}
-      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
-      - ADMIN_EMAILS=${ADMIN_EMAILS}
-      - ADMIN_USER_IDS=${ADMIN_USER_IDS}
+      - JWT_SECRET=${JWT_SECRET:-development-secret-key}
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,9 +52,9 @@ services:
     env_file:
       - .env
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-surtopya}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./api/migrations:/docker-entrypoint-initdb.d

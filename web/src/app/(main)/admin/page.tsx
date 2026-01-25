@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTranslations } from "next-intl"
-import type { Dataset, Survey } from "@/lib/api"
+import type { AdminUser, Dataset, Survey, UserProfile } from "@/lib/api"
 
 const PAGE_SIZE = 20
 
@@ -27,7 +27,12 @@ export default function AdminPage() {
   const [datasetActive, setDatasetActive] = useState("all")
   const [surveyLoading, setSurveyLoading] = useState(true)
   const [datasetLoading, setDatasetLoading] = useState(true)
+  const [userLoading, setUserLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [userSearch, setUserSearch] = useState("")
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null)
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null)
@@ -53,6 +58,21 @@ export default function AdminPage() {
 
   useEffect(() => {
     let isMounted = true
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/me", { cache: "no-store" })
+        if (!response.ok) {
+          return
+        }
+        const payload = await response.json()
+        if (isMounted) {
+          setCurrentUser(payload)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     const loadSurveys = async () => {
       setSurveyLoading(true)
       setError(null)
@@ -85,6 +105,7 @@ export default function AdminPage() {
       }
     }
 
+    loadProfile()
     loadSurveys()
     return () => {
       isMounted = false
@@ -129,6 +150,44 @@ export default function AdminPage() {
       isMounted = false
     }
   }, [datasetSearch, datasetActive, tAdmin])
+
+  useEffect(() => {
+    let isMounted = true
+    const loadUsers = async () => {
+      setUserLoading(true)
+      setError(null)
+      try {
+        const params = new URLSearchParams()
+        if (userSearch) params.set("search", userSearch)
+        params.set("limit", PAGE_SIZE.toString())
+        params.set("offset", "0")
+
+        const response = await fetch(`/api/admin/users?${params.toString()}`, { cache: "no-store" })
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          throw new Error(payload?.error || "Failed to load users")
+        }
+        const payload = await response.json()
+        if (isMounted) {
+          setUsers(payload.users || [])
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(tAdmin("loadError"))
+          setUsers([])
+        }
+      } finally {
+        if (isMounted) {
+          setUserLoading(false)
+        }
+      }
+    }
+
+    loadUsers()
+    return () => {
+      isMounted = false
+    }
+  }, [userSearch, tAdmin])
 
   const openSurveyEditor = (survey: Survey) => {
     setEditingSurvey(survey)
@@ -246,8 +305,35 @@ export default function AdminPage() {
     }
   }
 
+  const toggleAdmin = async (user: AdminUser, nextValue: boolean) => {
+    if (!currentUser?.isSuperAdmin) return
+    setSavingUserId(user.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAdmin: nextValue }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id ? { ...item, isAdmin: nextValue || item.isSuperAdmin } : item
+        )
+      )
+    } catch (err) {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
   const surveyCountLabel = useMemo(() => tAdmin("surveyCount", { count: surveys.length }), [surveys.length, tAdmin])
   const datasetCountLabel = useMemo(() => tAdmin("datasetCount", { count: datasets.length }), [datasets.length, tAdmin])
+  const adminCountLabel = useMemo(() => tAdmin("adminCount", { count: users.length }), [users.length, tAdmin])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
@@ -263,6 +349,7 @@ export default function AdminPage() {
           <TabsList>
             <TabsTrigger value="surveys">{tAdmin("surveysTab")}</TabsTrigger>
             <TabsTrigger value="datasets">{tAdmin("datasetsTab")}</TabsTrigger>
+            <TabsTrigger value="admins">{tAdmin("adminsTab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="surveys" className="mt-6">
@@ -410,6 +497,70 @@ export default function AdminPage() {
                         })()}
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="admins" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>{tAdmin("adminsTitle")}</CardTitle>
+                <CardDescription>{adminCountLabel}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <Input
+                    placeholder={tAdmin("searchAdmins")}
+                    value={userSearch}
+                    onChange={(event) => setUserSearch(event.target.value)}
+                    className="md:max-w-sm"
+                  />
+                  {!currentUser?.isSuperAdmin && (
+                    <div className="text-xs text-gray-500">{tAdmin("superAdminOnlyHint")}</div>
+                  )}
+                </div>
+
+                {userLoading ? (
+                  <div className="text-sm text-gray-500">{tCommon("loading")}</div>
+                ) : users.length === 0 ? (
+                  <div className="text-sm text-gray-500">{tAdmin("noAdmins")}</div>
+                ) : (
+                  <div className="space-y-3">
+                    {users.map((user) => {
+                      const label = user.displayName || user.email || user.id
+                      return (
+                        <div key={user.id} className="flex flex-col gap-3 border border-gray-100 dark:border-gray-800 rounded-lg p-4 bg-white/70 dark:bg-gray-900/70">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{label}</h3>
+                                {user.isSuperAdmin && (
+                                  <Badge className="bg-purple-100 text-purple-700">{tAdmin("superAdmin")}</Badge>
+                                )}
+                                {user.isAdmin && !user.isSuperAdmin && (
+                                  <Badge variant="secondary">{tAdmin("admin")}</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500">{user.email}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">{tAdmin("adminToggleLabel")}</span>
+                              <Switch
+                                checked={user.isAdmin}
+                                onCheckedChange={(checked) => toggleAdmin(user, checked)}
+                                disabled={
+                                  !currentUser?.isSuperAdmin ||
+                                  user.isSuperAdmin ||
+                                  savingUserId === user.id
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

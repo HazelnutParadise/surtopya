@@ -29,10 +29,11 @@ type UserProfileResponse struct {
 	Location         *string   `json:"location,omitempty"`
 	PointsBalance    int       `json:"pointsBalance"`
 	IsPro            bool      `json:"isPro"`
+	IsAdmin          bool      `json:"isAdmin"`
+	IsSuperAdmin     bool      `json:"isSuperAdmin"`
 	Locale           string    `json:"locale"`
 	CreatedAt        time.Time `json:"createdAt"`
 	SurveysCompleted int       `json:"surveysCompleted"`
-	IsAdmin          bool      `json:"isAdmin"`
 }
 
 type UpdateUserProfileRequest struct {
@@ -58,16 +59,29 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 	err := db.QueryRow(`
 		SELECT email, display_name, avatar_url, phone, bio, location,
-			points_balance, is_pro, locale, created_at
+			points_balance, is_pro, is_admin, is_super_admin, locale, created_at
 		FROM users WHERE id = $1
 	`, profile.ID).Scan(
 		&profile.Email, &profile.DisplayName, &profile.AvatarURL,
 		&profile.Phone, &profile.Bio, &profile.Location,
-		&profile.PointsBalance, &profile.IsPro, &profile.Locale, &profile.CreatedAt,
+		&profile.PointsBalance, &profile.IsPro, &profile.IsAdmin, &profile.IsSuperAdmin,
+		&profile.Locale, &profile.CreatedAt,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
 		return
+	}
+
+	if !profile.IsSuperAdmin {
+		promoted, err := middleware.EnsureSuperAdmin(profile.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admin access"})
+			return
+		}
+		if promoted {
+			profile.IsAdmin = true
+			profile.IsSuperAdmin = true
+		}
 	}
 
 	if err := db.QueryRow(`
@@ -76,13 +90,6 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user stats"})
 		return
 	}
-
-	isAdmin, err := middleware.IsAdminUser(profile.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve admin status"})
-		return
-	}
-	profile.IsAdmin = isAdmin
 
 	c.JSON(http.StatusOK, profile)
 }

@@ -292,6 +292,16 @@ export interface UserProfile {
   createdAt: string;
   surveysCompleted: number;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  email?: string;
+  displayName?: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  createdAt: string;
 }
 
 // Export singleton instance

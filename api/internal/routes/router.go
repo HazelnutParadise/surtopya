@@ -82,6 +82,8 @@ func SetupRouter() *gin.Engine {
 			admin.GET("/datasets", adminHandler.GetDatasets)
 			admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
 			admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
+			admin.GET("/users", adminHandler.GetUsers)
+			admin.PATCH("/users/:id", adminHandler.UpdateUser)
 		}
 	}
 

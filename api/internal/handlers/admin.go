@@ -45,6 +45,19 @@ type AdminDatasetUpdateRequest struct {
 	IsActive    *bool   `json:"isActive"`
 }
 
+type AdminUser struct {
+	ID           uuid.UUID `json:"id"`
+	Email        *string   `json:"email,omitempty"`
+	DisplayName  *string   `json:"displayName,omitempty"`
+	IsAdmin      bool      `json:"isAdmin"`
+	IsSuperAdmin bool      `json:"isSuperAdmin"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type AdminUserUpdateRequest struct {
+	IsAdmin *bool `json:"isAdmin"`
+}
+
 // GetSurveys handles GET /api/v1/admin/surveys
 func (h *AdminHandler) GetSurveys(c *gin.Context) {
 	search := c.Query("search")
@@ -281,4 +294,125 @@ func (h *AdminHandler) DeleteDataset(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Dataset deleted successfully"})
+}
+
+// GetUsers handles GET /api/v1/admin/users
+func (h *AdminHandler) GetUsers(c *gin.Context) {
+	search := c.Query("search")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	query := `
+		SELECT id, email, display_name, is_admin, is_super_admin, created_at
+		FROM users
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argCount := 0
+
+	if search != "" {
+		argCount++
+		query += " AND (email ILIKE $" + strconv.Itoa(argCount) + " OR display_name ILIKE $" + strconv.Itoa(argCount) + ")"
+		args = append(args, "%"+search+"%")
+	}
+
+	argCount++
+	query += " ORDER BY created_at DESC LIMIT $" + strconv.Itoa(argCount)
+	args = append(args, limit)
+
+	argCount++
+	query += " OFFSET $" + strconv.Itoa(argCount)
+	args = append(args, offset)
+
+	rows, err := database.GetDB().Query(query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users"})
+		return
+	}
+	defer rows.Close()
+
+	var users []AdminUser
+	for rows.Next() {
+		var user AdminUser
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
+			return
+		}
+		users = append(users, user)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"meta": gin.H{
+			"limit":  limit,
+			"offset": offset,
+		},
+	})
+}
+
+// UpdateUser handles PATCH /api/v1/admin/users/:id
+func (h *AdminHandler) UpdateUser(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	var isSuperAdmin bool
+	if err := database.GetDB().QueryRow("SELECT is_super_admin FROM users WHERE id = $1", currentUserID.(uuid.UUID)).Scan(&isSuperAdmin); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admin access"})
+		return
+	}
+	if !isSuperAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Super admin access required"})
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req AdminUserUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if req.IsAdmin == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
+		return
+	}
+
+	var targetIsSuper bool
+	if err := database.GetDB().QueryRow("SELECT is_super_admin FROM users WHERE id = $1", id).Scan(&targetIsSuper); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+	if targetIsSuper && !*req.IsAdmin {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove super admin"})
+		return
+	}
+
+	if _, err := database.GetDB().Exec(
+		"UPDATE users SET is_admin = $1 WHERE id = $2",
+		*req.IsAdmin, id,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	if _, err := database.GetDB().Exec(
+		"UPDATE users SET is_admin = true WHERE is_super_admin = true",
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User updated"})
 }

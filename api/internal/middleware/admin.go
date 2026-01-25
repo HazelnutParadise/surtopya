@@ -2,8 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/gin-gonic/gin"
@@ -27,6 +25,18 @@ func RequireAdmin() gin.HandlerFunc {
 			return
 		}
 		if !isAdmin {
+			promoted, err := EnsureSuperAdmin(userID.(uuid.UUID))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admin access"})
+				c.Abort()
+				return
+			}
+			if promoted {
+				c.Next()
+				return
+			}
+		}
+		if !isAdmin {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 			c.Abort()
 			return
@@ -38,51 +48,29 @@ func RequireAdmin() gin.HandlerFunc {
 
 // IsAdminUser checks if a user is configured as an admin.
 func IsAdminUser(userID uuid.UUID) (bool, error) {
-	adminIDs := parseEnvList(os.Getenv("ADMIN_USER_IDS"))
-	if len(adminIDs) > 0 {
-		for _, id := range adminIDs {
-			if id == userID.String() {
-				return true, nil
-			}
-		}
-	}
-
-	adminEmails := parseEnvList(os.Getenv("ADMIN_EMAILS"))
-	if len(adminEmails) == 0 {
-		return false, nil
-	}
-
 	db := database.GetDB()
-	var email *string
-	err := db.QueryRow("SELECT email FROM users WHERE id = $1", userID).Scan(&email)
+	var isAdmin bool
+	err := db.QueryRow("SELECT is_admin FROM users WHERE id = $1", userID).Scan(&isAdmin)
 	if err != nil {
 		return false, err
 	}
-	if email == nil {
+	return isAdmin, nil
+}
+
+// EnsureSuperAdmin promotes the user to super admin if none exists.
+func EnsureSuperAdmin(userID uuid.UUID) (bool, error) {
+	db := database.GetDB()
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM users WHERE is_super_admin = true").Scan(&count); err != nil {
+		return false, err
+	}
+	if count > 0 {
 		return false, nil
 	}
 
-	candidate := strings.ToLower(strings.TrimSpace(*email))
-	for _, adminEmail := range adminEmails {
-		if candidate == adminEmail {
-			return true, nil
-		}
+	_, err := db.Exec("UPDATE users SET is_admin = true, is_super_admin = true WHERE id = $1", userID)
+	if err != nil {
+		return false, err
 	}
-
-	return false, nil
-}
-
-func parseEnvList(value string) []string {
-	if value == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.ToLower(strings.TrimSpace(part))
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
+	return true, nil
 }

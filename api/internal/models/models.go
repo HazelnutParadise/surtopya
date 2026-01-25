@@ -18,6 +18,8 @@ type User struct {
 	Location      *string   `json:"location,omitempty" db:"location"`
 	PointsBalance int       `json:"pointsBalance" db:"points_balance"`
 	IsPro         bool      `json:"isPro" db:"is_pro"`
+	IsAdmin       bool      `json:"isAdmin" db:"is_admin"`
+	IsSuperAdmin  bool      `json:"isSuperAdmin" db:"is_super_admin"`
 	Locale        string    `json:"locale" db:"locale"`
 	CreatedAt     time.Time `json:"createdAt" db:"created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" db:"updated_at"`
