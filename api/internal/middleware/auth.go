@@ -120,6 +120,16 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	).Scan(&userID)
 
 	if err == nil {
+		email := getClaimString(claims, "email")
+		name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
+		picture := getClaimString(claims, "picture", "avatar")
+		_, _ = db.Exec(`
+			UPDATE users
+			SET email = COALESCE(email, $2),
+			    display_name = COALESCE(display_name, $3),
+			    avatar_url = COALESCE(avatar_url, $4)
+			WHERE id = $1
+		`, userID, nullString(email), nullString(name), nullString(picture))
 		return userID, nil
 	}
 
@@ -129,9 +139,9 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 
 	// Create new user
 	userID = uuid.New()
-	email, _ := claims["email"].(string)
-	name, _ := claims["name"].(string)
-	picture, _ := claims["picture"].(string)
+	email := getClaimString(claims, "email")
+	name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
+	picture := getClaimString(claims, "picture", "avatar")
 
 	_, err = db.Exec(`
 		INSERT INTO users (id, logto_user_id, email, display_name, avatar_url)
@@ -150,6 +160,15 @@ func nullString(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func getClaimString(claims jwt.MapClaims, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := claims[key].(string); ok && value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // CORSMiddleware handles CORS headers

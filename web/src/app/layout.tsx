@@ -59,7 +59,10 @@ export default async function RootLayout({
   const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
   const locale = (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale;
   const messages = await getMessages(locale);
-  const apiBaseUrl = process.env.PUBLIC_API_URL || "http://localhost:8080/api/v1"
+  const apiBaseUrl =
+    process.env.INTERNAL_API_URL ||
+    process.env.PUBLIC_API_URL ||
+    "http://api:8080/api/v1"
   const bootstrapResponse = await fetch(`${apiBaseUrl}/bootstrap`, { cache: "no-store" }).catch(() => null)
   const bootstrapPayload = bootstrapResponse?.ok ? await bootstrapResponse.json() : null
   const hasSuperAdmin = Boolean(bootstrapPayload?.hasSuperAdmin)

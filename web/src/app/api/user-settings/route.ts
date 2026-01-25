@@ -2,7 +2,10 @@ import { NextResponse } from "next/server"
 import { getAccessToken, getLogtoContext } from "@logto/next/server-actions"
 import { getLogtoConfig } from "@/lib/logto"
 
-const API_BASE_URL = process.env.PUBLIC_API_URL || "http://localhost:8080/api/v1"
+const API_BASE_URL =
+  process.env.INTERNAL_API_URL ||
+  process.env.PUBLIC_API_URL ||
+  "http://api:8080/api/v1"
 
 const getAuthToken = async () => {
   try {

@@ -44,6 +44,8 @@ function DatasetsContent() {
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tDatasets = useTranslations("Datasets");
   const tCategories = useTranslations("Categories");
+  const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const datasetsEndpoint = publicApiUrl ? `${publicApiUrl}/datasets` : "";
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const [activeCategory, setActiveCategory] = useState(searchParams.get("category") || "all");
@@ -225,6 +227,17 @@ function DatasetsContent() {
                 {tDatasets("openDatasetNoticeText")}
               </p>
             </div>
+
+            {datasetsEndpoint && (
+              <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                  {tDatasets("apiDocs")}
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 break-all">
+                  {tDatasets("endpointLabel", { url: datasetsEndpoint })}
+                </p>
+              </div>
+            )}
           </aside>
 
           <div className="flex-1 space-y-6">

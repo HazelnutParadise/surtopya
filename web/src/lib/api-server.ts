@@ -2,7 +2,10 @@ import { getAccessToken, getLogtoContext } from "@logto/next/server-actions"
 import { getLogtoConfig } from "@/lib/logto"
 import crypto from "crypto"
 
-export const API_BASE_URL = process.env.PUBLIC_API_URL || "http://localhost:8080/api/v1"
+export const API_BASE_URL =
+  process.env.INTERNAL_API_URL ||
+  process.env.PUBLIC_API_URL ||
+  "http://api:8080/api/v1"
 
 const base64UrlEncode = (input: Buffer | string) => {
   const buffer = typeof input === "string" ? Buffer.from(input) : input
