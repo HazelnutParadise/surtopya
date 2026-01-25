@@ -400,8 +400,8 @@
     "dangerZone": "危険な操作",
     "deleteAccount": "アカウント削除",
     "deleteAccountDescription": "アカウントと関連データを完全に削除します。この操作は元に戻せません。",
-    "languageZhTw": "中国語（繁体字）",
-    "languageEn": "英語（米国）",
+    "languageZhTw": "中文（繁體）",
+    "languageEn": "English (US)",
     "languageJa": "日本語"
   },
   "ThankYou": {

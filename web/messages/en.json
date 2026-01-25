@@ -400,9 +400,9 @@
     "dangerZone": "Danger Zone",
     "deleteAccount": "Delete Account",
     "deleteAccountDescription": "Permanently delete your account and all associated data. This action is irreversible.",
-    "languageZhTw": "Chinese (Traditional)",
+    "languageZhTw": "中文（繁體）",
     "languageEn": "English (US)",
-    "languageJa": "Japanese"
+    "languageJa": "日本語"
   },
   "ThankYou": {
     "title": "Thank You!",
