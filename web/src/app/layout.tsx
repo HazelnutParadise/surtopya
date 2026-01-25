@@ -66,7 +66,8 @@ export default async function RootLayout({
 
   let isAuthenticated = false
   try {
-    const context = await getLogtoContext(getLogtoConfig())
+    const config = await getLogtoConfig()
+    const context = await getLogtoContext(config)
     isAuthenticated = context.isAuthenticated
   } catch {
     isAuthenticated = false
