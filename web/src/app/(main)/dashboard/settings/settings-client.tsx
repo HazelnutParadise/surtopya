@@ -25,13 +25,18 @@ export default function SettingsClient() {
   const [selectedLocale, setSelectedLocale] = useState(activeLocale)
   const [loadingLocale, setLoadingLocale] = useState(true)
 
-  const handleLocaleChange = (nextLocale: string) => {
+  const handleLocaleChange = (nextLocale: string, refresh = false) => {
     const segments = pathname.split("/").filter(Boolean)
     const hasLocale = localeOptions.some((option) => option.value === segments[0])
     const rest = hasLocale ? segments.slice(1) : segments
     const nextPath = `/${nextLocale}/${rest.join("/")}`.replace(/\/$/, "")
     const query = searchParams.toString()
-    router.push(query ? `${nextPath}?${query}` : nextPath)
+    const nextUrl = query ? `${nextPath}?${query}` : nextPath
+    if (refresh) {
+      window.location.assign(nextUrl)
+      return
+    }
+    router.push(nextUrl)
   }
 
   useEffect(() => {
@@ -110,7 +115,7 @@ export default function SettingsClient() {
                 onValueChange={async (nextLocale) => {
                   setSelectedLocale(nextLocale)
                   await saveLocalePreference(nextLocale)
-                  handleLocaleChange(nextLocale)
+                  handleLocaleChange(nextLocale, true)
                 }}
                 disabled={loadingLocale}
               >
