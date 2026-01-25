@@ -1,11 +1,16 @@
 package handlers
 
 import (
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -218,6 +223,134 @@ func (h *AdminHandler) GetDatasets(c *gin.Context) {
 			"offset": offset,
 		},
 	})
+}
+
+// CreateDataset handles POST /api/v1/admin/datasets
+func (h *AdminHandler) CreateDataset(c *gin.Context) {
+	surveyIDStr := strings.TrimSpace(c.PostForm("surveyId"))
+	title := strings.TrimSpace(c.PostForm("title"))
+	description := strings.TrimSpace(c.PostForm("description"))
+	category := strings.TrimSpace(c.DefaultPostForm("category", "other"))
+	accessType := strings.TrimSpace(c.DefaultPostForm("accessType", "free"))
+	priceStr := strings.TrimSpace(c.DefaultPostForm("price", "0"))
+	sampleSizeStr := strings.TrimSpace(c.DefaultPostForm("sampleSize", "0"))
+
+	var surveyID *uuid.UUID
+	if title == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Title is required"})
+		return
+	}
+	if accessType != "free" && accessType != "paid" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid access type"})
+		return
+	}
+
+	if surveyIDStr != "" {
+		parsedSurveyID, err := uuid.Parse(surveyIDStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+			return
+		}
+
+		var exists bool
+		if err := database.GetDB().QueryRow("SELECT EXISTS (SELECT 1 FROM surveys WHERE id = $1)", parsedSurveyID).Scan(&exists); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate survey"})
+			return
+		}
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+			return
+		}
+		surveyID = &parsedSurveyID
+	}
+
+	price, err := strconv.Atoi(priceStr)
+	if err != nil || price < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
+		return
+	}
+
+	sampleSize, err := strconv.Atoi(sampleSizeStr)
+	if err != nil || sampleSize < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sample size"})
+		return
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dataset file is required"})
+		return
+	}
+
+	dataDir := os.Getenv("DATASETS_DIR")
+	if dataDir == "" {
+		dataDir = "/data/datasets"
+	}
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare dataset storage"})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read dataset file"})
+		return
+	}
+	defer file.Close()
+
+	datasetID := uuid.New()
+	ext := filepath.Ext(fileHeader.Filename)
+	storedName := datasetID.String()
+	if ext != "" {
+		storedName += ext
+	}
+	targetPath := filepath.Join(dataDir, storedName)
+
+	out, err := os.Create(targetPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store dataset file"})
+		return
+	}
+	defer out.Close()
+
+	fileSize, err := io.Copy(out, file)
+	if err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store dataset file"})
+		return
+	}
+
+	mimeType := fileHeader.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	descriptionValue := description
+	dataset := &models.Dataset{
+		ID:         datasetID,
+		SurveyID:   surveyID,
+		Title:      title,
+		Category:   category,
+		AccessType: accessType,
+		Price:      price,
+		SampleSize: sampleSize,
+		IsActive:   true,
+		FilePath:   targetPath,
+		FileName:   fileHeader.Filename,
+		FileSize:   fileSize,
+		MimeType:   mimeType,
+	}
+	if descriptionValue != "" {
+		dataset.Description = &descriptionValue
+	}
+
+	if err := h.datasets.Create(dataset); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, dataset)
 }
 
 // UpdateDataset handles PATCH /api/v1/admin/datasets/:id

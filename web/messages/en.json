@@ -622,6 +622,14 @@
     "adminCount": "{count} users",
     "superAdmin": "Super admin",
     "admin": "Admin",
-    "adminToggleLabel": "Admin access"
+    "adminToggleLabel": "Admin access",
+    "uploadDataset": "Upload dataset",
+    "uploadDatasetDescription": "Upload a file to create a dataset.",
+    "datasetFile": "Dataset file",
+    "uploadAction": "Upload",
+    "surveyId": "Survey ID (optional)",
+    "surveyIdPlaceholder": "Optional, only needed to link a survey",
+    "datasetFileRequired": "Please select a dataset file.",
+    "uploadError": "Upload failed. Please try again."
   }
 }

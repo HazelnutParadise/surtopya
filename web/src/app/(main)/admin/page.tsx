@@ -53,6 +53,18 @@ export default function AdminPage() {
     sampleSize: 0,
     isActive: true,
   })
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
+  const [uploadForm, setUploadForm] = useState({
+    surveyId: "",
+    title: "",
+    description: "",
+    category: "other",
+    accessType: "free",
+    price: 0,
+    sampleSize: 0,
+  })
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadingDataset, setUploadingDataset] = useState(false)
   const [savingSurvey, setSavingSurvey] = useState(false)
   const [savingDataset, setSavingDataset] = useState(false)
 
@@ -277,6 +289,52 @@ export default function AdminPage() {
     }
   }
 
+  const uploadDataset = async () => {
+    if (!uploadFile) {
+      setError(tAdmin("datasetFileRequired"))
+      return
+    }
+    setUploadingDataset(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append("surveyId", uploadForm.surveyId)
+      formData.append("title", uploadForm.title)
+      formData.append("description", uploadForm.description)
+      formData.append("category", uploadForm.category)
+      formData.append("accessType", uploadForm.accessType)
+      formData.append("price", String(uploadForm.price))
+      formData.append("sampleSize", String(uploadForm.sampleSize))
+      formData.append("file", uploadFile)
+
+      const response = await fetch("/api/admin/datasets", {
+        method: "POST",
+        body: formData,
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Upload failed")
+      }
+      const payload = await response.json()
+      setDatasets((prev) => [payload, ...prev])
+      setUploadDialogOpen(false)
+      setUploadForm({
+        surveyId: "",
+        title: "",
+        description: "",
+        category: "other",
+        accessType: "free",
+        price: 0,
+        sampleSize: 0,
+      })
+      setUploadFile(null)
+    } catch (err) {
+      setError(tAdmin("uploadError"))
+    } finally {
+      setUploadingDataset(false)
+    }
+  }
+
   const deleteSurvey = async (survey: Survey) => {
     if (!window.confirm(tAdmin("deleteSurveyConfirm"))) return
     try {
@@ -447,15 +505,18 @@ export default function AdminPage() {
                     onChange={(event) => setDatasetSearch(event.target.value)}
                     className="md:max-w-sm"
                   />
-                  <select
-                    className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
-                    value={datasetActive}
-                    onChange={(event) => setDatasetActive(event.target.value)}
-                  >
-                    <option value="all">{tAdmin("activeAll")}</option>
-                    <option value="true">{tAdmin("activeOnly")}</option>
-                    <option value="false">{tAdmin("inactiveOnly")}</option>
-                  </select>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                      value={datasetActive}
+                      onChange={(event) => setDatasetActive(event.target.value)}
+                    >
+                      <option value="all">{tAdmin("activeAll")}</option>
+                      <option value="true">{tAdmin("activeOnly")}</option>
+                      <option value="false">{tAdmin("inactiveOnly")}</option>
+                    </select>
+                    <Button onClick={() => setUploadDialogOpen(true)}>{tAdmin("uploadDataset")}</Button>
+                  </div>
                 </div>
 
                 {datasetLoading ? (
@@ -702,6 +763,87 @@ export default function AdminPage() {
             </Button>
             <Button onClick={saveDataset} disabled={savingDataset}>
               {savingDataset ? tCommon("saving") : tCommon("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tAdmin("uploadDataset")}</DialogTitle>
+            <DialogDescription>{tAdmin("uploadDatasetDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{tAdmin("surveyId")}</Label>
+              <Input
+                value={uploadForm.surveyId}
+                onChange={(event) => setUploadForm((prev) => ({ ...prev, surveyId: event.target.value }))}
+                placeholder={tAdmin("surveyIdPlaceholder")}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{tAdmin("datasetTitle")}</Label>
+              <Input
+                value={uploadForm.title}
+                onChange={(event) => setUploadForm((prev) => ({ ...prev, title: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{tAdmin("datasetDescription")}</Label>
+              <Input
+                value={uploadForm.description}
+                onChange={(event) => setUploadForm((prev) => ({ ...prev, description: event.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{tAdmin("datasetCategory")}</Label>
+                <Input
+                  value={uploadForm.category}
+                  onChange={(event) => setUploadForm((prev) => ({ ...prev, category: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{tAdmin("accessType")}</Label>
+                <select
+                  className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 w-full"
+                  value={uploadForm.accessType}
+                  onChange={(event) => setUploadForm((prev) => ({ ...prev, accessType: event.target.value }))}
+                >
+                  <option value="free">{tAdmin("accessFree")}</option>
+                  <option value="paid">{tAdmin("accessPaid")}</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{tAdmin("datasetPrice")}</Label>
+                <Input
+                  type="number"
+                  value={uploadForm.price}
+                  onChange={(event) => setUploadForm((prev) => ({ ...prev, price: Number(event.target.value) }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>{tAdmin("datasetSamples")}</Label>
+                <Input
+                  type="number"
+                  value={uploadForm.sampleSize}
+                  onChange={(event) => setUploadForm((prev) => ({ ...prev, sampleSize: Number(event.target.value) }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{tAdmin("datasetFile")}</Label>
+              <Input type="file" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button onClick={uploadDataset} disabled={uploadingDataset}>
+              {uploadingDataset ? tCommon("saving") : tAdmin("uploadAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

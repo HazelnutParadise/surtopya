@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
@@ -120,12 +121,20 @@ func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 	// Increment download count
 	h.repo.IncrementDownloadCount(id)
 
-	// TODO: Return actual dataset data
-	// For now, return a placeholder response
+	if dataset.FilePath != "" {
+		if _, err := os.Stat(dataset.FilePath); err == nil {
+			filename := dataset.FileName
+			if filename == "" {
+				filename = "dataset"
+			}
+			c.FileAttachment(dataset.FilePath, filename)
+			return
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":   "Dataset download initiated",
 		"datasetId": id,
-		// In production, this would include a download URL or the actual data
 	})
 }
 

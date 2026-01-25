@@ -28,3 +28,20 @@ export async function GET(request: Request) {
   const payload = await response.json().catch(() => ({}))
   return NextResponse.json(payload, { status: response.status })
 }
+
+export async function POST(request: Request) {
+  const token = await getAuthToken()
+  if (!token) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const formData = await request.formData()
+  const response = await fetch(`${API_BASE_URL}/admin/datasets`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  return NextResponse.json(payload, { status: response.status })
+}

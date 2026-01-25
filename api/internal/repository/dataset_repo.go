@@ -22,8 +22,9 @@ func NewDatasetRepository(db *sql.DB) *DatasetRepository {
 func (r *DatasetRepository) Create(dataset *models.Dataset) error {
 	query := `
 		INSERT INTO datasets (
-			id, survey_id, title, description, category, access_type, price, sample_size
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			id, survey_id, title, description, category, access_type, price, sample_size,
+			file_path, file_name, file_size, mime_type
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -31,6 +32,7 @@ func (r *DatasetRepository) Create(dataset *models.Dataset) error {
 		query,
 		dataset.ID, dataset.SurveyID, dataset.Title, dataset.Description,
 		dataset.Category, dataset.AccessType, dataset.Price, dataset.SampleSize,
+		dataset.FilePath, dataset.FileName, dataset.FileSize, dataset.MimeType,
 	).Scan(&dataset.ID, &dataset.CreatedAt, &dataset.UpdatedAt)
 
 	if err != nil {
@@ -46,14 +48,17 @@ func (r *DatasetRepository) GetByID(id uuid.UUID) (*models.Dataset, error) {
 
 	query := `
 		SELECT id, survey_id, title, description, category, access_type, price,
-			download_count, sample_size, is_active, created_at, updated_at
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
 		FROM datasets WHERE id = $1
 	`
 
+	var surveyID uuid.NullUUID
 	err := r.db.QueryRow(query, id).Scan(
-		&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+		&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
 		&dataset.Category, &dataset.AccessType, &dataset.Price,
 		&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+		&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
 		&dataset.CreatedAt, &dataset.UpdatedAt,
 	)
 
@@ -64,6 +69,7 @@ func (r *DatasetRepository) GetByID(id uuid.UUID) (*models.Dataset, error) {
 		return nil, fmt.Errorf("failed to get dataset: %w", err)
 	}
 
+	dataset.SurveyID = optionalUUID(surveyID)
 	return dataset, nil
 }
 
@@ -71,7 +77,8 @@ func (r *DatasetRepository) GetByID(id uuid.UUID) (*models.Dataset, error) {
 func (r *DatasetRepository) GetAll(category string, accessType string, limit, offset int) ([]models.Dataset, error) {
 	query := `
 		SELECT id, survey_id, title, description, category, access_type, price,
-			download_count, sample_size, is_active, created_at, updated_at
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
 		FROM datasets
 		WHERE is_active = true
 	`
@@ -107,15 +114,18 @@ func (r *DatasetRepository) GetAll(category string, accessType string, limit, of
 	var datasets []models.Dataset
 	for rows.Next() {
 		var dataset models.Dataset
+		var surveyID uuid.NullUUID
 		err := rows.Scan(
-			&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+			&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
 			&dataset.Category, &dataset.AccessType, &dataset.Price,
 			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
 			&dataset.CreatedAt, &dataset.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan dataset: %w", err)
 		}
+		dataset.SurveyID = optionalUUID(surveyID)
 		datasets = append(datasets, dataset)
 	}
 
@@ -126,7 +136,8 @@ func (r *DatasetRepository) GetAll(category string, accessType string, limit, of
 func (r *DatasetRepository) GetAllAdmin(search string, isActive *bool, limit, offset int) ([]models.Dataset, error) {
 	query := `
 		SELECT id, survey_id, title, description, category, access_type, price,
-			download_count, sample_size, is_active, created_at, updated_at
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
 		FROM datasets
 		WHERE 1=1
 	`
@@ -162,15 +173,18 @@ func (r *DatasetRepository) GetAllAdmin(search string, isActive *bool, limit, of
 	var datasets []models.Dataset
 	for rows.Next() {
 		var dataset models.Dataset
+		var surveyID uuid.NullUUID
 		err := rows.Scan(
-			&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+			&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
 			&dataset.Category, &dataset.AccessType, &dataset.Price,
 			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
 			&dataset.CreatedAt, &dataset.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan dataset: %w", err)
 		}
+		dataset.SurveyID = optionalUUID(surveyID)
 		datasets = append(datasets, dataset)
 	}
 
@@ -181,7 +195,8 @@ func (r *DatasetRepository) GetAllAdmin(search string, isActive *bool, limit, of
 func (r *DatasetRepository) Search(searchQuery string, limit, offset int) ([]models.Dataset, error) {
 	query := `
 		SELECT id, survey_id, title, description, category, access_type, price,
-			download_count, sample_size, is_active, created_at, updated_at
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
 		FROM datasets
 		WHERE is_active = true
 			AND (title ILIKE $1 OR description ILIKE $1)
@@ -199,15 +214,18 @@ func (r *DatasetRepository) Search(searchQuery string, limit, offset int) ([]mod
 	var datasets []models.Dataset
 	for rows.Next() {
 		var dataset models.Dataset
+		var surveyID uuid.NullUUID
 		err := rows.Scan(
-			&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+			&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
 			&dataset.Category, &dataset.AccessType, &dataset.Price,
 			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
 			&dataset.CreatedAt, &dataset.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan dataset: %w", err)
 		}
+		dataset.SurveyID = optionalUUID(surveyID)
 		datasets = append(datasets, dataset)
 	}
 
@@ -233,6 +251,20 @@ func (r *DatasetRepository) Update(dataset *models.Dataset) error {
 		return fmt.Errorf("failed to update dataset: %w", err)
 	}
 
+	return nil
+}
+
+// UpdateFile updates dataset file metadata
+func (r *DatasetRepository) UpdateFile(id uuid.UUID, filePath, fileName, mimeType string, fileSize int64) error {
+	query := `
+		UPDATE datasets SET
+			file_path = $2, file_name = $3, mime_type = $4, file_size = $5
+		WHERE id = $1
+	`
+
+	if _, err := r.db.Exec(query, id, filePath, fileName, mimeType, fileSize); err != nil {
+		return fmt.Errorf("failed to update dataset file: %w", err)
+	}
 	return nil
 }
 
@@ -275,14 +307,17 @@ func (r *DatasetRepository) GetBySurveyID(surveyID uuid.UUID) (*models.Dataset, 
 
 	query := `
 		SELECT id, survey_id, title, description, category, access_type, price,
-			download_count, sample_size, is_active, created_at, updated_at
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
 		FROM datasets WHERE survey_id = $1
 	`
 
+	var linkedSurveyID uuid.NullUUID
 	err := r.db.QueryRow(query, surveyID).Scan(
-		&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+		&dataset.ID, &linkedSurveyID, &dataset.Title, &dataset.Description,
 		&dataset.Category, &dataset.AccessType, &dataset.Price,
 		&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+		&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
 		&dataset.CreatedAt, &dataset.UpdatedAt,
 	)
 
@@ -293,5 +328,14 @@ func (r *DatasetRepository) GetBySurveyID(surveyID uuid.UUID) (*models.Dataset, 
 		return nil, fmt.Errorf("failed to get dataset by survey: %w", err)
 	}
 
+	dataset.SurveyID = optionalUUID(linkedSurveyID)
 	return dataset, nil
+}
+
+func optionalUUID(value uuid.NullUUID) *uuid.UUID {
+	if !value.Valid {
+		return nil
+	}
+	result := value.UUID
+	return &result
 }

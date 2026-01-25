@@ -43,10 +43,13 @@ services:
       - DB_SSLMODE=disable
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
       - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:3000}
+      - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}
     depends_on:
       postgres:
         condition: service_healthy
     restart: always
+    volumes:
+      - datasets_data:/data/datasets
 
   postgres:
     image: postgres:16-alpine
@@ -70,3 +73,4 @@ services:
 
 volumes:
   postgres_data:
+  datasets_data:

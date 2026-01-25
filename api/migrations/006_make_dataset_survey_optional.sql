@@ -1,0 +1,2 @@
+ALTER TABLE datasets
+    ALTER COLUMN survey_id DROP NOT NULL;

@@ -265,7 +265,7 @@ export interface SurveyResponse {
 
 export interface Dataset {
   id: string;
-  surveyId: string;
+  surveyId?: string;
   title: string;
   description?: string;
   category: string;
@@ -274,6 +274,9 @@ export interface Dataset {
   downloadCount: number;
   sampleSize: number;
   isActive: boolean;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   createdAt: string;
   updatedAt: string;
 }

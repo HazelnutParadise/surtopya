@@ -109,18 +109,22 @@ type Answer struct {
 
 // Dataset represents a dataset in the marketplace
 type Dataset struct {
-	ID            uuid.UUID `json:"id" db:"id"`
-	SurveyID      uuid.UUID `json:"surveyId" db:"survey_id"`
-	Title         string    `json:"title" db:"title"`
-	Description   *string   `json:"description,omitempty" db:"description"`
-	Category      string    `json:"category" db:"category"`
-	AccessType    string    `json:"accessType" db:"access_type"`
-	Price         int       `json:"price" db:"price"`
-	DownloadCount int       `json:"downloadCount" db:"download_count"`
-	SampleSize    int       `json:"sampleSize" db:"sample_size"`
-	IsActive      bool      `json:"isActive" db:"is_active"`
-	CreatedAt     time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt     time.Time `json:"updatedAt" db:"updated_at"`
+	ID            uuid.UUID  `json:"id" db:"id"`
+	SurveyID      *uuid.UUID `json:"surveyId,omitempty" db:"survey_id"`
+	Title         string     `json:"title" db:"title"`
+	Description   *string    `json:"description,omitempty" db:"description"`
+	Category      string     `json:"category" db:"category"`
+	AccessType    string     `json:"accessType" db:"access_type"`
+	Price         int        `json:"price" db:"price"`
+	DownloadCount int        `json:"downloadCount" db:"download_count"`
+	SampleSize    int        `json:"sampleSize" db:"sample_size"`
+	IsActive      bool       `json:"isActive" db:"is_active"`
+	FilePath      string     `json:"-" db:"file_path"`
+	FileName      string     `json:"fileName,omitempty" db:"file_name"`
+	FileSize      int64      `json:"fileSize,omitempty" db:"file_size"`
+	MimeType      string     `json:"mimeType,omitempty" db:"mime_type"`
+	CreatedAt     time.Time  `json:"createdAt" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updatedAt" db:"updated_at"`
 }
 
 // PointsTransaction represents a points transaction
