@@ -89,6 +89,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("userID", userID)
 		c.Set("logtoUserID", logtoUserID)
 
+		_, _ = EnsureSuperAdmin(userID)
+
 		c.Next()
 	}
 }

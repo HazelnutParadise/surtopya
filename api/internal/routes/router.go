@@ -61,6 +61,10 @@ func SetupRouter() *gin.Engine {
 			datasets.POST("/:id/download", datasetHandler.DownloadDataset)
 		}
 
+		// Bootstrap status
+		adminHandler := handlers.NewAdminHandler()
+		api.GET("/bootstrap", adminHandler.GetBootstrapStatus)
+
 		// User profile and settings routes
 		userSettingsHandler := handlers.NewUserSettingsHandler()
 		userHandler := handlers.NewUserHandler()
@@ -73,7 +77,6 @@ func SetupRouter() *gin.Engine {
 		}
 
 		// Admin routes
-		adminHandler := handlers.NewAdminHandler()
 		admin := api.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
 		{
 			admin.GET("/surveys", adminHandler.GetSurveys)

@@ -1,20 +1,26 @@
-import LogtoClient from "@logto/next"
+import LogtoClient from "@logto/next/server-actions"
 import { getLogtoConfig } from "@/lib/logto"
 import { NextRequest, NextResponse } from "next/server"
 
 export const GET = async (request: NextRequest, { params }: { params: Promise<{ action: string }> }) => {
     try {
-        const client = new LogtoClient(getLogtoConfig()) as any
+        const config = getLogtoConfig()
+        const client = new LogtoClient(config) as any
         const { action } = await params
 
         if (action === "sign-in") {
-            return client.handleSignIn()
+            const { url } = await client.handleSignIn({
+                redirectUri: `${config.baseUrl}/api/logto/sign-in-callback`,
+            })
+            return NextResponse.redirect(url)
         }
         if (action === "sign-out") {
-            return client.handleSignOut()
+            const url = await client.handleSignOut(config.baseUrl)
+            return NextResponse.redirect(url)
         }
         if (action === "sign-in-callback") {
-            return client.handleSignInCallback(request.url)
+            await client.handleSignInCallback(request.url)
+            return NextResponse.redirect(config.baseUrl)
         }
 
         return new NextResponse("Not Found", { status: 404 })
@@ -25,14 +31,19 @@ export const GET = async (request: NextRequest, { params }: { params: Promise<{ 
 
 export const POST = async (request: NextRequest, { params }: { params: Promise<{ action: string }> }) => {
     try {
-        const client = new LogtoClient(getLogtoConfig()) as any
+        const config = getLogtoConfig()
+        const client = new LogtoClient(config) as any
         const { action } = await params
 
         if (action === "sign-in") {
-            return client.handleSignIn()
+            const { url } = await client.handleSignIn({
+                redirectUri: `${config.baseUrl}/api/logto/sign-in-callback`,
+            })
+            return NextResponse.redirect(url)
         }
         if (action === "sign-out") {
-            return client.handleSignOut()
+            const url = await client.handleSignOut(config.baseUrl)
+            return NextResponse.redirect(url)
         }
 
         return new NextResponse("Not Found", { status: 404 })

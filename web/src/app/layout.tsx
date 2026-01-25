@@ -1,12 +1,15 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { LocaleSync } from "@/components/locale-sync";
-import { cookies } from "next/headers";
-import path from "path";
-import { readFile } from "fs/promises";
-import { I18nProvider } from "@/components/i18n-provider";
-import { defaultLocale, locales } from "@/lib/locale";
+import type { Metadata } from "next"
+import { Geist, Geist_Mono } from "next/font/google"
+import "./globals.css"
+import { LocaleSync } from "@/components/locale-sync"
+import { cookies } from "next/headers"
+import path from "path"
+import { readFile } from "fs/promises"
+import { I18nProvider } from "@/components/i18n-provider"
+import { defaultLocale, locales } from "@/lib/locale"
+import { getLogtoConfig } from "@/lib/logto"
+import { getLogtoContext } from "@logto/next/server-actions"
+import { redirect } from "next/navigation"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,6 +59,22 @@ export default async function RootLayout({
   const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
   const locale = (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale;
   const messages = await getMessages(locale);
+  const apiBaseUrl = process.env.PUBLIC_API_URL || "http://localhost:8080/api/v1"
+  const bootstrapResponse = await fetch(`${apiBaseUrl}/bootstrap`, { cache: "no-store" }).catch(() => null)
+  const bootstrapPayload = bootstrapResponse?.ok ? await bootstrapResponse.json() : null
+  const hasSuperAdmin = Boolean(bootstrapPayload?.hasSuperAdmin)
+
+  let isAuthenticated = false
+  try {
+    const context = await getLogtoContext(getLogtoConfig())
+    isAuthenticated = context.isAuthenticated
+  } catch {
+    isAuthenticated = false
+  }
+
+  if (!hasSuperAdmin && !isAuthenticated) {
+    redirect("/api/logto/sign-in")
+  }
 
   return (
     <html lang={locale} suppressHydrationWarning>

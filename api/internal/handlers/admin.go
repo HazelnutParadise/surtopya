@@ -296,6 +296,17 @@ func (h *AdminHandler) DeleteDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Dataset deleted successfully"})
 }
 
+// GetBootstrapStatus handles GET /api/v1/bootstrap
+func (h *AdminHandler) GetBootstrapStatus(c *gin.Context) {
+	var count int
+	if err := database.GetDB().QueryRow("SELECT COUNT(*) FROM users WHERE is_super_admin = true").Scan(&count); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check admin status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"hasSuperAdmin": count > 0})
+}
+
 // GetUsers handles GET /api/v1/admin/users
 func (h *AdminHandler) GetUsers(c *gin.Context) {
 	search := c.Query("search")
