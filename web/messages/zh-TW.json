@@ -370,7 +370,7 @@
     "featureTwoDescription": "即時連結全球驗證受訪者。",
     "featureThreeTitle": "資料洞察",
     "featureThreeDescription": "即時分析與可匯出報告，深入洞察。",
-    "footerCopyright": "© 2024 Surtopya. 版權所有。",
+    "footerCopyright": "© {year} Surtopya. 版權所有。",
     "footerTerms": "服務條款",
     "footerPrivacy": "隱私權"
   },

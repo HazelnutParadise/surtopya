@@ -370,7 +370,7 @@
     "featureTwoDescription": "世界中の検証済み回答者に即時アクセス。",
     "featureThreeTitle": "データインサイト",
     "featureThreeDescription": "リアルタイム分析とエクスポート可能なレポート。",
-    "footerCopyright": "© 2024 Surtopya. 無断転載を禁じます。",
+    "footerCopyright": "© {year} Surtopya. 無断転載を禁じます。",
     "footerTerms": "利用規約",
     "footerPrivacy": "プライバシー"
   },
