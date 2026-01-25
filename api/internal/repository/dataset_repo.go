@@ -122,6 +122,61 @@ func (r *DatasetRepository) GetAll(category string, accessType string, limit, of
 	return datasets, nil
 }
 
+// GetAllAdmin retrieves datasets with optional search and active filter
+func (r *DatasetRepository) GetAllAdmin(search string, isActive *bool, limit, offset int) ([]models.Dataset, error) {
+	query := `
+		SELECT id, survey_id, title, description, category, access_type, price,
+			download_count, sample_size, is_active, created_at, updated_at
+		FROM datasets
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argCount := 0
+
+	if search != "" {
+		argCount++
+		query += fmt.Sprintf(" AND (title ILIKE $%d OR description ILIKE $%d)", argCount, argCount)
+		args = append(args, "%"+search+"%")
+	}
+
+	if isActive != nil {
+		argCount++
+		query += fmt.Sprintf(" AND is_active = $%d", argCount)
+		args = append(args, *isActive)
+	}
+
+	argCount++
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argCount)
+	args = append(args, limit)
+
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query datasets: %w", err)
+	}
+	defer rows.Close()
+
+	var datasets []models.Dataset
+	for rows.Next() {
+		var dataset models.Dataset
+		err := rows.Scan(
+			&dataset.ID, &dataset.SurveyID, &dataset.Title, &dataset.Description,
+			&dataset.Category, &dataset.AccessType, &dataset.Price,
+			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.CreatedAt, &dataset.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan dataset: %w", err)
+		}
+		datasets = append(datasets, dataset)
+	}
+
+	return datasets, nil
+}
+
 // Search searches datasets by title or description
 func (r *DatasetRepository) Search(searchQuery string, limit, offset int) ([]models.Dataset, error) {
 	query := `

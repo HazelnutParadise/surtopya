@@ -61,12 +61,27 @@ func SetupRouter() *gin.Engine {
 			datasets.POST("/:id/download", datasetHandler.DownloadDataset)
 		}
 
-		// User settings routes
+		// User profile and settings routes
 		userSettingsHandler := handlers.NewUserSettingsHandler()
+		userHandler := handlers.NewUserHandler()
 		me := api.Group("/me", middleware.RequireAuth())
 		{
+			me.GET("", userHandler.GetProfile)
+			me.PATCH("", userHandler.UpdateProfile)
 			me.GET("/settings", userSettingsHandler.GetSettings)
 			me.PATCH("/settings", userSettingsHandler.UpdateSettings)
+		}
+
+		// Admin routes
+		adminHandler := handlers.NewAdminHandler()
+		admin := api.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
+		{
+			admin.GET("/surveys", adminHandler.GetSurveys)
+			admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
+			admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
+			admin.GET("/datasets", adminHandler.GetDatasets)
+			admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
+			admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
 		}
 	}
 

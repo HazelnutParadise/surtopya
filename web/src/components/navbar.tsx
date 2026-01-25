@@ -13,12 +13,14 @@ import {
   CreditCard,
   Settings,
   User,
-  LogOut
+  LogOut,
+  Shield
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import type { UserProfile } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,14 +38,43 @@ export function Navbar() {
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("Navigation");
-  
-  // Mock Auth State
-  const isAuthenticated = true; 
-  const user = {
-    name: "Tim Lai",
-    email: "tim@example.com",
-    avatar: "" 
-  };
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/me", { cache: "no-store" });
+        if (!response.ok) {
+          if (isMounted) {
+            setUser(null);
+          }
+          return;
+        }
+        const payload = await response.json();
+        if (isMounted) {
+          setUser(payload);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const isAuthenticated = !!user;
+  const userLabel = user?.displayName || user?.email || "";
 
   const navItems = [
     { name: t("explore"), href: "/explore", icon: Compass },
@@ -59,7 +90,7 @@ export function Navbar() {
   const allItems = isAuthenticated ? [...navItems, ...authItems] : navItems;
 
   const handleLogout = () => {
-    console.log("Logging out...");
+    window.location.assign("/api/logto/sign-out");
   };
 
   return (
@@ -91,7 +122,7 @@ export function Navbar() {
           ))}
           
           <div className="flex items-center gap-4 ml-4">
-             {isAuthenticated ? (
+             {authLoading ? null : isAuthenticated ? (
                <>
                  <Button asChild variant="ghost" className="text-gray-600 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400">
                    <Link href={withLocalePath("/create")}>{t("create")}</Link>
@@ -101,9 +132,9 @@ export function Navbar() {
                    <DropdownMenuTrigger asChild>
                      <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 overflow-hidden hover:bg-transparent">
                        <Avatar className="h-9 w-9 ring-2 ring-transparent hover:ring-purple-500 transition-all">
-                         <AvatarImage src={user.avatar} alt={user.name} />
+                         <AvatarImage src={user?.avatarUrl} alt={userLabel} />
                          <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white font-semibold">
-                           {user.name.charAt(0)}
+                           {userLabel.charAt(0)}
                          </AvatarFallback>
                        </Avatar>
                      </Button>
@@ -111,14 +142,22 @@ export function Navbar() {
                    <DropdownMenuContent className="w-56 mt-1 animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2" align="end" sideOffset={8} alignOffset={-4} forceMount>
                      <DropdownMenuLabel className="font-normal px-4 py-3 border-b dark:border-gray-800">
                        <div className="flex flex-col space-y-1 py-1">
-                         <p className="text-sm font-semibold leading-none">{user.name}</p>
+                         <p className="text-sm font-semibold leading-none">{userLabel}</p>
                          <p className="text-xs leading-none text-muted-foreground">
-                           {user.email}
+                           {user?.email}
                          </p>
                        </div>
                      </DropdownMenuLabel>
                      <DropdownMenuSeparator />
                      <DropdownMenuGroup>
+                       {user?.isAdmin && (
+                         <DropdownMenuItem asChild>
+                           <Link href={withLocalePath("/admin")} className="flex w-full items-center cursor-pointer">
+                             <Shield className="mr-2 h-4 w-4" />
+                             <span>{t("admin")}</span>
+                           </Link>
+                         </DropdownMenuItem>
+                       )}
                        <DropdownMenuItem asChild>
                          <Link href={withLocalePath("/dashboard")} className="flex w-full items-center cursor-pointer">
                            <LayoutDashboard className="mr-2 h-4 w-4" />
@@ -148,8 +187,12 @@ export function Navbar() {
                </>
              ) : (
                <>
-                 <Button variant="ghost" size="sm">{t("login")}</Button>
-                 <Button size="sm" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20">{t("getStarted")}</Button>
+                 <Button asChild variant="ghost" size="sm">
+                   <Link href="/api/logto/sign-in">{t("login")}</Link>
+                 </Button>
+                 <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20">
+                   <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
+                 </Button>
                </>
              )}
           </div>
@@ -186,8 +229,16 @@ export function Navbar() {
             ))}
             
             <div className="mt-4 border-t border-gray-100 pt-6 dark:border-gray-800">
-               {isAuthenticated ? (
+               {authLoading ? null : isAuthenticated ? (
                   <div className="flex flex-col gap-2">
+                    {user?.isAdmin && (
+                      <Button asChild variant="outline" className="w-full justify-start rounded-xl h-12">
+                        <Link href={withLocalePath("/admin")} onClick={() => setIsMenuOpen(false)}>
+                          <Shield className="mr-3 h-5 w-5" />
+                          {t("admin")}
+                        </Link>
+                      </Button>
+                    )}
                     <Button asChild variant="outline" className="w-full justify-start rounded-xl h-12">
                       <Link href={withLocalePath("/dashboard")} onClick={() => setIsMenuOpen(false)}>
                         <LayoutDashboard className="mr-3 h-5 w-5" />
@@ -201,8 +252,12 @@ export function Navbar() {
                   </div>
                ) : (
                   <div className="flex flex-col gap-3">
-                    <Button variant="outline" className="w-full rounded-xl h-12 text-base">{t("login")}</Button>
-                    <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-12 text-base shadow-lg shadow-purple-500/20">{t("getStarted")}</Button>
+                    <Button asChild variant="outline" className="w-full rounded-xl h-12 text-base">
+                      <Link href="/api/logto/sign-in">{t("login")}</Link>
+                    </Button>
+                    <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-12 text-base shadow-lg shadow-purple-500/20">
+                      <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
+                    </Button>
                   </div>
                )}
             </div>

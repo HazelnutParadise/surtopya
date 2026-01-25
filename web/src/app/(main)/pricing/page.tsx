@@ -2,13 +2,38 @@
 
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 export default function PricingPage() {
-  // Mock Auth - consistent with Navbar
-  const isAuthenticated = true; 
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
   const t = useTranslations("Pricing");
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      try {
+        const response = await fetch("/api/me", { cache: "no-store" });
+        if (isMounted) {
+          setIsAuthenticated(response.ok);
+        }
+      } catch {
+        if (isMounted) {
+          setIsAuthenticated(false);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-20">
       <div className="container px-4 md:px-6">
@@ -43,7 +68,7 @@ export default function PricingPage() {
                 <Check className="h-4 w-4 text-green-500" /> {t("freeFeatureThree")}
               </li>
             </ul>
-            <Button variant="outline" className="w-full" disabled={isAuthenticated}>
+            <Button variant="outline" className="w-full" disabled={loading || isAuthenticated}>
               {isAuthenticated ? t("currentPlan") : t("getStarted")}
             </Button>
           </div>
@@ -78,7 +103,7 @@ export default function PricingPage() {
                 <Check className="h-4 w-4 text-purple-500" /> {t("proFeatureFive")}
               </li>
             </ul>
-            <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+            <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white" disabled={loading}>
               {isAuthenticated ? t("upgradePro") : t("startFreeTrial")}
             </Button>
           </div>

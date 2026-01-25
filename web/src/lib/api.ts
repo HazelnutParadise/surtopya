@@ -278,6 +278,22 @@ export interface Dataset {
   updatedAt: string;
 }
 
+export interface UserProfile {
+  id: string;
+  email?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  phone?: string;
+  bio?: string;
+  location?: string;
+  pointsBalance: number;
+  isPro: boolean;
+  locale: string;
+  createdAt: string;
+  surveysCompleted: number;
+  isAdmin: boolean;
+}
+
 // Export singleton instance
 export const api = new ApiClient();
 export default api;

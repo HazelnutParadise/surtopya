@@ -13,6 +13,9 @@ type User struct {
 	Email         *string   `json:"email,omitempty" db:"email"`
 	DisplayName   *string   `json:"displayName,omitempty" db:"display_name"`
 	AvatarURL     *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
+	Phone         *string   `json:"phone,omitempty" db:"phone"`
+	Bio           *string   `json:"bio,omitempty" db:"bio"`
+	Location      *string   `json:"location,omitempty" db:"location"`
 	PointsBalance int       `json:"pointsBalance" db:"points_balance"`
 	IsPro         bool      `json:"isPro" db:"is_pro"`
 	Locale        string    `json:"locale" db:"locale"`

@@ -135,6 +135,77 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 	return surveys, nil
 }
 
+// GetAllAdmin retrieves all surveys with optional filters for admin usage
+func (r *SurveyRepository) GetAllAdmin(search string, visibility string, published *bool, limit, offset int) ([]models.Survey, error) {
+	query := `
+		SELECT id, user_id, title, description, visibility, is_published,
+			include_in_datasets, published_count, theme, points_reward,
+			expires_at, response_count, created_at, updated_at, published_at
+		FROM surveys
+		WHERE 1=1
+	`
+	args := []interface{}{}
+	argCount := 0
+
+	if search != "" {
+		argCount++
+		query += fmt.Sprintf(" AND (title ILIKE $%d OR description ILIKE $%d)", argCount, argCount)
+		args = append(args, "%"+search+"%")
+	}
+
+	if visibility != "" && visibility != "all" {
+		argCount++
+		query += fmt.Sprintf(" AND visibility = $%d", argCount)
+		args = append(args, visibility)
+	}
+
+	if published != nil {
+		argCount++
+		query += fmt.Sprintf(" AND is_published = $%d", argCount)
+		args = append(args, *published)
+	}
+
+	argCount++
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argCount)
+	args = append(args, limit)
+
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query surveys: %w", err)
+	}
+	defer rows.Close()
+
+	var surveys []models.Survey
+	for rows.Next() {
+		var survey models.Survey
+		var themeJSON []byte
+
+		err := rows.Scan(
+			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
+			&survey.Visibility, &survey.IsPublished, &survey.IncludeInDatasets,
+			&survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
+			&survey.UpdatedAt, &survey.PublishedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan survey: %w", err)
+		}
+
+		if len(themeJSON) > 0 {
+			survey.Theme = &models.SurveyTheme{}
+			json.Unmarshal(themeJSON, survey.Theme)
+		}
+
+		surveys = append(surveys, survey)
+	}
+
+	return surveys, nil
+}
+
 // GetPublicSurveys retrieves all public published surveys
 func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey, error) {
 	query := `
