@@ -8,6 +8,21 @@ import { Clock, Users, Star, ChevronRight, Lock, Globe } from "lucide-react";
 import { withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 
+const stripMarkdown = (value: string) => {
+  if (!value) return ""
+  return value
+    .replace(/```/g, "")
+    .replace(/`/g, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_]{1,3}/g, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/^(\s*[-*+]\s+|\s*\d+\.\s+)/gm, "")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+}
+
 interface SurveyCardProps {
   id: string;
   title: string;
@@ -45,6 +60,7 @@ export function SurveyCard({
   locale,
 }: SurveyCardProps) {
   const t = useTranslations("SurveyCard");
+  const cleanedDescription = stripMarkdown(description)
   // Determine link based on variant
   const href = variant === 'dashboard' 
     ? `/dashboard/surveys/${id}` 
@@ -88,7 +104,7 @@ export function SurveyCard({
 
         <CardContent className="flex-1 p-5 pt-2">
           <p className="line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
-            {description}
+            {cleanedDescription}
           </p>
           
           <div className="mt-4 flex items-center gap-4">
