@@ -41,6 +41,7 @@ export default function SurveyManagementPage() {
   const t = useTranslations("SurveyManagement");
   const tCommon = useTranslations("Common");
   const tDashboard = useTranslations("Dashboard");
+  const tBuilder = useTranslations("SurveyBuilder");
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -53,6 +54,16 @@ export default function SurveyManagementPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [formState, setFormState] = useState({
+    title: "",
+    description: "",
+    visibility: "non-public",
+    includeInDatasets: false,
+    pointsReward: 0,
+    expiresAt: "",
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -110,6 +121,18 @@ export default function SurveyManagementPage() {
     };
   }, [surveyId]);
 
+  useEffect(() => {
+    if (!survey) return;
+    setFormState({
+      title: survey.title,
+      description: survey.description || "",
+      visibility: survey.settings.visibility,
+      includeInDatasets: survey.settings.everPublic ? true : survey.settings.isDatasetActive,
+      pointsReward: survey.settings.pointsReward,
+      expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
+    });
+  }, [survey]);
+
   const completionRate = useMemo(() => {
     if (responses.length === 0) return 0;
     const completed = responses.filter((response) => response.status === "completed").length;
@@ -145,6 +168,10 @@ export default function SurveyManagementPage() {
     router.push(withLocalePath(`/create?edit=${surveyId}`));
   };
 
+  const handleViewSurvey = () => {
+    router.push(withLocalePath(`/survey/${surveyId}`));
+  };
+
   const handleTogglePublish = async (status: boolean) => {
     if (!survey) return;
     setPublishing(true);
@@ -171,6 +198,52 @@ export default function SurveyManagementPage() {
     } finally {
       setPublishing(false);
     }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!survey) return;
+    setSaving(true);
+    setSaveError(null);
+
+    const payload = {
+      title: formState.title.trim() || survey.title,
+      description: formState.description,
+      visibility: formState.visibility,
+      includeInDatasets:
+        formState.visibility === "public" || survey.settings.everPublic ? true : formState.includeInDatasets,
+      pointsReward: formState.pointsReward,
+      expiresAt: formState.expiresAt,
+    };
+
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to save survey settings");
+      }
+      setSurvey(mapApiSurveyToUi(data));
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      setSaveError(tCommon("error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetSettings = () => {
+    if (!survey) return;
+    setFormState({
+      title: survey.title,
+      description: survey.description || "",
+      visibility: survey.settings.visibility,
+      includeInDatasets: survey.settings.everPublic ? true : survey.settings.isDatasetActive,
+      pointsReward: survey.settings.pointsReward,
+      expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
+    });
   };
 
   const handleCopyLink = () => {
@@ -218,6 +291,16 @@ export default function SurveyManagementPage() {
     );
   }
 
+  const isDirty =
+    formState.title !== survey.title ||
+    formState.description !== (survey.description || "") ||
+    formState.visibility !== survey.settings.visibility ||
+    formState.includeInDatasets !== survey.settings.isDatasetActive ||
+    formState.pointsReward !== survey.settings.pointsReward ||
+    formState.expiresAt !== (survey.settings.expiresAt?.split("T")[0] || "");
+
+  const canSwitchToPublic = survey.settings.publishedCount === 0 || survey.settings.visibility === "public";
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
@@ -245,6 +328,10 @@ export default function SurveyManagementPage() {
               <Button variant="outline" onClick={handlePreview}>
                 <Eye className="mr-2 h-4 w-4" />
                 {tCommon("preview")}
+              </Button>
+              <Button variant="outline" onClick={handleViewSurvey}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                {t("viewSurvey")}
               </Button>
               {survey.settings.isPublished ? (
                 <Button
@@ -361,36 +448,162 @@ export default function SurveyManagementPage() {
               <TabsContent value="settings" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>{t("surveySettingsTitle")}</CardTitle>
-                    <CardDescription>{t("surveySettingsDescription")}</CardDescription>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <CardTitle>{t("surveySettingsTitle")}</CardTitle>
+                        <CardDescription>{t("surveySettingsDescription")}</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={handleResetSettings} disabled={!isDirty || saving}>
+                          {tCommon("cancel")}
+                        </Button>
+                        <Button onClick={handleSaveSettings} disabled={!isDirty || saving}>
+                          {saving ? tCommon("saving") : tCommon("save")}
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="survey-title">{tBuilder("surveyTitle")}</Label>
+                      <Input
+                        id="survey-title"
+                        value={formState.title}
+                        onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="survey-description">{tBuilder("description")}</Label>
+                      <div className="border border-gray-200 dark:border-gray-800 rounded-md overflow-hidden bg-white dark:bg-gray-900">
+                        <div className="flex items-center gap-1 p-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const textarea = document.getElementById("survey-description-textarea") as HTMLTextAreaElement | null;
+                              if (!textarea) return;
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const text = textarea.value;
+                              const selected = text.substring(start, end);
+                              const newText = text.substring(0, start) + "**" + selected + "**" + text.substring(end);
+                              setFormState((prev) => ({ ...prev, description: newText }));
+                            }}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            title={tBuilder("formatBold")}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+                              <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const textarea = document.getElementById("survey-description-textarea") as HTMLTextAreaElement | null;
+                              if (!textarea) return;
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const text = textarea.value;
+                              const selected = text.substring(start, end);
+                              const newText = text.substring(0, start) + "_" + selected + "_" + text.substring(end);
+                              setFormState((prev) => ({ ...prev, description: newText }));
+                            }}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            title={tBuilder("formatItalic")}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="19" x2="10" y1="4" y2="4" />
+                              <line x1="14" x2="5" y1="20" y2="20" />
+                              <line x1="15" x2="9" y1="4" y2="20" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const textarea = document.getElementById("survey-description-textarea") as HTMLTextAreaElement | null;
+                              if (!textarea) return;
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const text = textarea.value;
+                              const selected = text.substring(start, end);
+                              const url = prompt(tBuilder("linkPrompt"), "https://");
+                              if (!url) return;
+                              const linkText = selected || tBuilder("linkText");
+                              const newText = text.substring(0, start) + "[" + linkText + "](" + url + ")" + text.substring(end);
+                              setFormState((prev) => ({ ...prev, description: newText }));
+                            }}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            title={tBuilder("formatLink")}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                          </button>
+                          <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const textarea = document.getElementById("survey-description-textarea") as HTMLTextAreaElement | null;
+                              if (!textarea) return;
+                              const start = textarea.selectionStart;
+                              const text = textarea.value;
+                              const newText = text.substring(0, start) + "\n- " + text.substring(start);
+                              setFormState((prev) => ({ ...prev, description: newText }));
+                            }}
+                            className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            title={tBuilder("formatBulletList")}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="8" x2="21" y1="6" y2="6" />
+                              <line x1="8" x2="21" y1="12" y2="12" />
+                              <line x1="8" x2="21" y1="18" y2="18" />
+                              <line x1="3" x2="3.01" y1="6" y2="6" />
+                              <line x1="3" x2="3.01" y1="12" y2="12" />
+                              <line x1="3" x2="3.01" y1="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                        <textarea
+                          id="survey-description-textarea"
+                          value={formState.description}
+                          onChange={(event) => setFormState((prev) => ({ ...prev, description: event.target.value }))}
+                          rows={5}
+                          placeholder={tBuilder("descriptionPlaceholder")}
+                          className="w-full min-h-[120px] bg-transparent px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">{tBuilder("supportsMarkdown")}</p>
+                    </div>
+
                     <div className="space-y-1">
                       <Label className="text-base">{t("visibilityLabel")}</Label>
                       <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
                         <button
                           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                            survey.settings.visibility === "public"
+                            formState.visibility === "public"
                               ? "bg-white dark:bg-gray-700 shadow-sm"
                               : "text-gray-500"
                           }`}
-                          disabled
+                          disabled={!canSwitchToPublic}
+                          onClick={() => setFormState((prev) => ({ ...prev, visibility: "public" }))}
                         >
                           {t("public")}
                         </button>
                         <button
                           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                            survey.settings.visibility === "non-public"
+                            formState.visibility === "non-public"
                               ? "bg-white dark:bg-gray-700 shadow-sm"
                               : "text-gray-500"
                           }`}
-                          disabled
+                          onClick={() => setFormState((prev) => ({ ...prev, visibility: "non-public" }))}
                         >
                           {t("nonPublic")}
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {survey.settings.visibility === "public"
+                        {formState.visibility === "public"
                           ? t("visibilityPublicDescription")
                           : t("visibilityNonPublicDescription")}
                       </p>
@@ -402,12 +615,19 @@ export default function SurveyManagementPage() {
                           {t("datasetProgramLabel")}
                         </Label>
                         <p className="text-xs text-gray-500">
-                          {survey.settings.visibility === "public"
+                          {formState.visibility === "public"
                             ? t("datasetProgramPublicDescription")
                             : t("datasetProgramNonPublicDescription")}
                         </p>
                       </div>
-                      <Switch id="dataset" checked={survey.settings.isDatasetActive} disabled />
+                      <Switch
+                        id="dataset"
+                        checked={
+                          formState.visibility === "public" || survey.settings.everPublic ? true : formState.includeInDatasets
+                        }
+                        onCheckedChange={(value) => setFormState((prev) => ({ ...prev, includeInDatasets: value }))}
+                        disabled={formState.visibility === "public" || survey.settings.everPublic}
+                      />
                     </div>
 
                     <div className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-6">
@@ -416,9 +636,9 @@ export default function SurveyManagementPage() {
                         <Input
                           id="expires"
                           type="date"
-                          defaultValue={survey.settings.expiresAt?.split("T")[0]}
+                          value={formState.expiresAt}
                           className="max-w-[200px]"
-                          readOnly
+                          onChange={(event) => setFormState((prev) => ({ ...prev, expiresAt: event.target.value }))}
                         />
                         <span className="text-xs text-gray-500 italic">{t("expirationHint")}</span>
                       </div>
@@ -426,9 +646,22 @@ export default function SurveyManagementPage() {
 
                     <div className="space-y-2 border-t border-gray-100 dark:border-gray-800 pt-6">
                       <Label htmlFor="points">{t("pointsReward")}</Label>
-                      <Input id="points" type="number" defaultValue={survey.settings.pointsReward} className="w-32" readOnly />
+                      <Input
+                        id="points"
+                        type="number"
+                        value={formState.pointsReward}
+                        className="w-32"
+                        onChange={(event) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            pointsReward: Number(event.target.value || 0),
+                          }))
+                        }
+                      />
                       <p className="text-sm text-gray-500">{t("pointsRewardDescription")}</p>
                     </div>
+
+                    {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
                   </CardContent>
                 </Card>
               </TabsContent>

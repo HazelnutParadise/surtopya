@@ -139,10 +139,17 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" {
 			survey.IncludeInDatasets = true
+			if survey.PublishedCount > 0 {
+				survey.EverPublic = true
+			}
 		}
 	}
 	if req.IncludeInDatasets != nil {
-		if survey.Visibility == "public" {
+		if survey.EverPublic && !*req.IncludeInDatasets {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable dataset sharing after public publish"})
+			return
+		}
+		if survey.Visibility == "public" || survey.EverPublic {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
@@ -157,11 +164,17 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			survey.PublishedCount++
 			now := time.Now()
 			survey.PublishedAt = &now
+			if survey.Visibility == "public" {
+				survey.EverPublic = true
+			}
 		}
 		if !*req.IsPublished && survey.IsPublished {
 			survey.IsPublished = false
 			survey.PublishedAt = nil
 		}
+	}
+	if survey.EverPublic {
+		survey.IncludeInDatasets = true
 	}
 
 	if err := h.surveys.Update(survey); err != nil {

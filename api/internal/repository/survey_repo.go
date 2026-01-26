@@ -29,8 +29,8 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 	query := `
 		INSERT INTO surveys (
 			id, user_id, title, description, visibility, is_published,
-			include_in_datasets, published_count, theme, points_reward, expires_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			include_in_datasets, ever_public, published_count, theme, points_reward, expires_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -38,7 +38,7 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 		query,
 		survey.ID, survey.UserID, survey.Title, survey.Description,
 		survey.Visibility, survey.IsPublished, survey.IncludeInDatasets,
-		survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt,
+		survey.EverPublic, survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt,
 	).Scan(&survey.ID, &survey.CreatedAt, &survey.UpdatedAt)
 
 	if err != nil {
@@ -55,7 +55,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 
 	query := `
 		SELECT id, user_id, title, description, visibility, is_published,
-			include_in_datasets, published_count, theme, points_reward,
+			include_in_datasets, ever_public, published_count, theme, points_reward,
 			expires_at, response_count, created_at, updated_at, published_at
 		FROM surveys WHERE id = $1
 	`
@@ -63,7 +63,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 	err := r.db.QueryRow(query, id).Scan(
 		&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 		&survey.Visibility, &survey.IsPublished, &survey.IncludeInDatasets,
-		&survey.PublishedCount, &themeJSON, &survey.PointsReward,
+		&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
 	)
@@ -96,7 +96,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error) {
 	query := `
 		SELECT id, user_id, title, description, visibility, is_published,
-			include_in_datasets, published_count, theme, points_reward,
+			include_in_datasets, ever_public, published_count, theme, points_reward,
 			expires_at, response_count, created_at, updated_at, published_at
 		FROM surveys WHERE user_id = $1
 		ORDER BY updated_at DESC
@@ -116,7 +116,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.IsPublished, &survey.IncludeInDatasets,
-			&survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 		)
@@ -139,7 +139,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 func (r *SurveyRepository) GetAllAdmin(search string, visibility string, published *bool, limit, offset int) ([]models.Survey, error) {
 	query := `
 		SELECT id, user_id, title, description, visibility, is_published,
-			include_in_datasets, published_count, theme, points_reward,
+			include_in_datasets, ever_public, published_count, theme, points_reward,
 			expires_at, response_count, created_at, updated_at, published_at
 		FROM surveys
 		WHERE 1=1
@@ -187,7 +187,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.IsPublished, &survey.IncludeInDatasets,
-			&survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 		)
@@ -210,7 +210,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey, error) {
 	query := `
 		SELECT id, user_id, title, description, visibility, is_published,
-			include_in_datasets, published_count, theme, points_reward,
+			include_in_datasets, ever_public, published_count, theme, points_reward,
 			expires_at, response_count, created_at, updated_at, published_at
 		FROM surveys
 		WHERE visibility = 'public' AND is_published = true
@@ -232,7 +232,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.IsPublished, &survey.IncludeInDatasets,
-			&survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 		)
@@ -261,16 +261,16 @@ func (r *SurveyRepository) Update(survey *models.Survey) error {
 	query := `
 		UPDATE surveys SET
 			title = $2, description = $3, visibility = $4, is_published = $5,
-			include_in_datasets = $6, published_count = $7, theme = $8,
-			points_reward = $9, expires_at = $10, published_at = $11
+			include_in_datasets = $6, ever_public = $7, published_count = $8, theme = $9,
+			points_reward = $10, expires_at = $11, published_at = $12
 		WHERE id = $1
 	`
 
 	_, err = r.db.Exec(
 		query,
 		survey.ID, survey.Title, survey.Description, survey.Visibility,
-		survey.IsPublished, survey.IncludeInDatasets, survey.PublishedCount,
-		themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
+		survey.IsPublished, survey.IncludeInDatasets, survey.EverPublic,
+		survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
 	)
 
 	if err != nil {

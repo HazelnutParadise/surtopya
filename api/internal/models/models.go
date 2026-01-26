@@ -41,6 +41,7 @@ type Survey struct {
 	Visibility        string       `json:"visibility" db:"visibility"`
 	IsPublished       bool         `json:"isPublished" db:"is_published"`
 	IncludeInDatasets bool         `json:"includeInDatasets" db:"include_in_datasets"`
+	EverPublic        bool         `json:"everPublic" db:"ever_public"`
 	PublishedCount    int          `json:"publishedCount" db:"published_count"`
 	Theme             *SurveyTheme `json:"theme,omitempty" db:"theme"`
 	PointsReward      int          `json:"pointsReward" db:"points_reward"`

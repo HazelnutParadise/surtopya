@@ -102,6 +102,7 @@ export function SurveyBuilder() {
   const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(false);
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
+  const [everPublic, setEverPublic] = useState(false);
 
   const notifyChange = () => {
       setIsDirty(true);
@@ -171,9 +172,10 @@ export function SurveyBuilder() {
         );
         setPointsReward(mapped.settings.pointsReward);
         setIsPublic(mapped.settings.visibility === "public");
-        setIncludeInDatasets(mapped.settings.isDatasetActive);
+        setIncludeInDatasets(mapped.settings.everPublic ? true : mapped.settings.isDatasetActive);
         setIsPublished(mapped.settings.isPublished);
         setPublishedCount(mapped.settings.publishedCount || 0);
+        setEverPublic(Boolean(mapped.settings.everPublic));
         setHasUnpublishedChanges(!mapped.settings.isPublished);
         setIsDirty(false);
       } catch (error) {
@@ -782,7 +784,7 @@ export function SurveyBuilder() {
                                 description,
                                 pointsReward,
                                 isPublic,
-                                includeInDatasets,
+                                includeInDatasets: everPublic ? true : includeInDatasets,
                             });
                             setViewMode('settings');
                         }}
@@ -964,7 +966,7 @@ export function SurveyBuilder() {
                                     {tBuilder("visibilityPublic")}
                                 </button>
                                 <button
-                                    onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: false, includeInDatasets: false }) : null)}
+                                    onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: false }) : null)}
                                     className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${!settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
                                     {tBuilder("visibilityNonPublic")}
@@ -994,8 +996,8 @@ export function SurveyBuilder() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Switch 
-                                        checked={settingsDraft?.includeInDatasets}
-                                        disabled={settingsDraft?.isPublic} // Simplified: {tBuilder("visibilityPublic")} must opt-in unless paid (mock-disabled)
+                                        checked={settingsDraft?.isPublic || everPublic ? true : settingsDraft?.includeInDatasets}
+                                        disabled={settingsDraft?.isPublic || everPublic} // Simplified: {tBuilder("visibilityPublic")} must opt-in unless paid (mock-disabled)
                                         onCheckedChange={(checked: boolean) => setSettingsDraft(prev => prev ? ({ ...prev, includeInDatasets: checked }) : null)}
                                     />
                                 </div>
@@ -1265,7 +1267,7 @@ export function SurveyBuilder() {
                                         // Auto-force dataset logic
                                         if (checked) {
                                             setIncludeInDatasets(true);
-                                        } else {
+                                        } else if (!everPublic) {
                                             setIncludeInDatasets(false);
                                         }
                                     }}
@@ -1286,8 +1288,8 @@ export function SurveyBuilder() {
                                 </p>
                             </div>
                             <Switch 
-                                checked={includeInDatasets}
-                                disabled={isPublic} // Only disabled (forced true) if {tBuilder("visibilityPublic")}
+                                checked={isPublic || everPublic ? true : includeInDatasets}
+                                disabled={isPublic || everPublic} // Only disabled (forced true) if {tBuilder("visibilityPublic")}
                                 onCheckedChange={setIncludeInDatasets}
                             />
                         </div>

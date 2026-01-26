@@ -36,6 +36,7 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
       isPublished: survey.isPublished,
       visibility: survey.visibility,
       isDatasetActive: survey.includeInDatasets,
+      everPublic: survey.everPublic,
       pointsReward: survey.pointsReward,
       expiresAt: survey.expiresAt || undefined,
       publishedCount: survey.publishedCount,

@@ -81,6 +81,7 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		Visibility:        req.Visibility,
 		IsPublished:       false,
 		IncludeInDatasets: req.IncludeInDatasets,
+		EverPublic:        false,
 		PublishedCount:    0,
 		Theme:             req.Theme,
 		PointsReward:      req.PointsReward,
@@ -199,6 +200,7 @@ type UpdateSurveyRequest struct {
 	IncludeInDatasets *bool               `json:"includeInDatasets"`
 	Theme             *models.SurveyTheme `json:"theme"`
 	PointsReward      *int                `json:"pointsReward"`
+	ExpiresAt         *string             `json:"expiresAt"`
 	Questions         []QuestionRequest   `json:"questions"`
 }
 
@@ -251,17 +253,24 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visibility option"})
 			return
 		}
-		if survey.PublishedCount > 0 && *req.Visibility != survey.Visibility {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
+		if survey.PublishedCount > 0 && survey.Visibility == "non-public" && *req.Visibility == "public" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change from non-public to public after first publish"})
 			return
 		}
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" {
 			survey.IncludeInDatasets = true
+			if survey.PublishedCount > 0 {
+				survey.EverPublic = true
+			}
 		}
 	}
 	if req.IncludeInDatasets != nil {
-		if survey.Visibility == "public" {
+		if survey.EverPublic && !*req.IncludeInDatasets {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable dataset sharing after public publish"})
+			return
+		}
+		if survey.Visibility == "public" || survey.EverPublic {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
@@ -272,6 +281,23 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 	if req.PointsReward != nil {
 		survey.PointsReward = *req.PointsReward
+	}
+	if req.ExpiresAt != nil {
+		if *req.ExpiresAt == "" {
+			survey.ExpiresAt = nil
+		} else {
+			parsed, err := time.Parse("2006-01-02", *req.ExpiresAt)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
+				return
+			}
+			expiresAt := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC)
+			survey.ExpiresAt = &expiresAt
+		}
+	}
+
+	if survey.EverPublic {
+		survey.IncludeInDatasets = true
 	}
 
 	if err := h.repo.Update(survey); err != nil {
@@ -365,6 +391,7 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		// Public surveys must include in datasets
 		if survey.Visibility == "public" {
 			survey.IncludeInDatasets = true
+			survey.EverPublic = true
 		} else {
 			survey.IncludeInDatasets = req.IncludeInDatasets
 		}
@@ -374,11 +401,17 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change from non-public to public after first publish"})
 			return
 		}
+		if req.Visibility == "public" {
+			survey.EverPublic = true
+		}
 	}
 
 	survey.IsPublished = true
 	survey.PublishedCount++
 	survey.PointsReward = req.PointsReward
+	if survey.EverPublic {
+		survey.IncludeInDatasets = true
+	}
 	now := time.Now()
 	survey.PublishedAt = &now
 

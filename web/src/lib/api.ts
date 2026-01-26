@@ -194,6 +194,7 @@ export interface Survey {
   visibility: 'public' | 'non-public';
   isPublished: boolean;
   includeInDatasets: boolean;
+  everPublic?: boolean;
   publishedCount: number;
   theme?: SurveyTheme;
   pointsReward: number;
@@ -220,6 +221,7 @@ export interface UpdateSurveyRequest {
   description?: string;
   theme?: SurveyTheme;
   pointsReward?: number;
+  expiresAt?: string;
   questions?: Omit<Question, 'surveyId' | 'sortOrder'>[];
 }
 

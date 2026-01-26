@@ -41,6 +41,7 @@ export default function AdminPage() {
     description: "",
     visibility: "non-public",
     includeInDatasets: false,
+    everPublic: false,
     isPublished: false,
     pointsReward: 0,
   })
@@ -207,7 +208,8 @@ export default function AdminPage() {
       title: survey.title,
       description: survey.description || "",
       visibility: survey.visibility,
-      includeInDatasets: survey.includeInDatasets,
+      includeInDatasets: survey.everPublic ? true : survey.includeInDatasets,
+      everPublic: Boolean(survey.everPublic),
       isPublished: survey.isPublished,
       pointsReward: survey.pointsReward,
     })
@@ -238,7 +240,8 @@ export default function AdminPage() {
           title: surveyForm.title,
           description: surveyForm.description,
           visibility: surveyForm.visibility,
-          includeInDatasets: surveyForm.includeInDatasets,
+          includeInDatasets:
+            surveyForm.visibility === "public" || surveyForm.everPublic ? true : surveyForm.includeInDatasets,
           isPublished: surveyForm.isPublished,
           pointsReward: surveyForm.pointsReward,
         }),
@@ -682,9 +685,9 @@ export default function AdminPage() {
                 <p className="text-xs text-gray-500">{tAdmin("datasetSharingHint")}</p>
               </div>
               <Switch
-                checked={surveyForm.includeInDatasets}
+                checked={surveyForm.visibility === "public" || surveyForm.everPublic ? true : surveyForm.includeInDatasets}
                 onCheckedChange={(checked) => setSurveyForm((prev) => ({ ...prev, includeInDatasets: checked }))}
-                disabled={surveyForm.visibility === "public"}
+                disabled={surveyForm.visibility === "public" || surveyForm.everPublic}
               />
             </div>
           </div>

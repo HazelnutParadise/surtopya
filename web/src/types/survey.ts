@@ -34,6 +34,7 @@ export interface Survey {
         isPublished: boolean;
         visibility: 'public' | 'non-public';
         isDatasetActive: boolean;
+        everPublic?: boolean;
         pointsReward: number;
         expiresAt?: string;
         publishedCount?: number; // Task 6
