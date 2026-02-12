@@ -350,7 +350,11 @@ export default function SurveyManagementPage() {
     formState.pointsReward !== survey.settings.pointsReward ||
     formState.expiresAt !== (survey.settings.expiresAt?.split("T")[0] || "");
 
-  const canSwitchToPublic = survey.settings.publishedCount === 0 || survey.settings.visibility === "public";
+  const publishedCount = survey.settings.publishedCount ?? 0
+  const canSwitchToPublic = publishedCount === 0 || survey.settings.visibility === "public";
+  const isPublishLocked = publishedCount > 0
+  const isDatasetSharingLocked =
+    isPublishLocked || formState.visibility === "public" || survey.settings.everPublic
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -714,7 +718,8 @@ export default function SurveyManagementPage() {
                               ? "bg-white dark:bg-gray-700 shadow-sm"
                               : "text-gray-500"
                           }`}
-                          disabled={!canSwitchToPublic}
+                          data-testid="survey-settings-visibility-public"
+                          disabled={isPublishLocked || !canSwitchToPublic}
                           onClick={() => setFormState((prev) => ({ ...prev, visibility: "public" }))}
                         >
                           {t("public")}
@@ -725,6 +730,8 @@ export default function SurveyManagementPage() {
                               ? "bg-white dark:bg-gray-700 shadow-sm"
                               : "text-gray-500"
                           }`}
+                          data-testid="survey-settings-visibility-nonpublic"
+                          disabled={isPublishLocked}
                           onClick={() => setFormState((prev) => ({ ...prev, visibility: "non-public" }))}
                         >
                           {t("nonPublic")}
@@ -735,6 +742,15 @@ export default function SurveyManagementPage() {
                           ? t("visibilityPublicDescription")
                           : t("visibilityNonPublicDescription")}
                       </p>
+                      {isPublishLocked ? (
+                        <p
+                          className="text-xs text-gray-500 mt-1 flex items-center gap-1"
+                          data-testid="survey-settings-publish-locked-hint"
+                        >
+                          <Lock className="h-3 w-3" />
+                          {t("settingsLockedAfterPublish")}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-6">
@@ -754,7 +770,8 @@ export default function SurveyManagementPage() {
                           formState.visibility === "public" || survey.settings.everPublic ? true : formState.includeInDatasets
                         }
                         onCheckedChange={(value) => setFormState((prev) => ({ ...prev, includeInDatasets: value }))}
-                        disabled={formState.visibility === "public" || survey.settings.everPublic}
+                        disabled={isDatasetSharingLocked}
+                        data-testid="survey-settings-include-in-datasets"
                       />
                     </div>
 

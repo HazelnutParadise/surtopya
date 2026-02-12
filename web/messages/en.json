@@ -547,6 +547,7 @@
     "nonPublic": "Non-public",
     "visibilityPublicDescription": "Visible in marketplace and searchable by search engines.",
     "visibilityNonPublicDescription": "Hidden from marketplace and search engines. Only accessible via link.",
+    "settingsLockedAfterPublish": "These settings are locked after the first publish.",
     "datasetProgramLabel": "Dataset Marketplace Program",
     "datasetProgramPublicDescription": "Public surveys are automatically enrolled. Opt-out requires Paid Membership.",
     "datasetProgramNonPublicDescription": "Manually opt-in to share de-identified data in our marketplace.",

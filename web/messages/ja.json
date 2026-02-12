@@ -547,6 +547,7 @@
     "nonPublic": "非公開",
     "visibilityPublicDescription": "マーケットに表示され検索エンジンにも掲載されます。",
     "visibilityNonPublicDescription": "マーケットに非表示。リンクのみ。",
+    "settingsLockedAfterPublish": "これらの設定は初回公開後にロックされます。",
     "datasetProgramLabel": "データセット参加プログラム",
     "datasetProgramPublicDescription": "公開アンケートは自動参加。オプトアウトには有料プランが必要です。",
     "datasetProgramNonPublicDescription": "匿名化データの共有を手動で選択できます。",

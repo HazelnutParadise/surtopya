@@ -547,6 +547,7 @@
     "nonPublic": "非公開",
     "visibilityPublicDescription": "在市場可見，且可被搜尋引擎索引。",
     "visibilityNonPublicDescription": "不在市場顯示且不被搜尋引擎索引。僅限連結存取。",
+    "settingsLockedAfterPublish": "這些設定在首次發布後會被鎖定。",
     "datasetProgramLabel": "資料集市場計畫",
     "datasetProgramPublicDescription": "公開問卷會自動加入。取消需付費會員。",
     "datasetProgramNonPublicDescription": "手動加入以分享去識別化資料至市場。",
