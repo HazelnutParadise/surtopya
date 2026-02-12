@@ -29,6 +29,7 @@ import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { SurveyResponse } from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
+import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 
 const formatDateTime = (value?: string) => {
   if (!value) return "";
@@ -352,9 +353,12 @@ export default function SurveyManagementPage() {
 
   const publishedCount = survey.settings.publishedCount ?? 0
   const canSwitchToPublic = publishedCount === 0 || survey.settings.visibility === "public";
-  const isPublishLocked = publishedCount > 0
-  const isDatasetSharingLocked =
-    isPublishLocked || formState.visibility === "public" || survey.settings.everPublic
+  const isPublishLocked = isSurveyPublishLocked(publishedCount)
+  const isDatasetSharingLocked = isSurveyDatasetSharingLocked({
+    publishedCount,
+    everPublic: survey.settings.everPublic,
+    visibility: formState.visibility,
+  })
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -766,9 +770,11 @@ export default function SurveyManagementPage() {
                       </div>
                       <Switch
                         id="dataset"
-                        checked={
-                          formState.visibility === "public" || survey.settings.everPublic ? true : formState.includeInDatasets
-                        }
+                        checked={getSurveyDatasetSharingEffectiveValue({
+                          everPublic: survey.settings.everPublic,
+                          visibility: formState.visibility,
+                          includeInDatasets: formState.includeInDatasets,
+                        })}
                         onCheckedChange={(value) => setFormState((prev) => ({ ...prev, includeInDatasets: value }))}
                         disabled={isDatasetSharingLocked}
                         data-testid="survey-settings-include-in-datasets"

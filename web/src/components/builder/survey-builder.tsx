@@ -19,6 +19,7 @@ import { SurveyTheme, LogicRule } from "@/types/survey";
 import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
+import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import {
   Tooltip,
   TooltipContent,
@@ -132,8 +133,12 @@ export function SurveyBuilder() {
       settingsDraft.includeInDatasets !== includeInDatasets
   ) : false;
 
-  const isPublishLocked = publishedCount > 0
-  const isBuilderDatasetSharingLocked = Boolean(isPublishLocked || settingsDraft?.isPublic || everPublic)
+  const isPublishLocked = isSurveyPublishLocked(publishedCount)
+  const isBuilderDatasetSharingLocked = isSurveyDatasetSharingLocked({
+    publishedCount,
+    everPublic,
+    visibility: settingsDraft?.isPublic ? "public" : "non-public",
+  })
 
   React.useEffect(() => {
     setMounted(true);
@@ -1014,7 +1019,11 @@ export function SurveyBuilder() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Switch 
-                                        checked={settingsDraft?.isPublic || everPublic ? true : settingsDraft?.includeInDatasets}
+                                        checked={getSurveyDatasetSharingEffectiveValue({
+                                          everPublic,
+                                          visibility: settingsDraft?.isPublic ? "public" : "non-public",
+                                          includeInDatasets: settingsDraft?.includeInDatasets,
+                                        })}
                                         disabled={isBuilderDatasetSharingLocked} // Locked after first publish; forced true if public/ever public.
                                         onCheckedChange={(checked: boolean) => setSettingsDraft(prev => prev ? ({ ...prev, includeInDatasets: checked }) : null)}
                                         data-testid="builder-settings-include-in-datasets"
@@ -1308,7 +1317,11 @@ export function SurveyBuilder() {
                                 </p>
                             </div>
                             <Switch 
-                                checked={isPublic || everPublic ? true : includeInDatasets}
+                                checked={getSurveyDatasetSharingEffectiveValue({
+                                  everPublic,
+                                  visibility: isPublic ? "public" : "non-public",
+                                  includeInDatasets,
+                                })}
                                 disabled={isPublishLocked || isPublic || everPublic}
                                 onCheckedChange={setIncludeInDatasets}
                                 data-testid="builder-publish-include-in-datasets"
