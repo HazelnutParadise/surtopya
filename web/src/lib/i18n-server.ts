@@ -3,17 +3,24 @@ import path from "path"
 import { readFile } from "fs/promises"
 import { defaultLocale, locales } from "@/lib/locale"
 
+type Messages = Record<string, unknown>
+
 const getLocaleFromCookies = async () => {
   const cookieStore = await cookies()
   const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value
   return (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale
 }
 
-const mergeMessages = (base: Record<string, any>, overrides: Record<string, any>) => {
-  const result = { ...base }
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+const mergeMessages = (base: Messages, overrides: Messages) => {
+  const result: Messages = { ...base }
   Object.entries(overrides).forEach(([key, value]) => {
-    if (value && typeof value === "object" && !Array.isArray(value) && typeof result[key] === "object") {
-      result[key] = mergeMessages(result[key], value)
+    const existing = result[key]
+    if (isPlainObject(value) && isPlainObject(existing)) {
+      result[key] = mergeMessages(existing, value)
     } else {
       result[key] = value
     }
@@ -28,18 +35,18 @@ const getMessages = async (locale: string) => {
     readFile(basePath, "utf-8"),
     readFile(localePath, "utf-8"),
   ])
-  const baseMessages = JSON.parse(baseFile) as Record<string, any>
-  const localeMessages = JSON.parse(localeFile) as Record<string, any>
+  const baseMessages = JSON.parse(baseFile) as Messages
+  const localeMessages = JSON.parse(localeFile) as Messages
   return mergeMessages(baseMessages, localeMessages)
 }
 
-const resolveMessage = (messages: Record<string, any>, key: string) => {
-  return key.split(".").reduce((acc, part) => {
-    if (acc && typeof acc === "object" && part in acc) {
+const resolveMessage = (messages: Messages, key: string): unknown => {
+  return key.split(".").reduce<unknown>((acc, part) => {
+    if (isPlainObject(acc) && part in acc) {
       return acc[part]
     }
     return undefined
-  }, messages as any)
+  }, messages)
 }
 
 const formatMessage = (message: string, values?: Record<string, string | number>) => {

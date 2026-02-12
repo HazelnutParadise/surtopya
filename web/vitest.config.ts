@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 
@@ -14,6 +14,14 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./vitest.setup.ts']
+    setupFiles: ['./vitest.setup.ts'],
+    // Keep Vitest defaults (including node_modules) and add our project-specific folders.
+    exclude: [
+      ...configDefaults.exclude,
+      'e2e/**',
+      '**/e2e/**',
+      'playwright-report/**',
+      'test-results/**'
+    ]
   }
 })

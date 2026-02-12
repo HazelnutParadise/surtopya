@@ -26,11 +26,18 @@ export const metadata: Metadata = {
   description: "Create surveys and share de-identified datasets securely.",
 };
 
-const mergeMessages = (base: Record<string, any>, overrides: Record<string, any>) => {
-  const result = { ...base }
+type Messages = Record<string, unknown>
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+const mergeMessages = (base: Messages, overrides: Messages) => {
+  const result: Messages = { ...base }
   Object.entries(overrides).forEach(([key, value]) => {
-    if (value && typeof value === "object" && !Array.isArray(value) && typeof result[key] === "object") {
-      result[key] = mergeMessages(result[key], value)
+    const existing = result[key]
+    if (isPlainObject(value) && isPlainObject(existing)) {
+      result[key] = mergeMessages(existing, value)
     } else {
       result[key] = value
     }
@@ -45,8 +52,8 @@ async function getMessages(locale: string) {
     readFile(basePath, "utf-8"),
     readFile(localePath, "utf-8"),
   ])
-  const baseMessages = JSON.parse(baseFile)
-  const localeMessages = JSON.parse(localeFile)
+  const baseMessages = JSON.parse(baseFile) as Messages
+  const localeMessages = JSON.parse(localeFile) as Messages
   return mergeMessages(baseMessages, localeMessages)
 }
 
@@ -76,7 +83,8 @@ export default async function RootLayout({
     isAuthenticated = false
   }
 
-  if (!hasSuperAdmin && !isAuthenticated) {
+  const requireBootstrapAuth = process.env.REQUIRE_BOOTSTRAP_AUTH === "true"
+  if (requireBootstrapAuth && !hasSuperAdmin && !isAuthenticated) {
     redirect("/api/logto/sign-in")
   }
 

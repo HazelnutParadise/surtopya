@@ -1,0 +1,64 @@
+package repository
+
+import (
+	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPointsRepository_DeductForDatasetTx_Insufficient(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	datasetID := uuid.New()
+
+	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"points_balance"}).AddRow(3))
+
+	err = repo.DeductForDatasetTx(tx, userID, datasetID, 10, "")
+	require.ErrorIs(t, err, ErrInsufficientPoints)
+
+	mock.ExpectRollback()
+	require.NoError(t, tx.Rollback())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPointsRepository_AwardSurveyPointsTx_InsertsTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	surveyID := uuid.New()
+
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2 WHERE id = \\$1").
+		WithArgs(userID, 5).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), userID, 5, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	require.NoError(t, repo.AwardSurveyPointsTx(tx, userID, surveyID, 5, ""))
+
+	mock.ExpectCommit()
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}

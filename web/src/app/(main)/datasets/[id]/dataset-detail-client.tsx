@@ -37,6 +37,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true;
@@ -80,14 +81,36 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
 
   const handleDownload = async () => {
     setDownloading(true);
+    setDownloadError(null)
     try {
       const response = await fetch(`/api/datasets/${id}`, { method: "POST" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Download failed");
       }
+
+      const contentType = response.headers.get("content-type") || ""
+      if (contentType.includes("application/json")) {
+        // Some backends may respond JSON success envelopes; treat as non-download.
+        return
+      }
+
+      const blob = await response.blob()
+      const disposition = response.headers.get("content-disposition") || ""
+      const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i)
+      const filename = decodeURIComponent(match?.[1] || match?.[2] || dataset?.fileName || "dataset")
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Download failed:", error);
+      setDownloadError(tCommon("error"))
     } finally {
       setDownloading(false);
     }
@@ -160,6 +183,9 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
                 <Download className="mr-2 h-4 w-4" strokeWidth={2.5} />
                 {tDatasets("download")}
               </Button>
+              {downloadError ? (
+                <p className="text-sm text-red-600">{downloadError}</p>
+              ) : null}
             </div>
           </div>
         </div>

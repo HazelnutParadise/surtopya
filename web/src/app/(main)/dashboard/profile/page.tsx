@@ -10,6 +10,7 @@ import { Camera, Mail, User, Phone, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
+import Link from "next/link"
 
 export default function ProfilePage() {
   const tProfile = useTranslations("Profile")
@@ -127,7 +128,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white">
-              <a href="/api/logto/sign-in">{tProfile("signInAction")}</a>
+              <Link href="/api/logto/sign-in">{tProfile("signInAction")}</Link>
             </Button>
           </CardContent>
         </Card>

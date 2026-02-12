@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, useSensor, useSensors, PointerSensor, closestCenter } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, useSensor, useSensors, PointerSensor, closestCenter } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Question, QuestionType } from "@/types/survey";
 import { Toolbox } from "./toolbox";
@@ -49,6 +49,12 @@ const calculateEstimatedTime = (questions: Question[]) => {
     }, 0);
 };
 
+type DragData = Record<string, unknown>
+
+const isToolboxDrag = (data: DragData | null | undefined): data is DragData & { isToolboxItem: true; type: QuestionType } => {
+  return data != null && data["isToolboxItem"] === true && typeof data["type"] === "string"
+}
+
 export function SurveyBuilder() {
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +77,7 @@ export function SurveyBuilder() {
     }
   ]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeItem, setActiveItem] = useState<any>(null); // Track active item data
+  const [activeItem, setActiveItem] = useState<DragData | null>(null); // Track active item data
   const [title, setTitle] = useState(tBuilder("untitledSurvey"));
   const [isDirty, setIsDirty] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'toolbox' | 'theme'>('toolbox');
@@ -216,15 +222,16 @@ export function SurveyBuilder() {
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-    setActiveItem(event.active.data.current);
+    setActiveItem((event.active.data.current as DragData | null) ?? null);
   };
 
-  const handleDragOver = (event: any) => {
+  const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
 
     // If dragging a toolbox item over the canvas
-    if (active.data.current?.isToolboxItem) {
+    const activeData = (active.data.current as DragData | null) ?? null
+    if (isToolboxDrag(activeData)) {
       const isOverCanvas = over.id === 'canvas-droppable' || questions.some(q => q.id === over.id);
       
       if (isOverCanvas) {
@@ -232,7 +239,7 @@ export function SurveyBuilder() {
         const hasPlaceholder = questions.some(q => q.id === 'placeholder');
         
         if (!hasPlaceholder) {
-          const type = active.data.current.type as QuestionType;
+          const type = activeData.type as QuestionType;
           const placeholder: Question = {
             id: 'placeholder',
             type,
@@ -1093,7 +1100,7 @@ export function SurveyBuilder() {
                         items={questions.map(q => q.id).filter(id => {
                             if (!activeItem) return true;
                             // If dragging a section, only sections are sortable targets
-                            if (activeItem.type === 'section') {
+                            if (typeof activeItem.type === "string" && activeItem.type === 'section') {
                                 const q = questions.find(i => i.id === id);
                                 return q?.type === 'section';
                             }
@@ -1165,7 +1172,7 @@ export function SurveyBuilder() {
                 
                 <DragOverlay dropAnimation={null}>
                   {activeId ? (
-                     activeItem?.isToolboxItem ? (
+                     activeItem?.isToolboxItem === true ? (
                         <div className="w-[600px] opacity-60"> {/* Translucent preview */}
                             {/* Preview of what it looks like */}
                              <div className="bg-white border border-purple-500 shadow-xl rounded-lg p-4">
@@ -1178,10 +1185,10 @@ export function SurveyBuilder() {
                         </div>
                      ) : (
                          <div className="w-[800px]"> {/* Fixed width for drag overlay to match canvas */}
-                            {activeItem.type === 'section' ? (
+                            {typeof activeItem?.type === "string" && activeItem.type === 'section' ? (
                                 <div className="flex flex-col mb-8 rounded-xl border border-gray-200 bg-white/50 p-4 shadow-2xl dark:border-gray-800 dark:bg-gray-900/50 rotate-2 opacity-90 cursor-grabbing ring-2 ring-purple-500">
                                     <QuestionCard 
-                                        question={activeItem} 
+                                        question={activeItem as unknown as Question} 
                                         onUpdate={() => {}} 
                                         onDelete={() => {}} 
                                         onDuplicate={() => {}} 
@@ -1192,7 +1199,8 @@ export function SurveyBuilder() {
                                     {/* Render questions belonging to this section */}
                                     <div className="pl-4 mt-4 space-y-4 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
                                         {(() => {
-                                            const index = questions.findIndex(q => q.id === activeItem.id);
+                                            const activeItemId = typeof activeItem?.id === "string" ? activeItem.id : null
+                                            const index = activeItemId ? questions.findIndex(q => q.id === activeItemId) : -1
                                             if (index === -1) return null;
                                             const sectionQuestions = [];
                                             for (let i = index + 1; i < questions.length; i++) {
@@ -1215,7 +1223,7 @@ export function SurveyBuilder() {
                                 </div>
                             ) : (
                                 <QuestionCard 
-                                    question={activeItem} 
+                                    question={activeItem as unknown as Question} 
                                     onUpdate={() => {}} 
                                     onDelete={() => {}} 
                                     onDuplicate={() => {}} 

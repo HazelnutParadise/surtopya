@@ -132,6 +132,80 @@ func (r *DatasetRepository) GetAll(category string, accessType string, limit, of
 	return datasets, nil
 }
 
+func datasetOrderBy(sortBy string) string {
+	switch sortBy {
+	case "downloads":
+		return "download_count DESC, created_at DESC"
+	case "samples":
+		return "sample_size DESC, created_at DESC"
+	case "newest":
+		fallthrough
+	default:
+		return "created_at DESC"
+	}
+}
+
+// GetAllSorted retrieves all active datasets with optional filtering and sorting.
+func (r *DatasetRepository) GetAllSorted(category string, accessType string, sortBy string, limit, offset int) ([]models.Dataset, error) {
+	query := `
+		SELECT id, survey_id, title, description, category, access_type, price,
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
+		FROM datasets
+		WHERE is_active = true
+	`
+	args := []interface{}{}
+	argCount := 0
+
+	if category != "" && category != "all" {
+		argCount++
+		query += fmt.Sprintf(" AND category = $%d", argCount)
+		args = append(args, category)
+	}
+
+	if accessType != "" && accessType != "all" {
+		argCount++
+		query += fmt.Sprintf(" AND access_type = $%d", argCount)
+		args = append(args, accessType)
+	}
+
+	query += fmt.Sprintf(" ORDER BY %s", datasetOrderBy(sortBy))
+
+	argCount++
+	query += fmt.Sprintf(" LIMIT $%d", argCount)
+	args = append(args, limit)
+
+	argCount++
+	query += fmt.Sprintf(" OFFSET $%d", argCount)
+	args = append(args, offset)
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query datasets: %w", err)
+	}
+	defer rows.Close()
+
+	var datasets []models.Dataset
+	for rows.Next() {
+		var dataset models.Dataset
+		var surveyID uuid.NullUUID
+		err := rows.Scan(
+			&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
+			&dataset.Category, &dataset.AccessType, &dataset.Price,
+			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
+			&dataset.CreatedAt, &dataset.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan dataset: %w", err)
+		}
+		dataset.SurveyID = optionalUUID(surveyID)
+		datasets = append(datasets, dataset)
+	}
+
+	return datasets, nil
+}
+
 // GetAllAdmin retrieves datasets with optional search and active filter
 func (r *DatasetRepository) GetAllAdmin(search string, isActive *bool, limit, offset int) ([]models.Dataset, error) {
 	query := `
@@ -201,6 +275,49 @@ func (r *DatasetRepository) Search(searchQuery string, limit, offset int) ([]mod
 		WHERE is_active = true
 			AND (title ILIKE $1 OR description ILIKE $1)
 		ORDER BY download_count DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	searchPattern := "%" + searchQuery + "%"
+	rows, err := r.db.Query(query, searchPattern, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search datasets: %w", err)
+	}
+	defer rows.Close()
+
+	var datasets []models.Dataset
+	for rows.Next() {
+		var dataset models.Dataset
+		var surveyID uuid.NullUUID
+		err := rows.Scan(
+			&dataset.ID, &surveyID, &dataset.Title, &dataset.Description,
+			&dataset.Category, &dataset.AccessType, &dataset.Price,
+			&dataset.DownloadCount, &dataset.SampleSize, &dataset.IsActive,
+			&dataset.FilePath, &dataset.FileName, &dataset.FileSize, &dataset.MimeType,
+			&dataset.CreatedAt, &dataset.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan dataset: %w", err)
+		}
+		dataset.SurveyID = optionalUUID(surveyID)
+		datasets = append(datasets, dataset)
+	}
+
+	return datasets, nil
+}
+
+// SearchSorted searches datasets by title/description and applies sorting.
+func (r *DatasetRepository) SearchSorted(searchQuery string, sortBy string, limit, offset int) ([]models.Dataset, error) {
+	query := `
+		SELECT id, survey_id, title, description, category, access_type, price,
+			download_count, sample_size, is_active, file_path, file_name, file_size, mime_type,
+			created_at, updated_at
+		FROM datasets
+		WHERE is_active = true
+			AND (title ILIKE $1 OR description ILIKE $1)
+	`
+	query += fmt.Sprintf(" ORDER BY %s", datasetOrderBy(sortBy))
+	query += `
 		LIMIT $2 OFFSET $3
 	`
 

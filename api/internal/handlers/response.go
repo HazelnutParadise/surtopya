@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -13,16 +15,20 @@ import (
 
 // ResponseHandler handles survey response-related requests
 type ResponseHandler struct {
+	db           *sql.DB
 	responseRepo *repository.ResponseRepository
 	surveyRepo   *repository.SurveyRepository
+	pointsRepo   *repository.PointsRepository
 }
 
 // NewResponseHandler creates a new ResponseHandler
 func NewResponseHandler() *ResponseHandler {
 	db := database.GetDB()
 	return &ResponseHandler{
+		db:           db,
 		responseRepo: repository.NewResponseRepository(db),
 		surveyRepo:   repository.NewSurveyRepository(db),
+		pointsRepo:   repository.NewPointsRepository(db),
 	}
 }
 
@@ -161,7 +167,7 @@ func (h *ResponseHandler) SubmitAnswer(c *gin.Context) {
 
 // SubmitAllAnswersRequest represents bulk answer submission
 type SubmitAllAnswersRequest struct {
-	Answers []SubmitAnswerRequest `json:"answers" binding:"required"`
+	Answers []SubmitAnswerRequest `json:"answers"`
 }
 
 // SubmitAllAnswers handles POST /api/v1/responses/:id/submit
@@ -173,75 +179,114 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		return
 	}
 
-	response, err := h.responseRepo.GetByID(responseID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get response"})
-		return
-	}
-
-	if response == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Response not found"})
-		return
-	}
-
-	if response.Status != "in_progress" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Response is already completed"})
-		return
-	}
-
 	var req SubmitAllAnswersRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	// Convert to models.Answer
-	answers := make([]models.Answer, len(req.Answers))
-	for i, ansReq := range req.Answers {
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	var surveyID uuid.UUID
+	var userID uuid.NullUUID
+	var status string
+	if err := tx.QueryRow(
+		"SELECT survey_id, user_id, status FROM responses WHERE id = $1 FOR UPDATE",
+		responseID,
+	).Scan(&surveyID, &userID, &status); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Response not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get response"})
+		return
+	}
+
+	if status != "in_progress" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Response is already completed"})
+		return
+	}
+
+	survey, err := h.surveyRepo.GetByID(surveyID)
+	if err != nil || survey == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+
+	// Save all answers (if any)
+	for _, ansReq := range req.Answers {
 		questionID, err := uuid.Parse(ansReq.QuestionID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question ID"})
 			return
 		}
-		answers[i] = models.Answer{
-			ID:         uuid.New(),
-			ResponseID: responseID,
-			QuestionID: questionID,
-			Value:      ansReq.Value,
+
+		var belongs bool
+		if err := tx.QueryRow(
+			"SELECT EXISTS (SELECT 1 FROM questions WHERE id = $1 AND survey_id = $2)",
+			questionID, surveyID,
+		).Scan(&belongs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate question"})
+			return
+		}
+		if !belongs {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Question does not belong to survey"})
+			return
+		}
+
+		valueJSON, err := json.Marshal(ansReq.Value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid answer value"})
+			return
+		}
+
+		if _, err := tx.Exec(
+			`INSERT INTO answers (id, response_id, question_id, value)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (response_id, question_id)
+			 DO UPDATE SET value = EXCLUDED.value`,
+			uuid.New(), responseID, questionID, valueJSON,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save answers"})
+			return
 		}
 	}
 
-	// Save all answers
-	if err := h.responseRepo.SaveAllAnswers(responseID, answers); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save answers"})
-		return
-	}
-
-	// Get survey to award points
-	survey, err := h.surveyRepo.GetByID(response.SurveyID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
-		return
-	}
-
-	// Complete the response
-	pointsAwarded := 0
-	if survey != nil {
-		pointsAwarded = survey.PointsReward
-	}
-
-	if err := h.responseRepo.Complete(responseID, pointsAwarded); err != nil {
+	pointsAwarded := survey.PointsReward
+	if _, err := tx.Exec(
+		"UPDATE responses SET status = 'completed', completed_at = $2, points_awarded = $3 WHERE id = $1",
+		responseID, time.Now(), pointsAwarded,
+	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete response"})
 		return
 	}
 
-	// Increment survey response count
-	if err := h.surveyRepo.IncrementResponseCount(response.SurveyID); err != nil {
-		// Log error but don't fail the request
+	if _, err := tx.Exec(
+		"UPDATE surveys SET response_count = response_count + 1 WHERE id = $1",
+		surveyID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey stats"})
+		return
 	}
 
-	// Get updated response
-	response, _ = h.responseRepo.GetByID(responseID)
+	if userID.Valid && pointsAwarded > 0 {
+		if err := h.pointsRepo.AwardSurveyPointsTx(tx, userID.UUID, surveyID, pointsAwarded, "Survey completion reward"); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	response, _ := h.responseRepo.GetByID(responseID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "Survey completed successfully",

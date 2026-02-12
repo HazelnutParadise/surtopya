@@ -3,6 +3,8 @@ import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
 import { getLogtoConfig } from "@/lib/logto"
 import { getLogtoContext } from "@logto/next/server-actions"
 
+type UnknownRecord = Record<string, unknown>
+
 const getFirstText = (...values: Array<unknown>) => {
   for (const value of values) {
     if (typeof value === "string" && value.trim().length > 0) {
@@ -10,6 +12,11 @@ const getFirstText = (...values: Array<unknown>) => {
     }
   }
   return null
+}
+
+const getRecordString = (record: UnknownRecord, key: string): string | null => {
+  const value = record[key]
+  return typeof value === "string" ? value : null
 }
 
 export async function GET() {
@@ -37,22 +44,22 @@ export async function GET() {
       try {
         const config = await getLogtoConfig()
         const context = await getLogtoContext(config, { fetchUserInfo: true })
-        const info = (context.userInfo ?? {}) as Record<string, unknown>
+        const info = (context.userInfo ?? {}) as UnknownRecord
         const resolvedName =
           displayName ||
           getFirstText(
             // userInfo is typed as unknown by Logto typings; cast to allow property access
             // values are passed to getFirstText which accepts unknown, so this is safe
-            (info as any).name,
-            (info as any).preferred_username,
-            (info as any).nickname,
-            (info as any).username,
-            (info as any).given_name && (info as any).family_name
-              ? `${(info as any).given_name} ${(info as any).family_name}`
+            getRecordString(info, "name"),
+            getRecordString(info, "preferred_username"),
+            getRecordString(info, "nickname"),
+            getRecordString(info, "username"),
+            getRecordString(info, "given_name") && getRecordString(info, "family_name")
+              ? `${getRecordString(info, "given_name")} ${getRecordString(info, "family_name")}`
               : undefined
           )
-        const resolvedAvatar = avatarUrl || getFirstText(info.picture, info.avatar)
-        const resolvedEmail = email || getFirstText(info.email)
+        const resolvedAvatar = avatarUrl || getFirstText(getRecordString(info, "picture"), getRecordString(info, "avatar"))
+        const resolvedEmail = email || getFirstText(getRecordString(info, "email"))
 
         const updates: Record<string, string> = {}
         if (!displayName && resolvedName) updates.displayName = resolvedName

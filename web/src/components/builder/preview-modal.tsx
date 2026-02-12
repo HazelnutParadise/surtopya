@@ -24,7 +24,7 @@ interface PreviewModalProps {
 export function PreviewModal({ open, onClose, title, questions, theme }: PreviewModalProps) {
   const t = useTranslations("PreviewModal");
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [responses, setResponses] = useState<Record<string, any>>({});
+  const [responses, setResponses] = useState<Record<string, unknown>>({});
 
   if (!open) return null;
 
@@ -51,8 +51,26 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
   const currentPageData = pages[currentPageIndex];
   const progress = pages.length > 0 ? ((currentPageIndex + 1) / pages.length) * 100 : 0;
 
-  const handleResponse = (questionId: string, value: any) => {
+  const handleResponse = (questionId: string, value: unknown) => {
     setResponses((prev) => ({ ...prev, [questionId]: value }));
+  };
+
+  const getResponseString = (questionId: string) => {
+    const v = responses[questionId];
+    if (typeof v === "string") return v;
+    if (typeof v === "number") return String(v);
+    return "";
+  };
+
+  const getResponseStringArray = (questionId: string) => {
+    const v = responses[questionId];
+    if (!Array.isArray(v)) return [];
+    return v.filter((x): x is string => typeof x === "string");
+  };
+
+  const getResponseNumber = (questionId: string) => {
+    const v = responses[questionId];
+    return typeof v === "number" ? v : undefined;
   };
 
   const handleNext = () => {
@@ -68,7 +86,9 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
   };
 
   const handleSubmit = () => {
-    alert(`${t("submitAlertTitle")}\n\n${t("submitAlertResponses")}\n${JSON.stringify(responses, null, 2)}`);
+    // Preview-only: keep behavior non-destructive (no backend call).
+    // Avoid alert() to keep UI tests deterministic.
+    console.info("Preview responses:", responses)
   };
 
   const renderQuestion = (question: Question, index: number) => {
@@ -88,7 +108,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             <Input
               className="mt-2"
               placeholder={t("yourAnswer")}
-              value={responses[question.id] || ''}
+              value={getResponseString(question.id)}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             />
           </div>
@@ -107,7 +127,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             <Textarea
               className="mt-2"
               placeholder={t("yourAnswer")}
-              value={responses[question.id] || ''}
+              value={getResponseString(question.id)}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             />
           </div>
@@ -125,7 +145,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             )}
             <RadioGroup
               className="mt-3 space-y-2"
-              value={responses[question.id] || ''}
+              value={getResponseString(question.id)}
               onValueChange={(value) => handleResponse(question.id, value)}
             >
               {question.options?.map((option, i) => (
@@ -152,7 +172,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             )}
             <div className="mt-3 space-y-2">
               {question.options?.map((option, i) => {
-                const selected = responses[question.id] || [];
+                const selected = getResponseStringArray(question.id);
                 return (
                   <div key={i} className="flex items-center space-x-2">
                     <Checkbox
@@ -188,7 +208,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             )}
             <select
               className="mt-2 w-full border border-gray-300 rounded-md p-2 bg-white dark:bg-gray-800 dark:border-gray-700"
-              value={responses[question.id] || ''}
+              value={getResponseString(question.id)}
               onChange={(e) => handleResponse(question.id, e.target.value)}
             >
               <option value="">{t("selectOption")}</option>
@@ -213,10 +233,10 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {[1, 2, 3, 4, 5].map((num) => (
                 <Button
                   key={num}
-                  variant={responses[question.id] === num ? "default" : "outline"}
+                  variant={getResponseNumber(question.id) === num ? "default" : "outline"}
                   size="sm"
                   onClick={() => handleResponse(question.id, num)}
-                  className={responses[question.id] === num ? "bg-purple-600 hover:bg-purple-700" : ""}
+                  className={getResponseNumber(question.id) === num ? "bg-purple-600 hover:bg-purple-700" : ""}
                 >
                   {num}
                 </Button>

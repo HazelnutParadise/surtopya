@@ -514,7 +514,6 @@
     "twoFactorTitle": "雙重驗證",
     "twoFactorDescription": "目前已停用。啟用以增加安全性。",
     "enable": "啟用",
-    "publicProfileDescription": "[TODO] ",
     "signInTitle": "Sign in required",
     "signInDescription": "Sign in to manage your profile.",
     "signInAction": "Sign in",

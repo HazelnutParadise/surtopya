@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { SurveyRenderer } from "@/components/survey/survey-renderer";
@@ -20,6 +20,7 @@ import { SurveyDisplay } from "@/lib/survey-mappers";
 import { SurveyTheme } from "@/types/survey";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
+import { buildSubmitAnswers } from "@/lib/response-submit"
 
 // Helper to format rich text description (simple markdown)
 const RichText = ({ content }: { content: string }) => {
@@ -65,38 +66,43 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("SurveyPage");
   const tCard = useTranslations("SurveyCard");
+  const tCommon = useTranslations("Common")
   
-  const [survey, setSurvey] = useState<SurveyDisplay | null>(initialSurvey || null);
-  const [theme, setTheme] = useState<SurveyTheme | undefined>(undefined);
-  const [loading, setLoading] = useState(!initialSurvey); // Only load if no initial data
-  const [isTaking, setIsTaking] = useState(false);
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const hasEnforcedTitle = useRef(false);
-
-  // Effect 1: Load preview data if in preview mode
-  useEffect(() => {
-    if (isPreview) {
-      try {
-        const surveyData = sessionStorage.getItem("preview_survey");
-        const themeData = sessionStorage.getItem("preview_theme");
-        
-        if (surveyData) {
-          const parsed = JSON.parse(surveyData);
-          setSurvey({
-            ...parsed,
-            responseCount: 0,
-          });
-          setIsTaking(true);
-        }
-        if (themeData) {
-          setTheme(JSON.parse(themeData));
-        }
-      } catch (error) {
-        console.error("Failed to load preview data:", error);
-      }
-      setLoading(false);
+  const previewData = useMemo(() => {
+    if (!isPreview || typeof window === "undefined") {
+      return { survey: null as SurveyDisplay | null, theme: undefined as SurveyTheme | undefined }
     }
-  }, [isPreview]); // Only run when isPreview changes (or on mount)
+    try {
+      const surveyData = sessionStorage.getItem("preview_survey")
+      const themeData = sessionStorage.getItem("preview_theme")
+      const parsedSurvey = surveyData ? (JSON.parse(surveyData) as SurveyDisplay) : null
+      const parsedTheme = themeData ? (JSON.parse(themeData) as SurveyTheme) : undefined
+      return {
+        survey: parsedSurvey
+          ? {
+              ...parsedSurvey,
+              responseCount: 0,
+            }
+          : null,
+        theme: parsedTheme,
+      }
+    } catch (error) {
+      console.error("Failed to load preview data:", error)
+      return { survey: null as SurveyDisplay | null, theme: undefined as SurveyTheme | undefined }
+    }
+  }, [isPreview])
+
+  const [survey] = useState<SurveyDisplay | null>(initialSurvey || previewData.survey || null)
+  const [theme] = useState<SurveyTheme | undefined>(previewData.theme)
+  const [loading] = useState(false)
+
+  const [isTaking, setIsTaking] = useState(Boolean(previewData.survey))
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [responseId, setResponseId] = useState<string | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [flowError, setFlowError] = useState<string | null>(null)
+  const [previewCompletePayload, setPreviewCompletePayload] = useState<string | null>(null)
 
   // Effect 2: Enforce title in URL for SEO (non-preview only)
   useEffect(() => {
@@ -113,9 +119,37 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
     }
   }, [isPreview, survey?.title, surveyId, searchParams, router, loading, isTaking]);
 
-  const handleStartSurvey = () => {
-    setIsTaking(true);
-  };
+  const handleStartSurvey = async () => {
+    setFlowError(null)
+    if (isPreview) {
+      setIsTaking(true)
+      return
+    }
+    if (!survey) return
+
+    setStarting(true)
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/responses/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to start response")
+      }
+      if (!payload?.id) {
+        throw new Error("Invalid response payload")
+      }
+      setResponseId(String(payload.id))
+      setIsTaking(true)
+    } catch (error) {
+      console.error("Failed to start survey:", error)
+      setFlowError(tCommon("error"))
+    } finally {
+      setStarting(false)
+    }
+  }
 
   const handleExitClick = () => {
     if (isPreview) {
@@ -130,15 +164,44 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
     setIsTaking(false);
   };
 
-  const handleComplete = (answers: Record<string, any>) => {
+  const handleComplete = async (answers: Record<string, unknown>) => {
+    setFlowError(null)
+    if (!survey) return
+
     if (isPreview) {
-      alert(`${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` + JSON.stringify(answers, null, 2));
-      window.close();
-    } else {
-      console.log("Survey responses:", answers);
-      router.push(withLocalePath("/survey/thank-you"));
+      setPreviewCompletePayload(
+        `${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` +
+          JSON.stringify(answers, null, 2)
+      )
+      return
     }
-  };
+
+    if (!responseId) {
+      setFlowError(tCommon("error"))
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const submitPayload = { answers: buildSubmitAnswers(survey, answers) }
+      const response = await fetch(`/api/responses/${responseId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submitPayload),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || "Submit failed")
+      }
+
+      router.push(withLocalePath("/survey/thank-you"))
+    } catch (error) {
+      console.error("Failed to submit response:", error)
+      setFlowError(tCommon("error"))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -190,6 +253,12 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
           isPreview={isPreview}
           onComplete={handleComplete}
         />
+
+        {flowError ? (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] w-[min(720px,calc(100vw-2rem))] rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
+            {flowError}
+          </div>
+        ) : null}
 
         {/* Exit Confirmation Dialog */}
         <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
@@ -333,9 +402,10 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
                     <Button 
                       onClick={handleStartSurvey}
                       size="lg"
+                      disabled={starting}
                       className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
                     >
-                      {t("startSurvey")}
+                      {starting ? tCommon("loading") : t("startSurvey")}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
 

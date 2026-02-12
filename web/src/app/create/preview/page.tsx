@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Survey, SurveyTheme } from "@/types/survey";
 import { SurveyRenderer } from "@/components/survey/survey-renderer";
@@ -12,47 +12,42 @@ import { useTranslations } from "next-intl";
 export default function PreviewPage() {
   const tPreview = useTranslations("PreviewPage");
   const tSurveyPage = useTranslations("SurveyPage");
+  const tCommon = useTranslations("Common")
   const router = useRouter();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
-  const [survey, setSurvey] = useState<Survey | null>(null);
-  const [theme, setTheme] = useState<SurveyTheme | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Load survey data from sessionStorage
+  const previewData = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { survey: null as Survey | null, theme: null as SurveyTheme | null }
+    }
     try {
-      const surveyData = sessionStorage.getItem("preview_survey");
-      const themeData = sessionStorage.getItem("preview_theme");
-      
-      if (surveyData) {
-        setSurvey(JSON.parse(surveyData));
-      }
-      if (themeData) {
-        setTheme(JSON.parse(themeData));
+      const surveyData = sessionStorage.getItem("preview_survey")
+      const themeData = sessionStorage.getItem("preview_theme")
+      return {
+        survey: surveyData ? (JSON.parse(surveyData) as Survey) : null,
+        theme: themeData ? (JSON.parse(themeData) as SurveyTheme) : null,
       }
     } catch (error) {
-      console.error("Failed to load preview data:", error);
+      console.error("Failed to load preview data:", error)
+      return { survey: null as Survey | null, theme: null as SurveyTheme | null }
     }
-    setLoading(false);
-  }, []);
+  }, [])
+
+  const [survey] = useState<Survey | null>(previewData.survey)
+  const [theme] = useState<SurveyTheme | null>(previewData.theme)
+  const [completePayload, setCompletePayload] = useState<string | null>(null)
 
   const handleClose = () => {
     window.close();
   };
 
-  const handleComplete = (answers: Record<string, any>) => {
-    alert(`${tSurveyPage("previewCompleteTitle")}\n\n${tSurveyPage("previewCompleteDescription")}\n\n${tSurveyPage("previewCompleteResponses")}\n` + JSON.stringify(answers, null, 2));
+  const handleComplete = (answers: Record<string, unknown>) => {
+    setCompletePayload(
+      `${tSurveyPage("previewCompleteTitle")}\n\n${tSurveyPage("previewCompleteDescription")}\n\n${tSurveyPage("previewCompleteResponses")}\n` +
+        JSON.stringify(answers, null, 2)
+    )
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
 
   if (!survey) {
     return (
@@ -90,6 +85,22 @@ export default function PreviewPage() {
         isPreview={true}
         onComplete={handleComplete}
       />
+
+      {completePayload ? (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-950 shadow-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">{tSurveyPage("previewCompleteTitle")}</h2>
+              <Button variant="ghost" size="sm" onClick={() => setCompletePayload(null)}>
+                {tCommon("cancel")}
+              </Button>
+            </div>
+            <pre className="max-h-[60vh] overflow-auto text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+              {completePayload}
+            </pre>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

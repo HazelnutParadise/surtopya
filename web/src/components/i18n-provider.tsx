@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl"
 
 type I18nProviderProps = {
   locale: string
-  messages: Record<string, any>
+  messages: Record<string, unknown>
   children: React.ReactNode
 }
 

@@ -1,2 +1,19 @@
 .env
 .vscode/
+
+# Go
+api/bin/
+api/main
+
+# Next.js / Node
+web/.next/
+web/out/
+web/build/
+web/node_modules/
+web/test-results/
+web/playwright-report/
+web/.turbo/
+web/.cache/
+
+# OS / tooling
+*.log

@@ -27,7 +27,7 @@ interface SurveyRendererProps {
   survey: Survey;
   theme?: SurveyTheme;
   isPreview?: boolean;
-  onComplete?: (answers: Record<string, any>) => void;
+  onComplete?: (answers: Record<string, unknown>) => void;
 }
 
 export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }: SurveyRendererProps) {
@@ -37,7 +37,8 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("SurveyRenderer");
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   // Default theme
   const activeTheme = theme || {
@@ -79,10 +80,11 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
     if (!isPreview) {
       const missingRequired = renderableQuestions.filter(q => q.required && !answers[q.id]);
       if (missingRequired.length > 0) {
-        alert(t("requiredAlert"));
+        setValidationError(t("requiredAlert"))
         return;
       }
     }
+    setValidationError(null)
 
     // Check logic jumps
     let jumpToPage = -1;
@@ -131,7 +133,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
     }
   };
 
-  const handleAnswer = (questionId: string, value: any) => {
+  const handleAnswer = (questionId: string, value: unknown) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
 
@@ -176,6 +178,12 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
           />
         </div>
 
+        {validationError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {validationError}
+          </div>
+        ) : null}
+
         {pageHeader && (
           <div className="mb-6 text-center">
             <h2 className={`text-2xl font-bold ${textColorClass}`}>{pageHeader.title}</h2>
@@ -199,8 +207,11 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
             
             <CardContent>
               {(question.type === "single") && (
+                (() => {
+                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  return (
                 <RadioGroup 
-                  value={answers[question.id]} 
+                  value={value} 
                   onValueChange={(val) => handleAnswer(question.id, val)}
                   className="space-y-3"
                 >
@@ -215,12 +226,15 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
                     </div>
                   ))}
                 </RadioGroup>
+                  )
+                })()
               )}
 
               {question.type === "multi" && (
                 <div className="space-y-3">
                   {question.options?.map((option) => {
-                    const currentAnswers = (answers[question.id] as string[]) || [];
+                    const raw = answers[question.id]
+                    const currentAnswers = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : []
                     const isChecked = currentAnswers.includes(option);
                     return (
                       <div 
@@ -242,33 +256,46 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
               )}
 
               {(question.type === "text" || question.type === "long") && (
+                (() => {
+                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  return (
                 <Textarea 
                   placeholder={t("textPlaceholder")}
                   className="min-h-[150px] text-base resize-none bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
-                  value={answers[question.id] || ""}
+                  value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
                 />
+                  )
+                })()
               )}
 
               {question.type === "short" && (
+                (() => {
+                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  return (
                 <Input 
                   placeholder={t("textPlaceholder")}
                   className="h-12 text-base bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
-                  value={answers[question.id] || ""}
+                  value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
                 />
+                  )
+                })()
               )}
 
               {question.type === "rating" && (
                 <div className="flex justify-center gap-2 py-8">
-                  {Array.from({ length: question.maxRating || 5 }).map((_, index) => {
+                  {(() => {
+                    const raw = answers[question.id]
+                    const ratingValue = typeof raw === "number" ? raw : 0
+                    return Array.from({ length: question.maxRating || 5 }).map((_, index) => {
                     const star = index + 1;
                     return (
                     <button
                       key={star}
                       onClick={() => handleAnswer(question.id, star)}
                       className={`p-2 rounded-full transition-all hover:scale-110 ${
-                        (answers[question.id] || 0) >= star 
+                        ratingValue >= star 
                           ? "text-amber-400" 
                           : "text-gray-200 dark:text-gray-700"
                       }`}
@@ -276,13 +303,17 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
                       <StarIcon className="h-10 w-10 fill-current" />
                     </button>
                     );
-                  })}
+                  })
+                  })()}
                 </div>
               )}
 
               {question.type === "select" && (
+                (() => {
+                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  return (
                 <Select
-                  value={answers[question.id]}
+                  value={value}
                   onValueChange={(value) => handleAnswer(question.id, value)}
                 >
                   <SelectTrigger className="w-full h-12 text-base">
@@ -296,15 +327,22 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
                     ))}
                   </SelectContent>
                 </Select>
+                  )
+                })()
               )}
 
               {question.type === "date" && (
+                (() => {
+                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  return (
                 <Input
                   type="date"
                   className="w-full h-12 text-base block"
-                  value={answers[question.id] || ""}
+                  value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
                 />
+                  )
+                })()
               )}
             </CardContent>
           </Card>

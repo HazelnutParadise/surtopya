@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,13 +15,18 @@ import (
 
 // DatasetHandler handles dataset-related requests
 type DatasetHandler struct {
-	repo *repository.DatasetRepository
+	db         *sql.DB
+	repo       *repository.DatasetRepository
+	pointsRepo *repository.PointsRepository
 }
 
 // NewDatasetHandler creates a new DatasetHandler
 func NewDatasetHandler() *DatasetHandler {
+	db := database.GetDB()
 	return &DatasetHandler{
-		repo: repository.NewDatasetRepository(database.GetDB()),
+		db:         db,
+		repo:       repository.NewDatasetRepository(db),
+		pointsRepo: repository.NewPointsRepository(db),
 	}
 }
 
@@ -41,19 +47,15 @@ func (h *DatasetHandler) GetDatasets(c *gin.Context) {
 	var err error
 
 	if search != "" {
-		datasets, err = h.repo.Search(search, limit, offset)
+		datasets, err = h.repo.SearchSorted(search, sortBy, limit, offset)
 	} else {
-		datasets, err = h.repo.GetAll(category, accessType, limit, offset)
+		datasets, err = h.repo.GetAllSorted(category, accessType, sortBy, limit, offset)
 	}
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get datasets"})
 		return
 	}
-
-	// Sort results (basic in-memory sort for now)
-	// In production, this should be done in the SQL query
-	_ = sortBy // TODO: Implement sorting in repository
 
 	c.JSON(http.StatusOK, gin.H{
 		"datasets": datasets,
@@ -96,33 +98,53 @@ func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 		return
 	}
 
+	// Load dataset first (read-only) to validate file existence before side effects.
 	dataset, err := h.repo.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get dataset"})
 		return
 	}
-
 	if dataset == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Dataset not found"})
 		return
 	}
 
-	// Check if paid and user has sufficient points
-	if dataset.AccessType == "paid" {
-		userID, exists := c.Get("userID")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required for paid datasets"})
-			return
-		}
-		// TODO: Check user's points balance and deduct
-		_ = userID
-	}
-
-	// Increment download count
-	h.repo.IncrementDownloadCount(id)
-
 	if dataset.FilePath != "" {
 		if _, err := os.Stat(dataset.FilePath); err == nil {
+			// Paid purchase + download_count increment are transactional.
+			tx, err := h.db.Begin()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+				return
+			}
+			defer tx.Rollback()
+
+			if dataset.AccessType == "paid" {
+				userID, exists := c.Get("userID")
+				if !exists {
+					c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required for paid datasets"})
+					return
+				}
+				if err := h.pointsRepo.DeductForDatasetTx(tx, userID.(uuid.UUID), id, dataset.Price, "Dataset download"); err != nil {
+					if err == repository.ErrInsufficientPoints {
+						c.JSON(http.StatusPaymentRequired, gin.H{"error": "Insufficient points"})
+						return
+					}
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process purchase"})
+					return
+				}
+			}
+
+			if _, err := tx.Exec("UPDATE datasets SET download_count = download_count + 1 WHERE id = $1", id); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update download count"})
+				return
+			}
+
+			if err := tx.Commit(); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+				return
+			}
+
 			filename := dataset.FileName
 			if filename == "" {
 				filename = "dataset"
