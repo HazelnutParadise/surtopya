@@ -10,6 +10,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Survey } from "@/lib/api";
+import { getRuntimeConfig } from "@/lib/runtime-config"
 
 function ExploreContent() {
   const router = useRouter();
@@ -24,6 +25,19 @@ function ExploreContent() {
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [surveyBasePoints, setSurveyBasePoints] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    getRuntimeConfig()
+      .then((cfg) => {
+        if (alive) setSurveyBasePoints(cfg.surveyBasePoints)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const updateSearch = (term: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -95,13 +109,17 @@ function ExploreContent() {
         case "newest":
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         case "points-high":
-          return b.pointsReward - a.pointsReward;
+          return (
+            surveyBasePoints +
+            Math.floor((b.pointsReward || 0) / 3) -
+            (surveyBasePoints + Math.floor((a.pointsReward || 0) / 3))
+          )
         case "recommended":
         default:
           return 0;
       }
     });
-  }, [searchQuery, sort, surveys]);
+  }, [searchQuery, sort, surveys, surveyBasePoints]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -161,7 +179,7 @@ function ExploreContent() {
                 id={survey.id}
                 title={survey.title}
                 description={survey.description}
-                points={survey.pointsReward}
+                points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                 responses={survey.responseCount}
                 visibility={survey.visibility}
                 locale={locale}

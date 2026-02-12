@@ -20,12 +20,12 @@ describe("buildSubmitAnswers", () => {
         publishedCount: 0,
       },
       questions: [
-        { id: "q1", type: "single", title: "q1", required: false, points: 0, options: ["a"] },
-        { id: "q2", type: "multi", title: "q2", required: false, points: 0, options: ["a", "b"] },
-        { id: "q3", type: "short", title: "q3", required: false, points: 0 },
-        { id: "q4", type: "rating", title: "q4", required: false, points: 0, maxRating: 5 },
-        { id: "q5", type: "date", title: "q5", required: false, points: 0 },
-        { id: "p1", type: "section", title: "page", required: false, points: 0 },
+        { id: "q1", type: "single", title: "q1", required: false, options: ["a"] },
+        { id: "q2", type: "multi", title: "q2", required: false, options: ["a", "b"] },
+        { id: "q3", type: "short", title: "q3", required: false },
+        { id: "q4", type: "rating", title: "q4", required: false, maxRating: 5 },
+        { id: "q5", type: "date", title: "q5", required: false },
+        { id: "p1", type: "section", title: "page", required: false },
       ],
     }
 

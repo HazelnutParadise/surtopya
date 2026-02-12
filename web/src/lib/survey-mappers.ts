@@ -15,7 +15,6 @@ const mapQuestion = (question: ApiQuestion): UiQuestion => ({
   description: question.description || undefined,
   options: question.options,
   required: question.required,
-  points: question.points,
   logic: question.logic,
   maxRating: question.maxRating,
 })

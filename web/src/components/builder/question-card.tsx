@@ -225,15 +225,6 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                 onCheckedChange={(checked) => onUpdate(question.id, { required: checked })} 
             />
             </div>
-            <div className="flex items-center gap-2">
-            <span>{tBuilder("points")}</span>
-            <Input 
-                type="number" 
-                value={question.points} 
-                onChange={(e) => onUpdate(question.id, { points: parseInt(e.target.value) || 0 })}
-                className="w-16 h-6 text-xs"
-            />
-            </div>
         </div>
       )}
     </Card>

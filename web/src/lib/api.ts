@@ -180,7 +180,6 @@ export interface Question {
   description?: string;
   options?: string[];
   required: boolean;
-  points: number;
   maxRating?: number;
   logic?: LogicRule[];
   sortOrder?: number;

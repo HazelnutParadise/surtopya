@@ -43,7 +43,6 @@ type QuestionRequest struct {
 	Description string             `json:"description"`
 	Options     []string           `json:"options"`
 	Required    bool               `json:"required"`
-	Points      int                `json:"points"`
 	MaxRating   int                `json:"maxRating"`
 	Logic       []models.LogicRule `json:"logic"`
 }
@@ -108,7 +107,6 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 				Description: &qReq.Description,
 				Options:     qReq.Options,
 				Required:    qReq.Required,
-				Points:      qReq.Points,
 				MaxRating:   qReq.MaxRating,
 				Logic:       qReq.Logic,
 				SortOrder:   i,
@@ -321,7 +319,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 				Description: &qReq.Description,
 				Options:     qReq.Options,
 				Required:    qReq.Required,
-				Points:      qReq.Points,
 				MaxRating:   qReq.MaxRating,
 				Logic:       qReq.Logic,
 				SortOrder:   i,

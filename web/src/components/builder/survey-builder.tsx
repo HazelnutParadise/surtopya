@@ -73,7 +73,6 @@ export function SurveyBuilder() {
         type: 'section',
         title: defaultPageTitle,
         required: false,
-        points: 0,
     }
   ]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -155,7 +154,6 @@ export function SurveyBuilder() {
           type: 'section',
           title: defaultPageTitle,
           required: false,
-          points: 0,
         };
 
         const safeQuestions: Question[] =
@@ -245,7 +243,6 @@ export function SurveyBuilder() {
             type,
             title: tBuilder("newQuestion"),
             required: false,
-            points: 10,
             options: type === 'single' || type === 'multi' || type === 'select' ? [
               tBuilder("optionLabel", { index: 1 }),
               tBuilder("optionLabel", { index: 2 }),
@@ -316,7 +313,6 @@ export function SurveyBuilder() {
         type,
         title: tBuilder("newQuestion"),
         required: false,
-        points: 10,
         options: type === 'single' || type === 'multi' || type === 'select' ? [
           tBuilder("optionLabel", { index: 1 }),
           tBuilder("optionLabel", { index: 2 }),
@@ -529,7 +525,6 @@ export function SurveyBuilder() {
         type: 'section',
         title: tBuilder("newPage"),
         required: false,
-        points: 0,
     };
     setQuestions([...questions, newSection]);
     notifyChange();
@@ -572,7 +567,6 @@ export function SurveyBuilder() {
         description: q.description || "",
         options: q.options || [],
         required: q.required,
-        points: q.points,
         maxRating: q.maxRating || 0,
         logic: q.logic || [],
       }));

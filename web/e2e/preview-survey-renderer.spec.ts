@@ -13,28 +13,24 @@ test("preview survey renderer allows answering and shows completion payload", as
         type: "section",
         title: "Page 1",
         required: false,
-        points: 0,
       },
       {
         id: "q1",
         type: "short",
         title: "Your name",
         required: true,
-        points: 0,
       },
       {
         id: "s2",
         type: "section",
         title: "Page 2",
         required: false,
-        points: 0,
       },
       {
         id: "q2",
         type: "short",
         title: "Your city",
         required: true,
-        points: 0,
       },
     ],
     settings: {

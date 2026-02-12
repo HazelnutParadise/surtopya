@@ -38,6 +38,13 @@ const fetchSurvey = async (paramId: string): Promise<SurveyDisplay | null> => {
   return mapApiSurveyToUi(payload);
 };
 
+const parseIntEnv = (key: string, def: number) => {
+  const raw = (process.env[key] || "").trim()
+  if (!raw) return def
+  const v = Number.parseInt(raw, 10)
+  return Number.isFinite(v) ? v : def
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const survey = await fetchSurvey(id);
@@ -73,6 +80,7 @@ export default async function Page({ params, searchParams }: Props) {
   const { mode } = await searchParams;
   const isPreview = id === "preview" || mode === "preview";
   const survey = await fetchSurvey(id);
+  const surveyBasePoints = parseIntEnv("SURVEY_BASE_POINTS", 0)
 
   const jsonLd = survey
     ? {
@@ -106,6 +114,7 @@ export default async function Page({ params, searchParams }: Props) {
           initialSurvey={survey || undefined}
           surveyId={normalizeSurveyId(id)}
           isPreview={isPreview}
+          surveyBasePoints={surveyBasePoints}
         />
       </Suspense>
     </>

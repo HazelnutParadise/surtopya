@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { withLocale, getLocaleFromPath } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Survey } from "@/lib/api";
+import { getRuntimeConfig } from "@/lib/runtime-config"
 
 export default function DashboardPage() {
   const pathname = usePathname();
@@ -18,6 +19,19 @@ export default function DashboardPage() {
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [surveyBasePoints, setSurveyBasePoints] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    getRuntimeConfig()
+      .then((cfg) => {
+        if (alive) setSurveyBasePoints(cfg.surveyBasePoints)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useEffect(() => {
     let isMounted = true;
@@ -119,7 +133,7 @@ export default function DashboardPage() {
                   id={survey.id}
                   title={survey.title}
                   description={survey.description}
-                  points={survey.pointsReward}
+                  points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                   responses={survey.responseCount}
                   visibility={survey.visibility}
                   variant="dashboard"

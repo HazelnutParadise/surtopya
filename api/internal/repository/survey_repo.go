@@ -293,7 +293,7 @@ func (r *SurveyRepository) Delete(id uuid.UUID) error {
 func (r *SurveyRepository) GetQuestions(surveyID uuid.UUID) ([]models.Question, error) {
 	query := `
 		SELECT id, survey_id, type, title, description, options, required,
-			points, max_rating, logic, sort_order, created_at, updated_at
+			max_rating, logic, sort_order, created_at, updated_at
 		FROM questions WHERE survey_id = $1
 		ORDER BY sort_order ASC
 	`
@@ -311,7 +311,7 @@ func (r *SurveyRepository) GetQuestions(surveyID uuid.UUID) ([]models.Question, 
 
 		err := rows.Scan(
 			&q.ID, &q.SurveyID, &q.Type, &q.Title, &q.Description,
-			&optionsJSON, &q.Required, &q.Points, &q.MaxRating,
+			&optionsJSON, &q.Required, &q.MaxRating,
 			&logicJSON, &q.SortOrder, &q.CreatedAt, &q.UpdatedAt,
 		)
 		if err != nil {
@@ -353,14 +353,14 @@ func (r *SurveyRepository) SaveQuestions(surveyID uuid.UUID, questions []models.
 		query := `
 			INSERT INTO questions (
 				id, survey_id, type, title, description, options, required,
-				points, max_rating, logic, sort_order
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				max_rating, logic, sort_order
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		`
 
 		_, err = tx.Exec(
 			query,
 			q.ID, surveyID, q.Type, q.Title, q.Description,
-			optionsJSON, q.Required, q.Points, q.MaxRating, logicJSON, i,
+			optionsJSON, q.Required, q.MaxRating, logicJSON, i,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert question: %w", err)

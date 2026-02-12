@@ -47,6 +47,7 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}
       - PRO_MONTHLY_POINTS=${PRO_MONTHLY_POINTS:-100}
+      - SURVEY_BASE_POINTS=${SURVEY_BASE_POINTS:-1}
     depends_on:
       postgres:
         condition: service_healthy

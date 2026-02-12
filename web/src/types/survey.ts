@@ -12,7 +12,6 @@ export interface Question {
     description?: string;
     options?: string[]; // For single/multi choice
     required: boolean;
-    points: number;
     logic?: LogicRule[];
     maxRating?: number; // Task 10
 }

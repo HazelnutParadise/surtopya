@@ -68,7 +68,6 @@ type Question struct {
 	Description *string     `json:"description,omitempty" db:"description"`
 	Options     []string    `json:"options,omitempty" db:"options"`
 	Required    bool        `json:"required" db:"required"`
-	Points      int         `json:"points" db:"points"`
 	MaxRating   int         `json:"maxRating,omitempty" db:"max_rating"`
 	Logic       []LogicRule `json:"logic,omitempty" db:"logic"`
 	SortOrder   int         `json:"sortOrder" db:"sort_order"`

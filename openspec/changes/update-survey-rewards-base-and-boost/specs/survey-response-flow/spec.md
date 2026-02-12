@@ -1,9 +1,4 @@
-# Capability: Survey Response Flow
-
-## Purpose
-Define how survey responses are started and submitted end-to-end (UI -> BFF -> backend) including point rewards.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Survey Response Submission End-to-End
 The system SHALL persist survey responses to the backend API and return a completion result.
@@ -18,16 +13,5 @@ The system SHALL persist survey responses to the backend API and return a comple
 #### Scenario: Authenticated user completes a survey and earns points
 - **WHEN** an authenticated user submits a completed response
 - **THEN** the backend awards points using the points economy rules
-- **AND** records a `points_transactions` row of type `survey_reward`
 - **AND** persists `responses.points_awarded` as the awarded amount
 
-### Requirement: Next.js BFF Proxy Routes for Response Submission
-The web application SHALL expose proxy routes for response submission under `/api/*`.
-
-#### Scenario: Start response via BFF
-- **WHEN** the client calls `POST /api/surveys/:id/responses/start`
-- **THEN** the BFF proxies to `POST /api/v1/surveys/:id/responses/start`
-
-#### Scenario: Submit response via BFF
-- **WHEN** the client calls `POST /api/responses/:id/submit`
-- **THEN** the BFF proxies to `POST /api/v1/responses/:id/submit`

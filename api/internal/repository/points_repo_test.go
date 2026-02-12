@@ -121,3 +121,62 @@ func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(
 	require.NoError(t, tx.Commit())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestPointsRepository_DeductForSurveyBoostTx_Insufficient(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	publisherID := uuid.New()
+	surveyID := uuid.New()
+
+	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"points_balance"}).AddRow(2))
+
+	err = repo.DeductForSurveyBoostTx(tx, publisherID, surveyID, 9, "")
+	require.ErrorIs(t, err, ErrInsufficientPoints)
+
+	mock.ExpectRollback()
+	require.NoError(t, tx.Rollback())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPointsRepository_DeductForSurveyBoostTx_DeductsAndInsertsTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	publisherID := uuid.New()
+	surveyID := uuid.New()
+
+	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"points_balance"}).AddRow(99))
+
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance - \\$2 WHERE id = \\$1").
+		WithArgs(publisherID, 9).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), publisherID, -9, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	require.NoError(t, repo.DeductForSurveyBoostTx(tx, publisherID, surveyID, 9, ""))
+
+	mock.ExpectCommit()
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}

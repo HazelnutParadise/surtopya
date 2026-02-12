@@ -56,9 +56,10 @@ interface SurveyClientPageProps {
   initialSurvey?: SurveyDisplay;
   surveyId: string;
   isPreview?: boolean;
+  surveyBasePoints: number;
 }
 
-export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }: SurveyClientPageProps) {
+export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, surveyBasePoints }: SurveyClientPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -103,6 +104,10 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
   const [submitting, setSubmitting] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
   const [previewCompletePayload, setPreviewCompletePayload] = useState<string | null>(null)
+
+  const rewardEstimate = survey
+    ? surveyBasePoints + Math.floor((survey.settings.pointsReward || 0) / 3)
+    : 0
 
   // Effect 2: Enforce title in URL for SEO (non-preview only)
   useEffect(() => {
@@ -319,9 +324,9 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
         <header className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
           <div className="max-w-4xl mx-auto px-4 py-16 md:py-24">
             <div className="flex items-center gap-2 mb-6">
-              <Badge className="bg-white/20 text-white border-0 hover:bg-white/30 text-sm px-3 py-1">
-                <Award className="mr-1.5 h-4 w-4" />
-                {t("earnPoints", { points: survey.settings.pointsReward })}
+                <Badge className="bg-white/20 text-white border-0 hover:bg-white/30 text-sm px-3 py-1">
+                  <Award className="mr-1.5 h-4 w-4" />
+                {t("earnPoints", { points: rewardEstimate })}
               </Badge>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{survey.title}</h1>
@@ -371,7 +376,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false }:
               <Card className="border-0 shadow-xl overflow-hidden sticky top-8">
                 <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4">
                   <p className="text-white/80 text-sm">{t("rewardLabel")}</p>
-                  <p className="text-3xl font-bold text-white">{t("pointsValue", { points: survey.settings.pointsReward })}</p>
+                  <p className="text-3xl font-bold text-white">{t("pointsValue", { points: rewardEstimate })}</p>
                 </div>
                 <CardContent className="p-6 space-y-4">
                   <div className="flex items-center gap-3">

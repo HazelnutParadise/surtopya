@@ -14,16 +14,36 @@ Publishing a survey MUST NOT deduct points from the publisher.
 - **AND** no `points_transactions` row is created for publishing
 
 ### Requirement: Completing Surveys Earns Points
-Completing a survey MUST award the survey's `points_reward` to the respondent when the response transitions to `completed`.
+Completing a survey MUST award points to the respondent when the response transitions to `completed`.
 
-#### Scenario: Authenticated user earns points on completion
-- **WHEN** an authenticated user submits a completed response for a survey with `points_reward > 0`
-- **THEN** the backend increments `users.points_balance` by `points_reward`
+#### Scenario: Authenticated user earns base points on completion
+- **WHEN** an authenticated user submits a completed response
+- **THEN** the backend increments `users.points_balance` by `SURVEY_BASE_POINTS`
 - **AND** records a `points_transactions` row of type `survey_reward`
+
+#### Scenario: Publisher boost spend increases respondent reward
+- **WHEN** an authenticated user submits a completed response for a survey with `boost_spend_points > 0` (stored as `surveys.points_reward`)
+- **AND** the publisher has at least `boost_spend_points` points
+- **THEN** the backend deducts `boost_spend_points` from the publisher's `points_balance`
+- **AND** awards the respondent an additional `boost_spend_points/3` points
+- **AND** records a `points_transactions` row of type `survey_boost_spend` for the publisher
+
+#### Scenario: Boost is skipped when publisher has insufficient points
+- **WHEN** an authenticated user submits a completed response for a survey with `boost_spend_points > 0`
+- **AND** the publisher has insufficient points
+- **THEN** the response still completes successfully
+- **AND** only `SURVEY_BASE_POINTS` are awarded
 
 #### Scenario: Anonymous user does not earn points
 - **WHEN** an anonymous user submits a completed response
 - **THEN** no points are awarded
+
+### Requirement: Question-Level Points Are Not Used
+The system MUST NOT support per-question points for reward calculation.
+
+#### Scenario: Survey builder does not expose question points
+- **WHEN** a publisher edits survey questions
+- **THEN** no per-question points setting is available
 
 ### Requirement: Points Can Purchase Paid Datasets
 Paid dataset downloads MUST be gated by points balance and recorded as a transaction.
@@ -53,4 +73,3 @@ Pro users (`users.is_pro = true`) MUST receive a monthly base points grant, appl
 #### Scenario: Non-Pro user never receives Pro monthly grants
 - **WHEN** a non-Pro user makes authenticated requests
 - **THEN** no `pro_monthly_grant` transaction is created
-
