@@ -194,6 +194,7 @@ function DatasetsContent() {
                   placeholder={tDatasets("searchPlaceholder")}
                   className="pl-10"
                   value={searchTerm}
+                  data-testid="datasets-search"
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
@@ -212,6 +213,7 @@ function DatasetsContent() {
                         : "text-gray-600 dark:text-gray-400 hover:text-purple-600"
                     }`}
                     onClick={() => setActiveCategory(slug)}
+                    data-testid={`datasets-category-${slug}`}
                   >
                     {getCategoryLabel(slug)}
                   </Button>
@@ -251,6 +253,7 @@ function DatasetsContent() {
                   className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as "newest" | "downloads" | "samples")}
+                  data-testid="datasets-sort"
                 >
                   <option value="newest">{tDatasets("newest")}</option>
                   <option value="downloads">{tDatasets("mostDownloads")}</option>
@@ -268,6 +271,7 @@ function DatasetsContent() {
                   <Card
                     key={ds.id}
                     className="group overflow-hidden border-0 shadow-lg ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-purple-500/50 transition-all duration-300"
+                    data-testid={`dataset-card-${ds.id}`}
                   >
                     <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
                       <CardHeader className="pb-2">
@@ -330,6 +334,7 @@ function DatasetsContent() {
                   variant="ghost"
                   className="text-gray-500 hover:text-purple-600"
                   onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
+                  data-testid="datasets-load-more"
                 >
                   {tDatasets("loadMore")}
                 </Button>

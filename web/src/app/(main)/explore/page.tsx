@@ -12,6 +12,8 @@ import { useTranslations } from "next-intl";
 import type { Survey } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/runtime-config"
 
+const PAGE_SIZE = 24
+
 function ExploreContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,6 +27,9 @@ function ExploreContent() {
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [offset, setOffset] = useState(0)
   const [surveyBasePoints, setSurveyBasePoints] = useState(0)
 
   useEffect(() => {
@@ -61,26 +66,34 @@ function ExploreContent() {
 
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController()
+
     const fetchSurveys = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/surveys/public?limit=100&offset=0", {
+        const response = await fetch(`/api/surveys/public?limit=${PAGE_SIZE}&offset=0`, {
           cache: "no-store",
+          signal: controller.signal,
         });
         if (!response.ok) {
           if (isMounted) {
             setSurveys([]);
+            setHasMore(false)
           }
           return;
         }
         const payload = await response.json();
         if (isMounted) {
-          setSurveys(payload.surveys || []);
+          const items = payload.surveys || []
+          setSurveys(items);
+          setOffset(items.length)
+          setHasMore(items.length === PAGE_SIZE)
         }
       } catch (error) {
         console.error("Failed to load surveys:", error);
         if (isMounted) {
           setSurveys([]);
+          setHasMore(false)
         }
       } finally {
         if (isMounted) {
@@ -92,8 +105,35 @@ function ExploreContent() {
     fetchSurveys();
     return () => {
       isMounted = false;
+      controller.abort()
     };
   }, []);
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return
+
+    setLoadingMore(true)
+    try {
+      const response = await fetch(`/api/surveys/public?limit=${PAGE_SIZE}&offset=${offset}`, {
+        cache: "no-store",
+      })
+      if (!response.ok) {
+        setHasMore(false)
+        return
+      }
+      const payload = await response.json()
+      const items = payload.surveys || []
+
+      setSurveys((prev) => [...prev, ...items])
+      setOffset((prev) => prev + items.length)
+      setHasMore(items.length === PAGE_SIZE)
+    } catch (error) {
+      console.error("Failed to load more surveys:", error)
+      setHasMore(false)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const filteredSurveys = useMemo(() => {
     const filtered = surveys.filter((survey) => {
@@ -141,19 +181,20 @@ function ExploreContent() {
         <div className="container px-4 py-4 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative flex-1 max-w-lg w-full">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 type="search"
                 placeholder={t("searchPlaceholder")}
                 className="pl-10 bg-gray-50 border-gray-200 focus-visible:ring-purple-500 dark:bg-gray-800 dark:border-gray-700 w-full"
                 defaultValue={searchQuery}
                 onChange={(e) => updateSearch(e.target.value)}
+                data-testid="explore-search"
               />
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
               <Select value={sort} onValueChange={updateSort}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-white dark:bg-gray-900">
+                <SelectTrigger className="w-full sm:w-[180px] bg-white dark:bg-gray-900" data-testid="explore-sort">
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="h-3.5 w-3.5 text-gray-500" />
                     <SelectValue placeholder={t("sortPlaceholder")} />
@@ -195,9 +236,18 @@ function ExploreContent() {
 
         {!loading && filteredSurveys.length > 0 && (
           <div className="mt-12 flex justify-center">
-            <Button variant="outline" size="lg" className="min-w-[200px]">
-              {t("loadMore")}
-            </Button>
+            {hasMore ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className="min-w-[200px]"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                data-testid="explore-load-more"
+              >
+                {loadingMore ? t("checkBackLater") : t("loadMore")}
+              </Button>
+            ) : null}
           </div>
         )}
       </div>
