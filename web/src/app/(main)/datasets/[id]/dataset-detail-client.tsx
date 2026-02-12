@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Dataset } from "@/lib/api";
+import { filenameFromContentDisposition, sanitizeFilename } from "@/lib/download";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -97,8 +98,9 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
 
       const blob = await response.blob()
       const disposition = response.headers.get("content-disposition") || ""
-      const match = disposition.match(/filename\\*=UTF-8''([^;]+)|filename=\"?([^\";]+)\"?/i)
-      const filename = decodeURIComponent(match?.[1] || match?.[2] || dataset?.fileName || "dataset")
+      const filename =
+        filenameFromContentDisposition(disposition) ??
+        sanitizeFilename(dataset?.fileName || "dataset")
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")

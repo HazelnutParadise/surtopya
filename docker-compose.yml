@@ -35,6 +35,7 @@ services:
       - .env
     environment:
       - GIN_MODE=release
+      - SURTOPYA_ENV=${SURTOPYA_ENV:-development}
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
@@ -42,7 +43,8 @@ services:
       - DB_NAME=${DB_NAME:-surtopya}
       - DB_SSLMODE=disable
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
-      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:3000}
+      - ALLOW_UNVERIFIED_JWT=${ALLOW_UNVERIFIED_JWT:-true}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}
     depends_on:
       postgres:

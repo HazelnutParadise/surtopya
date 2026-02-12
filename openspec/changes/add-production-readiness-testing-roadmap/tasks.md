@@ -23,14 +23,17 @@
 - [x] 4.1 Backend: implement `sort=newest|downloads|samples` in SQL
 - [x] 4.2 Backend: paid dataset download checks balance + deducts points + records transaction
 - [x] 4.3 Frontend: implement real file download handling (content-disposition, stream/blob)
-- [ ] 4.4 Add unit tests for dataset download client logic
+- [x] 4.4 Add unit tests for dataset download client logic
 
 ## 5. Security / Runtime
-- [ ] 5.1 Add explicit config to control unsafe defaults (JWT unverified, wildcard CORS) in production
-- [ ] 5.2 Add `/ready` endpoint and DB health check (optional)
+- [x] 5.1 Add explicit config to control unsafe defaults (JWT unverified, wildcard CORS) in production
+- [x] 5.2 Add `/ready` endpoint and DB health check (optional)
 
 ## Progress Log
 - 2026-02-12:
   - `openspec validate add-production-readiness-testing-roadmap --strict` passes.
   - Backend: `go test ./... -cover` passes.
   - Web: `bun install --frozen-lockfile`, `bunx vitest run`, `bun run build`, `bun run e2e` pass.
+  - Web: added unit tests for dataset download filename parsing (`web/src/lib/download.ts`).
+  - API: added `/api/v1/ready` readiness endpoint with DB ping.
+  - API: production defaults now reject unverified JWT and require explicit CORS allowlist.

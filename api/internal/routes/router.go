@@ -20,6 +20,7 @@ func SetupRouter() *gin.Engine {
 	{
 		// Health check
 		api.GET("/health", handlers.HealthHandler)
+		api.GET("/ready", handlers.ReadyHandler)
 
 		// Survey routes
 		surveyHandler := handlers.NewSurveyHandler()

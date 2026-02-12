@@ -31,40 +31,10 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString := parts[1]
 
-		// Parse and validate token
-		// Note: In production, you should validate with Logto's JWKS
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// For Logto, you would typically use the JWKS endpoint
-			// This is a simplified version - use proper key validation in production
-			jwtSecret := os.Getenv("JWT_SECRET")
-			if jwtSecret == "" {
-				jwtSecret = "development-secret-key"
-			}
-			return []byte(jwtSecret), nil
-		})
-
-		if err != nil || !token.Valid {
-			allowUnverified := os.Getenv("ALLOW_UNVERIFIED_JWT")
-			if allowUnverified == "" || allowUnverified == "true" {
-				parser := jwt.NewParser()
-				unverifiedToken, _, parseErr := parser.ParseUnverified(tokenString, jwt.MapClaims{})
-				if parseErr != nil {
-					c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-					c.Abort()
-					return
-				}
-				token = unverifiedToken
-			} else {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
-				c.Abort()
-				return
-			}
-		}
-
-		// Extract claims
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+		cfg := LoadJWTConfigFromEnv()
+		claims, err := ParseJWTClaims(tokenString, cfg)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
@@ -174,15 +144,33 @@ func getClaimString(claims jwt.MapClaims, keys ...string) string {
 // CORSMiddleware handles CORS headers
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		origin := os.Getenv("ALLOWED_ORIGIN")
-		if origin == "" {
-			origin = "*"
-		}
+		allowed := parseAllowedOriginsFromEnv()
+		requestOrigin := c.GetHeader("Origin")
 
-		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		allowAll := len(allowed) == 0 && !isProductionEnv()
+
+		if requestOrigin != "" {
+			if allowAll {
+				// Wildcard is OK only when we don't allow credentials.
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			} else {
+				if _, ok := allowed[requestOrigin]; !ok {
+					if c.Request.Method == "OPTIONS" {
+						c.AbortWithStatus(http.StatusForbidden)
+						return
+					}
+					// Not a browser preflight; continue without CORS headers.
+					c.Next()
+					return
+				}
+
+				c.Writer.Header().Set("Access-Control-Allow-Origin", requestOrigin)
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		}
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -191,4 +179,21 @@ func CORSMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func parseAllowedOriginsFromEnv() map[string]struct{} {
+	origins := os.Getenv("ALLOWED_ORIGINS")
+	if origins == "" {
+		return map[string]struct{}{}
+	}
+
+	set := map[string]struct{}{}
+	for _, part := range strings.Split(origins, ",") {
+		o := strings.TrimSpace(part)
+		if o == "" {
+			continue
+		}
+		set[o] = struct{}{}
+	}
+	return set
 }
