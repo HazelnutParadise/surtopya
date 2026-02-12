@@ -181,6 +181,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
                 className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/30 font-semibold h-11 px-8"
                 onClick={handleDownload}
                 disabled={downloading}
+                data-testid="dataset-download-button"
               >
                 <Download className="mr-2 h-4 w-4" strokeWidth={2.5} />
                 {tDatasets("download")}
