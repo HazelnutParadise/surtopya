@@ -136,6 +136,7 @@
     "optional": "任意",
     "visibilityPublicDescription": "マーケットプレイスに表示され検索エンジンに掲載されます。",
     "visibilityNonPublicDescription": "マーケットプレイスに非表示。リンクのみ。",
+    "settingsLockedAfterPublish": "これらの設定は初回公開後にロックされます。",
     "includeDatasetLabel": "匿名化データをマーケットプレイスに含める",
     "datasetEnrollmentTitle": "データセット参加",
     "datasetEnrollmentNotice": "無料ユーザーが{visibility}のアンケートを公開する場合は必須です。プロにアップグレードするとデータ提供なしで公開できます。",

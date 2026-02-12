@@ -132,6 +132,9 @@ export function SurveyBuilder() {
       settingsDraft.includeInDatasets !== includeInDatasets
   ) : false;
 
+  const isPublishLocked = publishedCount > 0
+  const isBuilderDatasetSharingLocked = Boolean(isPublishLocked || settingsDraft?.isPublic || everPublic)
+
   React.useEffect(() => {
     setMounted(true);
   }, []);
@@ -789,6 +792,7 @@ export function SurveyBuilder() {
                             });
                             setViewMode('settings');
                         }}
+                        data-testid="builder-tab-settings"
                         className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'settings' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
                     >
                         {tBuilder("settings")}
@@ -961,14 +965,18 @@ export function SurveyBuilder() {
                             <label className="text-sm font-medium">{tBuilder("visibility")}</label>
                             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
                                 <button
+                                    data-testid="builder-settings-visibility-public"
+                                    disabled={isPublishLocked}
                                     onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: true, includeInDatasets: true }) : null)}
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
+                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
                                     {tBuilder("visibilityPublic")}
                                 </button>
                                 <button
+                                    data-testid="builder-settings-visibility-nonpublic"
+                                    disabled={isPublishLocked}
                                     onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: false }) : null)}
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${!settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
+                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${!settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
                                     {tBuilder("visibilityNonPublic")}
                                 </button>
@@ -978,6 +986,15 @@ export function SurveyBuilder() {
                                     ? tBuilder("visibilityPublicDescription")
                                     : tBuilder("visibilityNonPublicDescription")}
                             </p>
+                            {isPublishLocked ? (
+                              <p
+                                className="text-xs text-gray-500 mt-1 flex items-center gap-1"
+                                data-testid="builder-settings-publish-locked-hint"
+                              >
+                                <Lock className="h-3 w-3" />
+                                {tBuilder("settingsLockedAfterPublish")}
+                              </p>
+                            ) : null}
                         </div>
 
                         <Separator className="dark:bg-gray-800" />
@@ -998,8 +1015,9 @@ export function SurveyBuilder() {
                                 <div className="flex items-center gap-3">
                                     <Switch 
                                         checked={settingsDraft?.isPublic || everPublic ? true : settingsDraft?.includeInDatasets}
-                                        disabled={settingsDraft?.isPublic || everPublic} // Simplified: {tBuilder("visibilityPublic")} must opt-in unless paid (mock-disabled)
+                                        disabled={isBuilderDatasetSharingLocked} // Locked after first publish; forced true if public/ever public.
                                         onCheckedChange={(checked: boolean) => setSettingsDraft(prev => prev ? ({ ...prev, includeInDatasets: checked }) : null)}
+                                        data-testid="builder-settings-include-in-datasets"
                                     />
                                 </div>
                             </div>
@@ -1263,7 +1281,7 @@ export function SurveyBuilder() {
                                 <span className="text-xs font-medium">{isPublic ? tBuilder("visibilityPublic") : tBuilder("visibilityNonPublic")}</span>
                                 <Switch 
                                     checked={isPublic}
-                                    disabled={publishedCount > 0 && !isPublic} // Cannot switch to {tBuilder("visibilityPublic")} if already published as {tBuilder("visibilityNonPublic")}
+                                    disabled={isPublishLocked}
                                     onCheckedChange={(checked) => {
                                         setIsPublic(checked);
                                         // Auto-force dataset logic
@@ -1291,8 +1309,9 @@ export function SurveyBuilder() {
                             </div>
                             <Switch 
                                 checked={isPublic || everPublic ? true : includeInDatasets}
-                                disabled={isPublic || everPublic} // Only disabled (forced true) if {tBuilder("visibilityPublic")}
+                                disabled={isPublishLocked || isPublic || everPublic}
                                 onCheckedChange={setIncludeInDatasets}
+                                data-testid="builder-publish-include-in-datasets"
                             />
                         </div>
 

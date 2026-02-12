@@ -136,6 +136,7 @@
     "optional": "Optional",
     "visibilityPublicDescription": "Visible in marketplace and searchable by search engines.",
     "visibilityNonPublicDescription": "Hidden from marketplace. Link only.",
+    "settingsLockedAfterPublish": "These settings are locked after the first publish.",
     "includeDatasetLabel": "Include de-identified data in Marketplace",
     "datasetEnrollmentTitle": "Dataset Enrollment",
     "datasetEnrollmentNotice": "is mandatory for free users publishing {visibility} surveys. Upgrade to Pro to publish public surveys without contributing data.",

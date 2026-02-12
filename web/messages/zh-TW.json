@@ -136,6 +136,7 @@
     "optional": "選填",
     "visibilityPublicDescription": "在市場可見，且可被搜尋引擎索引。",
     "visibilityNonPublicDescription": "不在市場顯示。僅限連結存取。",
+    "settingsLockedAfterPublish": "這些設定在首次發布後會被鎖定。",
     "includeDatasetLabel": "將去識別化資料加入資料集市場",
     "datasetEnrollmentTitle": "資料集加入",
     "datasetEnrollmentNotice": "免費使用者發布 {visibility} 問卷時必須加入。升級至專業版可在不貢獻資料的情況下發布公開問卷。",
