@@ -37,3 +37,5 @@
   - Web: added unit tests for dataset download filename parsing (`web/src/lib/download.ts`).
   - API: added `/api/v1/ready` readiness endpoint with DB ping.
   - API: production defaults now reject unverified JWT and require explicit CORS allowlist.
+  - Config: removed `ALLOWED_ORIGIN` in favor of `ALLOWED_ORIGINS` only.
+  - OpenSpec: promoted capabilities into `openspec/specs/*` and validated `openspec validate --all --strict`.

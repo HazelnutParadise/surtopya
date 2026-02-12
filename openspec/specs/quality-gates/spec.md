@@ -1,4 +1,9 @@
-## ADDED Requirements
+# Capability: Quality Gates
+
+## Purpose
+Define the minimum automated checks that MUST pass before changes are accepted (CI gates).
+
+## Requirements
 
 ### Requirement: Web Lint Gate
 The web project SHALL pass `bun run lint` with zero errors.
