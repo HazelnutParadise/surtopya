@@ -1,5 +1,5 @@
 # Build stage
-FROM oven/bun:1.3-slim AS builder
+FROM oven/bun:1.3.5-slim AS builder
 
 WORKDIR /app
 
@@ -11,6 +11,9 @@ RUN apt-get update && \
 # Copy package files
 COPY package.json bun.lock ./
 
+# preinstall runs `bun scripts/require-bun.mjs`; it must exist before `bun install`.
+COPY scripts ./scripts
+
 # Install dependencies (deterministic)
 RUN bun install --frozen-lockfile
 
@@ -21,7 +24,7 @@ COPY . .
 RUN bun run build
 
 # Production stage
-FROM oven/bun:1.3-slim AS runner
+FROM oven/bun:1.3.5-slim AS runner
 
 WORKDIR /app
 
