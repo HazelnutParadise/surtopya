@@ -17,12 +17,11 @@
 - `openspec/`: specs and change proposals
 
 ## Quality Gates (Target)
-- `npm run lint` must be 0 error
-- `npx vitest run` must pass
+- `bun run lint` must be 0 error
+- `bunx vitest run` must pass
 - `go test ./...` must pass
 - E2E: Playwright smoke tests must pass (at least routing + key pages with API mocked)
 
 ## Notes
 - Keep changes incremental: prefer adding new code paths and maintaining backward compatibility.
 - Prefer dependency injection in Go handlers where feasible (avoid hard-coding globals in new code).
-

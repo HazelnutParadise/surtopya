@@ -14,6 +14,10 @@ web/test-results/
 web/playwright-report/
 web/.turbo/
 web/.cache/
+web/package-lock.json
+web/package-lock.from-docker.json
+web/npm-install.from-docker.log
+web/Dockerfile.npm-install-builder
 
 # OS / tooling
 *.log

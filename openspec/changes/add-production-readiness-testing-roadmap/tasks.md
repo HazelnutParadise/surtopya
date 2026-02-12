@@ -5,7 +5,7 @@
 - [ ] 1.4 Validate with `openspec validate add-production-readiness-testing-roadmap --strict`
 
 ## 2. Quality Gates + CI
-- [ ] 2.1 Make `npm run lint` 0 error
+- [ ] 2.1 Make `bun run lint` 0 error
 - [ ] 2.2 Add i18n consistency check script and wire into CI
 - [ ] 2.3 Add GitHub Actions CI workflow
 - [ ] 2.4 Add Playwright smoke test harness (config + basic tests)
@@ -28,4 +28,3 @@
 ## 5. Security / Runtime
 - [ ] 5.1 Add explicit config to control unsafe defaults (JWT unverified, wildcard CORS) in production
 - [ ] 5.2 Add `/ready` endpoint and DB health check (optional)
-

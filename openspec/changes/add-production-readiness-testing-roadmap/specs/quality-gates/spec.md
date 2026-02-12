@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Web Lint Gate
-The web project SHALL pass `npm run lint` with zero errors.
+The web project SHALL pass `bun run lint` with zero errors.
 
 #### Scenario: CI fails on lint errors
 - **WHEN** lint errors exist
@@ -31,4 +31,3 @@ The web project SHALL run Playwright smoke tests in CI.
 #### Scenario: Smoke tests pass
 - **WHEN** Playwright tests run
 - **THEN** key routes render without crashing
-

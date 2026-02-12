@@ -106,8 +106,8 @@ surtopya/
 docker compose up --build
 
 # Frontend dev (inside web container)
-npm run dev          # Start Next.js dev server
-npm run build        # Production build
+bun run dev          # Start Next.js dev server
+bun run build        # Production build
 
 # Backend dev (inside api container)
 go run cmd/server/main.go
