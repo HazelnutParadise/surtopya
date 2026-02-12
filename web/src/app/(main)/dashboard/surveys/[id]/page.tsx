@@ -37,6 +37,27 @@ const formatDateTime = (value?: string) => {
   return date.toLocaleString();
 };
 
+const escapeCsv = (value: string) => {
+  const normalized = value.replace(/\r?\n/g, " ").trim()
+  if (normalized.includes(",") || normalized.includes('"')) {
+    return `"${normalized.replace(/"/g, '""')}"`
+  }
+  return normalized
+}
+
+const downloadCsv = (filename: string, rows: string[][]) => {
+  const content = rows.map((row) => row.map(escapeCsv).join(",")).join("\n") + "\n"
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export default function SurveyManagementPage() {
   const t = useTranslations("SurveyManagement");
   const tCommon = useTranslations("Common");
@@ -148,6 +169,36 @@ export default function SurveyManagementPage() {
     }, "");
     return formatDateTime(latest);
   }, [responses]);
+
+  const responseRows = useMemo(() => {
+    return [...responses].sort((a, b) => {
+      const aTime = new Date(a.completedAt || a.createdAt).getTime()
+      const bTime = new Date(b.completedAt || b.createdAt).getTime()
+      return bTime - aTime
+    })
+  }, [responses])
+
+  const handleExportCsv = () => {
+    const rows: string[][] = [
+      [
+        t("responsesTableId"),
+        t("responsesTableStatus"),
+        t("responsesTableRespondent"),
+        t("responsesTablePoints"),
+        t("responsesTableStartedAt"),
+        t("responsesTableSubmittedAt"),
+      ],
+      ...responseRows.map((r) => [
+        r.id,
+        r.status,
+        r.userId || r.anonymousId || "",
+        String(r.pointsAwarded || 0),
+        r.startedAt || "",
+        r.completedAt || r.createdAt || "",
+      ]),
+    ]
+    downloadCsv(`responses-${surveyId}.csv`, rows)
+  }
 
   const handlePreview = () => {
     if (survey) {
@@ -429,18 +480,95 @@ export default function SurveyManagementPage() {
               <TabsContent value="responses" className="mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>{t("responseSummaryTitle")}</CardTitle>
-                    <CardDescription>{t("responseSummaryDescription")}</CardDescription>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <CardTitle>{t("responseSummaryTitle")}</CardTitle>
+                        <CardDescription>{t("responseSummaryDescription")}</CardDescription>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={handleExportCsv}
+                          disabled={responses.length === 0}
+                          data-testid="dashboard-responses-export"
+                        >
+                          {t("exportCsv")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          {t("viewSurvey")}
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
-                      <BarChart3 className="h-12 w-12 mb-4 text-gray-300" />
-                      <p>{t("responseAnalyticsPlaceholder")}</p>
-                      <Button variant="outline" className="mt-4" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
-                        <ExternalLink className="mr-2 h-4 w-4" />
-                        {t("viewSurvey")}
-                      </Button>
-                    </div>
+                    {responses.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center text-gray-500">
+                        <BarChart3 className="h-12 w-12 mb-4 text-gray-300" />
+                        <p>{t("noResponsesYet")}</p>
+                        <p className="text-sm mt-2">{t("responseAnalyticsPlaceholder")}</p>
+                      </div>
+                    ) : (
+                      <div data-testid="dashboard-responses-table" className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-left text-gray-500 border-b border-gray-200 dark:border-gray-800">
+                            <tr>
+                              <th className="py-2 pr-4 font-medium">{t("responsesTableStatus")}</th>
+                              <th className="py-2 pr-4 font-medium">{t("responsesTableSubmittedAt")}</th>
+                              <th className="py-2 pr-4 font-medium">{t("responsesTablePoints")}</th>
+                              <th className="py-2 pr-4 font-medium">{t("responsesTableRespondent")}</th>
+                              <th className="py-2 pr-4 font-medium">{t("responsesTableId")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {responseRows.map((response) => {
+                              const submittedAt = response.completedAt || response.createdAt
+                              const respondentLabel = response.userId || response.anonymousId || "--"
+                              const statusLabel =
+                                response.status === "completed"
+                                  ? t("statusCompleted")
+                                  : response.status === "in_progress"
+                                    ? t("statusInProgress")
+                                    : t("statusAbandoned")
+
+                              return (
+                                <tr
+                                  key={response.id}
+                                  className="border-b border-gray-100 dark:border-gray-900/60"
+                                >
+                                  <td className="py-3 pr-4">
+                                    <Badge
+                                      className={
+                                        response.status === "completed"
+                                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                          : response.status === "in_progress"
+                                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                      }
+                                    >
+                                      {statusLabel}
+                                    </Badge>
+                                  </td>
+                                  <td className="py-3 pr-4 whitespace-nowrap">
+                                    {formatDateTime(submittedAt) || "--"}
+                                  </td>
+                                  <td className="py-3 pr-4">{response.pointsAwarded ?? 0}</td>
+                                  <td className="py-3 pr-4 max-w-[240px] truncate" title={respondentLabel}>
+                                    {respondentLabel}
+                                  </td>
+                                  <td className="py-3 pr-4 font-mono text-xs max-w-[220px] truncate" title={response.id}>
+                                    {response.id}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>

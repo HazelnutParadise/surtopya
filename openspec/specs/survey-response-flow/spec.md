@@ -20,6 +20,8 @@ The system SHALL persist survey responses to the backend API and return a comple
 - **THEN** the backend awards points using the points economy rules
 - **AND** records a `points_transactions` row of type `survey_reward`
 - **AND** persists `responses.points_awarded` as the awarded amount
+- **AND** the UI navigates to the thank-you page
+- **AND** the thank-you page displays the earned points
 
 ### Requirement: Next.js BFF Proxy Routes for Response Submission
 The web application SHALL expose proxy routes for response submission under `/api/*`.

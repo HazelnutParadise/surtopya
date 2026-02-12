@@ -199,7 +199,13 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
         throw new Error(payload?.error || "Submit failed")
       }
 
-      router.push(withLocalePath("/survey/thank-you"))
+      const pointsAwardedRaw = payload?.pointsAwarded
+      const pointsAwarded =
+        typeof pointsAwardedRaw === "number" ? pointsAwardedRaw : Number(pointsAwardedRaw || 0)
+      const pointsParam = Number.isFinite(pointsAwarded) ? Math.max(0, Math.floor(pointsAwarded)) : 0
+      const qs = new URLSearchParams({ points: String(pointsParam) }).toString()
+
+      router.push(withLocalePath(`/survey/thank-you?${qs}`))
     } catch (error) {
       console.error("Failed to submit response:", error)
       setFlowError(tCommon("error"))
@@ -296,6 +302,8 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
           case 'single': return t('typeDescriptionSingle');
           case 'multi': return t('typeDescriptionMulti');
           case 'text': return t('typeDescriptionText');
+          case 'short': return t('typeDescriptionText');
+          case 'long': return t('typeDescriptionText');
           case 'rating': return t('typeDescriptionRating');
           case 'select': return t('typeDescriptionSelect');
           case 'date': return t('typeDescriptionDate');

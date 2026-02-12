@@ -5,14 +5,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, ArrowRight, Gift } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 
 export default function ThankYouPage() {
   const pathname = usePathname();
+  const searchParams = useSearchParams()
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("ThankYou");
+
+  const pointsRaw = searchParams.get("points") || "0"
+  const parsedPoints = Number.parseInt(pointsRaw, 10)
+  const points = Number.isFinite(parsedPoints) ? Math.max(0, parsedPoints) : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-purple-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
@@ -31,7 +37,12 @@ export default function ThankYouPage() {
               <Gift className="h-5 w-5" />
               <span className="font-semibold">{t("pointsEarned")}</span>
             </div>
-            <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">+50</p>
+            <p
+              className="text-3xl font-bold text-purple-600 dark:text-purple-400"
+              data-testid="thank-you-points"
+            >
+              +{points}
+            </p>
           </div>
 
           <p className="text-gray-600 dark:text-gray-400">

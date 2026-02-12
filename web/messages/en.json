@@ -439,7 +439,14 @@
     "exitSurvey": "Exit Survey",
     "previewCompleteTitle": "Preview Complete!",
     "previewCompleteDescription": "In a real survey, responses would be saved.",
-    "previewCompleteResponses": "Responses:"
+    "previewCompleteResponses": "Responses:",
+    "typeDescriptionSingle": "Single choice question",
+    "typeDescriptionMulti": "Multiple choice question",
+    "typeDescriptionText": "Open-ended question",
+    "typeDescriptionRating": "Rating scale question",
+    "typeDescriptionSelect": "Dropdown selection question",
+    "typeDescriptionDate": "Date question",
+    "typeDescriptionDefault": "Question"
   },
   "ThemeEditor": {
     "primaryColor": "Primary Color",
@@ -551,7 +558,18 @@
     "quickActions": "Quick Actions",
     "previewSurvey": "Preview Survey",
     "editSurvey": "Edit Survey",
-    "openSurveyPage": "Open Survey Page"
+    "openSurveyPage": "Open Survey Page",
+    "exportCsv": "Export CSV",
+    "noResponsesYet": "No responses yet.",
+    "responsesTableId": "Response ID",
+    "responsesTableStatus": "Status",
+    "responsesTableRespondent": "Respondent",
+    "responsesTablePoints": "Points awarded",
+    "responsesTableStartedAt": "Started at",
+    "responsesTableSubmittedAt": "Submitted at",
+    "statusCompleted": "Completed",
+    "statusInProgress": "In progress",
+    "statusAbandoned": "Abandoned"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "No Preview Data",

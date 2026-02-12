@@ -37,6 +37,14 @@ The web project SHALL run Playwright smoke tests in CI.
 - **WHEN** Playwright tests run
 - **THEN** key routes render without crashing
 
+### Requirement: Survey Completion Thank-You UI Smoke Test
+The web project SHALL have an E2E test proving the survey completion flow reaches thank-you and shows earned points.
+
+#### Scenario: Thank-you page shows points awarded
+- **WHEN** a user starts a survey response and submits answers successfully
+- **THEN** the UI navigates to `/survey/thank-you`
+- **AND** the UI shows the awarded points
+
 ### Requirement: Dataset Marketplace Handler Regression Tests
 The backend SHALL have handler-level regression tests covering key dataset marketplace behaviors.
 
@@ -70,3 +78,11 @@ The backend SHALL have handler-level regression tests covering key survey respon
 - **WHEN** `POST /api/v1/responses/:id/submit` is called for an in-progress response with no authenticated user
 - **THEN** the handler returns 200
 - **AND** `points_awarded = 0`
+
+### Requirement: Dashboard Survey Responses UI Smoke Test
+The web project SHALL have an E2E test proving the dashboard survey detail page can render a responses list.
+
+#### Scenario: Responses list renders on dashboard survey detail
+- **WHEN** the survey owner opens `/dashboard/surveys/:id`
+- **AND** the API returns at least one response
+- **THEN** the UI shows a responses list with status and points awarded

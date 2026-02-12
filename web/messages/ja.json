@@ -439,7 +439,14 @@
     "exitSurvey": "アンケートを終了",
     "previewCompleteTitle": "プレビュー完了！",
     "previewCompleteDescription": "実際のアンケートでは回答が保存されます。",
-    "previewCompleteResponses": "回答:"
+    "previewCompleteResponses": "回答:",
+    "typeDescriptionSingle": "単一選択の質問",
+    "typeDescriptionMulti": "複数選択の質問",
+    "typeDescriptionText": "自由記述の質問",
+    "typeDescriptionRating": "評価スケールの質問",
+    "typeDescriptionSelect": "ドロップダウン選択の質問",
+    "typeDescriptionDate": "日付の質問",
+    "typeDescriptionDefault": "質問"
   },
   "ThemeEditor": {
     "primaryColor": "メインカラー",
@@ -551,7 +558,18 @@
     "quickActions": "クイック操作",
     "previewSurvey": "プレビュー",
     "editSurvey": "編集",
-    "openSurveyPage": "アンケートページを開く"
+    "openSurveyPage": "アンケートページを開く",
+    "exportCsv": "CSV をエクスポート",
+    "noResponsesYet": "まだ回答がありません。",
+    "responsesTableId": "回答 ID",
+    "responsesTableStatus": "ステータス",
+    "responsesTableRespondent": "回答者",
+    "responsesTablePoints": "獲得ポイント",
+    "responsesTableStartedAt": "開始日時",
+    "responsesTableSubmittedAt": "送信日時",
+    "statusCompleted": "完了",
+    "statusInProgress": "進行中",
+    "statusAbandoned": "放棄"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "プレビューデータがありません",
