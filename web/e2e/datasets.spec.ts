@@ -1,6 +1,14 @@
 import { test, expect } from "@playwright/test"
 
 test("datasets page renders datasets from API (mocked)", async ({ page }) => {
+  await page.route("**/api/config", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ surveyBasePoints: 1 }),
+    })
+  })
+
   await page.route("**/api/datasets?*", async (route) => {
     await route.fulfill({
       status: 200,

@@ -303,6 +303,7 @@ export interface AdminUser {
   id: string;
   email?: string;
   displayName?: string;
+  isPro: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   createdAt: string;

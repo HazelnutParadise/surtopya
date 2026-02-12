@@ -16,7 +16,16 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     const strippedPath = pathname.replace(`/${locale}`, "") || "/"
     url.pathname = strippedPath
-    const response = NextResponse.rewrite(url)
+
+    // Make SSR use the locale from the URL prefix on the first request (no flash of default locale).
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-locale", locale)
+
+    const response = NextResponse.rewrite(url, {
+      request: {
+        headers: requestHeaders,
+      },
+    })
     response.cookies.set("NEXT_LOCALE", locale, {
       maxAge: 60 * 60 * 24 * 365 * 5,
       path: "/",

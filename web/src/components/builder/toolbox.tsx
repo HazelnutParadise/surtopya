@@ -25,8 +25,19 @@ function ToolboxItem({ type, label, icon }: ToolboxItemProps) {
   } : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="mb-3">
-      <Button variant="outline" className="w-full justify-start gap-3 h-12 border-dashed hover:border-solid hover:border-purple-500 hover:text-purple-600 transition-all cursor-grab active:cursor-grabbing">
+    <div
+      ref={setNodeRef}
+      data-testid={`toolbox-${type}`}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="mb-3"
+    >
+      <Button
+        variant="outline"
+        data-testid={`toolbox-${type}`}
+        className="w-full justify-start gap-3 h-12 border-dashed hover:border-solid hover:border-purple-500 hover:text-purple-600 transition-all cursor-grab active:cursor-grabbing"
+      >
         {icon}
         <span>{label}</span>
       </Button>

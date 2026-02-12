@@ -392,6 +392,27 @@ export default function AdminPage() {
     }
   }
 
+  const togglePro = async (user: AdminUser, nextValue: boolean) => {
+    setSavingUserId(user.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPro: nextValue }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, isPro: nextValue } : item)))
+    } catch (err) {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
   const surveyCountLabel = useMemo(() => tAdmin("surveyCount", { count: surveys.length }), [surveys.length, tAdmin])
   const datasetCountLabel = useMemo(() => tAdmin("datasetCount", { count: datasets.length }), [datasets.length, tAdmin])
   const adminCountLabel = useMemo(() => tAdmin("adminCount", { count: users.length }), [users.length, tAdmin])
@@ -610,10 +631,20 @@ export default function AdminPage() {
                               <p className="text-sm text-gray-500">{user.email}</p>
                             </div>
                             <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">{tAdmin("proToggleLabel")}</span>
+                              <Switch
+                                checked={user.isPro}
+                                onCheckedChange={(checked) => togglePro(user, checked)}
+                                aria-label={tAdmin("proToggleLabel")}
+                                data-testid={`admin-pro-${user.id}`}
+                                disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
+                              />
                               <span className="text-xs text-gray-500">{tAdmin("adminToggleLabel")}</span>
                               <Switch
                                 checked={user.isAdmin}
                                 onCheckedChange={(checked) => toggleAdmin(user, checked)}
+                                aria-label={tAdmin("adminToggleLabel")}
+                                data-testid={`admin-admin-${user.id}`}
                                 disabled={
                                   !currentUser?.isSuperAdmin ||
                                   user.isSuperAdmin ||

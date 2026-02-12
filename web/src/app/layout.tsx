@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { LocaleSync } from "@/components/locale-sync"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import path from "path"
 import { readFile } from "fs/promises"
 import { I18nProvider } from "@/components/i18n-provider"
@@ -62,9 +62,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerStore = await headers()
+  const headerLocale = headerStore.get("x-locale")
+
   const cookieStore = await cookies();
   const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
-  const locale = (cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])) ? cookieLocale : defaultLocale;
+  const locale =
+    headerLocale && locales.includes(headerLocale as (typeof locales)[number])
+      ? headerLocale
+      : cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])
+        ? cookieLocale
+        : defaultLocale
+
   const messages = await getMessages(locale);
   const apiBaseUrl =
     process.env.INTERNAL_API_URL ||

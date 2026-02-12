@@ -617,6 +617,7 @@
     "adminsTab": "管理者",
     "adminsTitle": "管理者管理",
     "searchAdmins": "管理者を検索",
+    "proToggleLabel": "Pro 会員",
     "superAdminOnlyHint": "権限変更はスーパー管理者のみ可能です。",
     "noAdmins": "管理者がいません",
     "adminCount": "全 {count} 人の管理者",

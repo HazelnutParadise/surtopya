@@ -40,7 +40,11 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
 
   if (questions.length === 0) {
     return (
-      <div ref={setNodeRef} className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-900 transition-colors hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/20">
+      <div
+        ref={setNodeRef}
+        data-testid="survey-canvas"
+        className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 dark:border-gray-700 dark:bg-gray-900 transition-colors hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/20"
+      >
         <p className="text-lg font-medium">{t("emptyCanvasTitle")}</p>
         <p className="text-sm">{t("emptyCanvasDescription")}</p>
       </div>
@@ -48,7 +52,7 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
   }
 
   return (
-    <div ref={setNodeRef} className="pb-20 min-h-[500px]">
+    <div ref={setNodeRef} data-testid="survey-canvas" className="pb-20 min-h-[500px]">
       {(() => {
         const sections: { header: Question; children: Question[] }[] = [];
         let currentSection: { header: Question; children: Question[] } | null = null;

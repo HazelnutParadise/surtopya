@@ -617,6 +617,7 @@
     "adminsTab": "Admins",
     "adminsTitle": "Admin Management",
     "searchAdmins": "Search users",
+    "proToggleLabel": "Pro membership",
     "superAdminOnlyHint": "Only super admins can change roles",
     "noAdmins": "No users found",
     "adminCount": "{count} users",

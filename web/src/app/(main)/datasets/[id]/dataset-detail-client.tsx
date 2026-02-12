@@ -112,7 +112,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error("Download failed:", error);
-      setDownloadError(tCommon("error"))
+      setDownloadError(error instanceof Error ? error.message : tCommon("error"))
     } finally {
       setDownloading(false);
     }
@@ -186,7 +186,9 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
                 {tDatasets("download")}
               </Button>
               {downloadError ? (
-                <p className="text-sm text-red-600">{downloadError}</p>
+                <p data-testid="dataset-download-error" className="text-sm text-red-600">
+                  {downloadError}
+                </p>
               ) : null}
             </div>
           </div>

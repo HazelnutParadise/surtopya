@@ -617,6 +617,7 @@
     "adminsTab": "管理員",
     "adminsTitle": "管理員管理",
     "searchAdmins": "搜尋管理員",
+    "proToggleLabel": "Pro 會員",
     "superAdminOnlyHint": "只有超級管理員可以變更權限。",
     "noAdmins": "沒有管理員",
     "adminCount": "共 {count} 位管理員",
