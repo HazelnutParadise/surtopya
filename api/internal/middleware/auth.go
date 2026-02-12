@@ -4,9 +4,12 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -58,6 +61,8 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Set user ID in context
 		c.Set("userID", userID)
 		c.Set("logtoUserID", logtoUserID)
+
+		maybeGrantProMonthlyPoints(userID)
 
 		_, _ = EnsureSuperAdmin(userID)
 
@@ -139,6 +144,48 @@ func getClaimString(claims jwt.MapClaims, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func maybeGrantProMonthlyPoints(userID uuid.UUID) {
+	amount := parseIntEnv("PRO_MONTHLY_POINTS")
+	if amount <= 0 {
+		return
+	}
+
+	db := database.GetDB()
+	tx, err := db.Begin()
+	if err != nil {
+		return
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	repo := repository.NewPointsRepository(db)
+	_, err = repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, amount, time.Now().UTC(), "")
+	if err != nil {
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		return
+	}
+	committed = true
+}
+
+func parseIntEnv(key string) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 // CORSMiddleware handles CORS headers

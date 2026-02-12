@@ -46,6 +46,7 @@ services:
       - ALLOW_UNVERIFIED_JWT=${ALLOW_UNVERIFIED_JWT:-true}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}
+      - PRO_MONTHLY_POINTS=${PRO_MONTHLY_POINTS:-100}
     depends_on:
       postgres:
         condition: service_healthy

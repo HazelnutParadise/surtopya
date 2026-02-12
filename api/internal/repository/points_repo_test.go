@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -57,6 +58,64 @@ func TestPointsRepository_AwardSurveyPointsTx_InsertsTransaction(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	require.NoError(t, repo.AwardSurveyPointsTx(tx, userID, surveyID, 5, ""))
+
+	mock.ExpectCommit()
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_GrantsAndInsertsTransaction(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
+
+	mock.ExpectExec("UPDATE users").
+		WithArgs(userID, 100, now).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), userID, 100, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	granted, err := repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, 100, now, "")
+	require.NoError(t, err)
+	require.True(t, granted)
+
+	mock.ExpectCommit()
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
+
+	mock.ExpectExec("UPDATE users").
+		WithArgs(userID, 100, now).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	granted, err := repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, 100, now, "")
+	require.NoError(t, err)
+	require.False(t, granted)
 
 	mock.ExpectCommit()
 	require.NoError(t, tx.Commit())

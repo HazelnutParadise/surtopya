@@ -54,6 +54,7 @@ type AdminUser struct {
 	ID           uuid.UUID `json:"id"`
 	Email        *string   `json:"email,omitempty"`
 	DisplayName  *string   `json:"displayName,omitempty"`
+	IsPro        bool      `json:"isPro"`
 	IsAdmin      bool      `json:"isAdmin"`
 	IsSuperAdmin bool      `json:"isSuperAdmin"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -61,6 +62,7 @@ type AdminUser struct {
 
 type AdminUserUpdateRequest struct {
 	IsAdmin *bool `json:"isAdmin"`
+	IsPro   *bool `json:"isPro"`
 }
 
 // GetSurveys handles GET /api/v1/admin/surveys
@@ -464,7 +466,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	}
 
 	query := `
-		SELECT id, email, display_name, is_admin, is_super_admin, created_at
+		SELECT id, email, display_name, is_pro, is_admin, is_super_admin, created_at
 		FROM users
 		WHERE 1=1
 	`
@@ -495,7 +497,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	var users []AdminUser
 	for rows.Next() {
 		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.IsPro, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
 			return
 		}
@@ -541,7 +543,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	if req.IsAdmin == nil {
+	if req.IsAdmin == nil && req.IsPro == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
 		return
 	}
@@ -551,24 +553,38 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
 		return
 	}
-	if targetIsSuper && !*req.IsAdmin {
+	if req.IsAdmin != nil && targetIsSuper && !*req.IsAdmin {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove super admin"})
 		return
 	}
 
-	if _, err := database.GetDB().Exec(
-		"UPDATE users SET is_admin = $1 WHERE id = $2",
-		*req.IsAdmin, id,
-	); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
-		return
+	if req.IsAdmin != nil {
+		if _, err := database.GetDB().Exec(
+			"UPDATE users SET is_admin = $1 WHERE id = $2",
+			*req.IsAdmin, id,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
 	}
 
-	if _, err := database.GetDB().Exec(
-		"UPDATE users SET is_admin = true WHERE is_super_admin = true",
-	); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
-		return
+	if req.IsPro != nil {
+		if _, err := database.GetDB().Exec(
+			"UPDATE users SET is_pro = $1 WHERE id = $2",
+			*req.IsPro, id,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
+	}
+
+	if req.IsAdmin != nil {
+		if _, err := database.GetDB().Exec(
+			"UPDATE users SET is_admin = true WHERE is_super_admin = true",
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated"})
