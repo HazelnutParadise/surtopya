@@ -6,15 +6,9 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/routes"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
-	}
-
 	// Initialize database connection
 	dbConfig := database.LoadConfigFromEnv()
 	if err := database.Connect(dbConfig); err != nil {

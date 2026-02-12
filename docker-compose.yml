@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build:
@@ -7,8 +5,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    env_file:
-      - .env
     environment:
       - INTERNAL_API_URL=${INTERNAL_API_URL:-http://api:8080/api/v1}
       - PUBLIC_API_URL=${PUBLIC_API_URL:-http://localhost:8000/api/v1}
@@ -19,6 +15,9 @@ services:
       - LOGTO_APP_SECRET=${LOGTO_APP_SECRET:-}
       - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
+      - REQUIRE_BOOTSTRAP_AUTH=${REQUIRE_BOOTSTRAP_AUTH:-false}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
     volumes:
       - ./web/messages:/app/messages
     depends_on:
@@ -31,8 +30,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8080"
-    env_file:
-      - .env
     environment:
       - GIN_MODE=release
       - SURTOPYA_ENV=${SURTOPYA_ENV:-development}
@@ -48,6 +45,10 @@ services:
       - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}
       - PRO_MONTHLY_POINTS=${PRO_MONTHLY_POINTS:-100}
       - SURVEY_BASE_POINTS=${SURVEY_BASE_POINTS:-1}
+      - LOGTO_JWKS_URL=${LOGTO_JWKS_URL:-}
+      - LOGTO_ISSUER=${LOGTO_ISSUER:-}
+      - LOGTO_AUDIENCE=${LOGTO_AUDIENCE:-}
+      - MIGRATIONS_DIR=${MIGRATIONS_DIR:-./migrations}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,15 +60,12 @@ services:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
-    env_file:
-      - .env
     environment:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=${DB_NAME:-surtopya}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./api/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
