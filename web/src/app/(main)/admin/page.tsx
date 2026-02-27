@@ -10,7 +10,16 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTranslations } from "next-intl"
-import type { AdminUser, Dataset, Survey, UserProfile } from "@/lib/api"
+import type {
+  AdminUser,
+  Capability,
+  Dataset,
+  MembershipTier,
+  PolicyMatrixEntry,
+  PolicyWriter,
+  Survey,
+  UserProfile,
+} from "@/lib/api"
 
 const PAGE_SIZE = 20
 
@@ -33,6 +42,13 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [userSearch, setUserSearch] = useState("")
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
+  const [policyLoading, setPolicyLoading] = useState(true)
+  const [policySaving, setPolicySaving] = useState(false)
+  const [tiers, setTiers] = useState<MembershipTier[]>([])
+  const [capabilities, setCapabilities] = useState<Capability[]>([])
+  const [matrix, setMatrix] = useState<PolicyMatrixEntry[]>([])
+  const [policyWriters, setPolicyWriters] = useState<PolicyWriter[]>([])
+  const [savingPolicyWriterId, setSavingPolicyWriterId] = useState<string | null>(null)
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null)
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null)
@@ -41,7 +57,6 @@ export default function AdminPage() {
     description: "",
     visibility: "non-public",
     includeInDatasets: false,
-    everPublic: false,
     isPublished: false,
     pointsReward: 0,
   })
@@ -202,14 +217,64 @@ export default function AdminPage() {
     }
   }, [userSearch, tAdmin])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadPolicies = async () => {
+      setPolicyLoading(true)
+      setError(null)
+      try {
+        const [policiesRes, writersRes] = await Promise.all([
+          fetch("/api/admin/policies", { cache: "no-store" }),
+          fetch("/api/admin/policy-writers", { cache: "no-store" }),
+        ])
+
+        if (!policiesRes.ok) {
+          const payload = await policiesRes.json().catch(() => ({}))
+          throw new Error(payload?.error || "Failed to load policies")
+        }
+        if (!writersRes.ok) {
+          const payload = await writersRes.json().catch(() => ({}))
+          throw new Error(payload?.error || "Failed to load policy writers")
+        }
+
+        const policiesPayload = await policiesRes.json()
+        const writersPayload = await writersRes.json()
+
+        if (isMounted) {
+          setTiers(policiesPayload.tiers || [])
+          setCapabilities(policiesPayload.capabilities || [])
+          setMatrix(policiesPayload.matrix || [])
+          setPolicyWriters(writersPayload.users || [])
+        }
+      } catch {
+        if (isMounted) {
+          setError(tAdmin("loadError"))
+          setTiers([])
+          setCapabilities([])
+          setMatrix([])
+          setPolicyWriters([])
+        }
+      } finally {
+        if (isMounted) {
+          setPolicyLoading(false)
+        }
+      }
+    }
+
+    loadPolicies()
+    return () => {
+      isMounted = false
+    }
+  }, [tAdmin])
+
   const openSurveyEditor = (survey: Survey) => {
     setEditingSurvey(survey)
     setSurveyForm({
       title: survey.title,
       description: survey.description || "",
       visibility: survey.visibility,
-      includeInDatasets: survey.everPublic ? true : survey.includeInDatasets,
-      everPublic: Boolean(survey.everPublic),
+      includeInDatasets: survey.includeInDatasets,
       isPublished: survey.isPublished,
       pointsReward: survey.pointsReward,
     })
@@ -240,8 +305,7 @@ export default function AdminPage() {
           title: surveyForm.title,
           description: surveyForm.description,
           visibility: surveyForm.visibility,
-          includeInDatasets:
-            surveyForm.visibility === "public" || surveyForm.everPublic ? true : surveyForm.includeInDatasets,
+          includeInDatasets: surveyForm.includeInDatasets,
           isPublished: surveyForm.isPublished,
           pointsReward: surveyForm.pointsReward,
         }),
@@ -392,20 +456,25 @@ export default function AdminPage() {
     }
   }
 
-  const togglePro = async (user: AdminUser, nextValue: boolean) => {
+  const setMembershipTier = async (user: AdminUser, nextTier: string) => {
+    if (user.membershipTier === nextTier) return
     setSavingUserId(user.id)
     setError(null)
     try {
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPro: nextValue }),
+        body: JSON.stringify({ membershipTier: nextTier }),
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
         throw new Error(payload?.error || "Update failed")
       }
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, isPro: nextValue } : item)))
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id ? { ...item, membershipTier: nextTier } : item
+        )
+      )
     } catch (err) {
       setError(tAdmin("updateError"))
     } finally {
@@ -413,9 +482,88 @@ export default function AdminPage() {
     }
   }
 
+  const policyMatrixValue = (tierCode: string, capabilityKey: string) =>
+    matrix.find(
+      (entry) =>
+        entry.tierCode === tierCode && entry.capabilityKey === capabilityKey
+    )?.isAllowed ?? false
+
+  const updatePolicyMatrixValue = (
+    tierCode: string,
+    capabilityKey: string,
+    isAllowed: boolean
+  ) => {
+    setMatrix((prev) => {
+      const index = prev.findIndex(
+        (entry) =>
+          entry.tierCode === tierCode && entry.capabilityKey === capabilityKey
+      )
+      if (index === -1) {
+        return [...prev, { tierCode, capabilityKey, isAllowed }]
+      }
+      const next = [...prev]
+      next[index] = { ...next[index], isAllowed }
+      return next
+    })
+  }
+
+  const savePolicies = async () => {
+    setPolicySaving(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/admin/policies", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: matrix }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setPolicySaving(false)
+    }
+  }
+
+  const setPolicyWriter = async (userId: string, enabled: boolean) => {
+    setSavingPolicyWriterId(userId)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/policy-writers/${userId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      setPolicyWriters((prev) =>
+        prev.map((item) =>
+          item.id === userId ? { ...item, canWritePolicy: enabled || item.isSuperAdmin } : item
+        )
+      )
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingPolicyWriterId(null)
+    }
+  }
+
   const surveyCountLabel = useMemo(() => tAdmin("surveyCount", { count: surveys.length }), [surveys.length, tAdmin])
   const datasetCountLabel = useMemo(() => tAdmin("datasetCount", { count: datasets.length }), [datasets.length, tAdmin])
   const adminCountLabel = useMemo(() => tAdmin("adminCount", { count: users.length }), [users.length, tAdmin])
+  const policyWriterCountLabel = useMemo(
+    () => tAdmin("policyWriterCount", { count: policyWriters.length }),
+    [policyWriters.length, tAdmin]
+  )
+  const canWritePolicies = useMemo(() => {
+    if (!currentUser) return false
+    if (currentUser.isSuperAdmin) return true
+    return policyWriters.some((writer) => writer.id === currentUser.id && writer.canWritePolicy)
+  }, [currentUser, policyWriters])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
@@ -432,6 +580,7 @@ export default function AdminPage() {
             <TabsTrigger value="surveys">{tAdmin("surveysTab")}</TabsTrigger>
             <TabsTrigger value="datasets">{tAdmin("datasetsTab")}</TabsTrigger>
             <TabsTrigger value="admins">{tAdmin("adminsTab")}</TabsTrigger>
+            <TabsTrigger value="policies">{tAdmin("policiesTab")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="surveys" className="mt-6">
@@ -631,14 +780,35 @@ export default function AdminPage() {
                               <p className="text-sm text-gray-500">{user.email}</p>
                             </div>
                             <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-500">{tAdmin("proToggleLabel")}</span>
-                              <Switch
-                                checked={user.isPro}
-                                onCheckedChange={(checked) => togglePro(user, checked)}
-                                aria-label={tAdmin("proToggleLabel")}
-                                data-testid={`admin-pro-${user.id}`}
-                                disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
-                              />
+                              <span className="text-xs text-gray-500">{tAdmin("membershipTierLabel")}</span>
+                              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-md p-1">
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1 text-xs rounded ${
+                                    user.membershipTier === "free"
+                                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                      : "text-gray-500"
+                                  }`}
+                                  disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
+                                  onClick={() => setMembershipTier(user, "free")}
+                                  data-testid={`admin-tier-free-${user.id}`}
+                                >
+                                  free
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1 text-xs rounded ${
+                                    user.membershipTier === "pro"
+                                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                      : "text-gray-500"
+                                  }`}
+                                  disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
+                                  onClick={() => setMembershipTier(user, "pro")}
+                                  data-testid={`admin-tier-pro-${user.id}`}
+                                >
+                                  pro
+                                </button>
+                              </div>
                               <span className="text-xs text-gray-500">{tAdmin("adminToggleLabel")}</span>
                               <Switch
                                 checked={user.isAdmin}
@@ -658,6 +828,96 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="policies" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle>{tAdmin("policiesTitle")}</CardTitle>
+                    <CardDescription>{policyWriterCountLabel}</CardDescription>
+                  </div>
+                  <Button onClick={savePolicies} disabled={!canWritePolicies || policySaving}>
+                    {policySaving ? tCommon("saving") : tCommon("save")}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {policyLoading ? (
+                  <div className="text-sm text-gray-500">{tCommon("loading")}</div>
+                ) : tiers.length === 0 || capabilities.length === 0 ? (
+                  <div className="text-sm text-gray-500">{tAdmin("noPolicies")}</div>
+                ) : (
+                  <div className="overflow-auto border border-gray-100 dark:border-gray-800 rounded-lg">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-gray-900/60">
+                        <tr>
+                          <th className="text-left px-3 py-2">{tAdmin("capabilityLabel")}</th>
+                          {tiers.map((tier) => (
+                            <th key={tier.code} className="text-left px-3 py-2">
+                              {tier.code}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {capabilities.map((capability) => (
+                          <tr key={capability.key} className="border-t border-gray-100 dark:border-gray-800">
+                            <td className="px-3 py-2">
+                              <div className="font-medium">{capability.key}</div>
+                              <div className="text-xs text-gray-500">{capability.description}</div>
+                            </td>
+                            {tiers.map((tier) => (
+                              <td key={`${capability.key}-${tier.code}`} className="px-3 py-2">
+                                <Switch
+                                  checked={policyMatrixValue(tier.code, capability.key)}
+                                  onCheckedChange={(checked) =>
+                                    updatePolicyMatrixValue(tier.code, capability.key, checked)
+                                  }
+                                  disabled={!canWritePolicies}
+                                  data-testid={`policy-${tier.code}-${capability.key}`}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">{tAdmin("policyWritersTitle")}</div>
+                  {policyWriters.length === 0 ? (
+                    <div className="text-sm text-gray-500">{tAdmin("noPolicyWriters")}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {policyWriters.map((writer) => (
+                        <div
+                          key={writer.id}
+                          className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2"
+                        >
+                          <div>
+                            <div className="text-sm font-medium">{writer.displayName || writer.email || writer.id}</div>
+                            <div className="text-xs text-gray-500">{writer.email}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">{tAdmin("policyWriterToggleLabel")}</span>
+                            <Switch
+                              checked={writer.canWritePolicy}
+                              onCheckedChange={(checked) => setPolicyWriter(writer.id, checked)}
+                              disabled={!currentUser?.isSuperAdmin || writer.isSuperAdmin || savingPolicyWriterId === writer.id}
+                              data-testid={`policy-writer-${writer.id}`}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -716,9 +976,8 @@ export default function AdminPage() {
                 <p className="text-xs text-gray-500">{tAdmin("datasetSharingHint")}</p>
               </div>
               <Switch
-                checked={surveyForm.visibility === "public" || surveyForm.everPublic ? true : surveyForm.includeInDatasets}
+                checked={surveyForm.includeInDatasets}
                 onCheckedChange={(checked) => setSurveyForm((prev) => ({ ...prev, includeInDatasets: checked }))}
-                disabled={surveyForm.visibility === "public" || surveyForm.everPublic}
               />
             </div>
           </div>

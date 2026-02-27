@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -105,6 +107,7 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 			    avatar_url = COALESCE(avatar_url, $4)
 			WHERE id = $1
 		`, userID, nullString(email), nullString(name), nullString(picture))
+		_ = policy.NewService(db).EnsureUserMembership(context.Background(), userID)
 		return userID, nil
 	}
 
@@ -124,6 +127,10 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	`, userID, logtoUserID, nullString(email), nullString(name), nullString(picture))
 
 	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if err := policy.NewService(db).EnsureUserMembership(context.Background(), userID); err != nil {
 		return uuid.Nil, err
 	}
 

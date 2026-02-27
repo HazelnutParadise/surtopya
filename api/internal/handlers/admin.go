@@ -11,6 +11,7 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/models"
+	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 type AdminHandler struct {
 	surveys  *repository.SurveyRepository
 	datasets *repository.DatasetRepository
+	policies *policy.Service
 }
 
 // NewAdminHandler creates a new AdminHandler.
@@ -28,6 +30,7 @@ func NewAdminHandler() *AdminHandler {
 	return &AdminHandler{
 		surveys:  repository.NewSurveyRepository(db),
 		datasets: repository.NewDatasetRepository(db),
+		policies: policy.NewService(db),
 	}
 }
 
@@ -51,18 +54,26 @@ type AdminDatasetUpdateRequest struct {
 }
 
 type AdminUser struct {
-	ID           uuid.UUID `json:"id"`
-	Email        *string   `json:"email,omitempty"`
-	DisplayName  *string   `json:"displayName,omitempty"`
-	IsPro        bool      `json:"isPro"`
-	IsAdmin      bool      `json:"isAdmin"`
-	IsSuperAdmin bool      `json:"isSuperAdmin"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID             uuid.UUID `json:"id"`
+	Email          *string   `json:"email,omitempty"`
+	DisplayName    *string   `json:"displayName,omitempty"`
+	MembershipTier string    `json:"membershipTier"`
+	IsAdmin        bool      `json:"isAdmin"`
+	IsSuperAdmin   bool      `json:"isSuperAdmin"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type AdminUserUpdateRequest struct {
-	IsAdmin *bool `json:"isAdmin"`
-	IsPro   *bool `json:"isPro"`
+	IsAdmin        *bool   `json:"isAdmin"`
+	MembershipTier *string `json:"membershipTier"`
+}
+
+type AdminPolicyUpdateRequest struct {
+	Updates []policy.PolicyUpdate `json:"updates"`
+}
+
+type AdminPolicyWriterUpdateRequest struct {
+	Enabled bool `json:"enabled"`
 }
 
 // GetSurveys handles GET /api/v1/admin/surveys
@@ -127,6 +138,12 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
+	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), survey.UserID, policy.CapabilitySurveyPublicDatasetOptOut)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership capability"})
+		return
+	}
+
 	if req.Title != nil {
 		survey.Title = *req.Title
 	}
@@ -138,20 +155,24 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visibility option"})
 			return
 		}
+		if survey.PublishedCount > 0 && survey.Visibility != *req.Visibility {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
+			return
+		}
 		survey.Visibility = *req.Visibility
-		if survey.Visibility == "public" {
+		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
-			if survey.PublishedCount > 0 {
-				survey.EverPublic = true
-			}
+		}
+		if survey.Visibility == "public" && survey.PublishedCount > 0 {
+			survey.EverPublic = true
 		}
 	}
 	if req.IncludeInDatasets != nil {
-		if survey.EverPublic && !*req.IncludeInDatasets {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable dataset sharing after public publish"})
+		if survey.PublishedCount > 0 && survey.IncludeInDatasets != *req.IncludeInDatasets {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
-		if survey.Visibility == "public" || survey.EverPublic {
+		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
@@ -175,10 +196,6 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			survey.PublishedAt = nil
 		}
 	}
-	if survey.EverPublic {
-		survey.IncludeInDatasets = true
-	}
-
 	if err := h.surveys.Update(survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})
 		return
@@ -466,8 +483,17 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	}
 
 	query := `
-		SELECT id, email, display_name, is_pro, is_admin, is_super_admin, created_at
-		FROM users
+		SELECT
+			u.id,
+			u.email,
+			u.display_name,
+			COALESCE(mt.code, 'free') AS membership_tier,
+			u.is_admin,
+			u.is_super_admin,
+			u.created_at
+		FROM users u
+		LEFT JOIN user_memberships um ON um.user_id = u.id
+		LEFT JOIN membership_tiers mt ON mt.id = um.tier_id
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -475,12 +501,12 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 
 	if search != "" {
 		argCount++
-		query += " AND (email ILIKE $" + strconv.Itoa(argCount) + " OR display_name ILIKE $" + strconv.Itoa(argCount) + ")"
+		query += " AND (u.email ILIKE $" + strconv.Itoa(argCount) + " OR u.display_name ILIKE $" + strconv.Itoa(argCount) + ")"
 		args = append(args, "%"+search+"%")
 	}
 
 	argCount++
-	query += " ORDER BY created_at DESC LIMIT $" + strconv.Itoa(argCount)
+	query += " ORDER BY u.created_at DESC LIMIT $" + strconv.Itoa(argCount)
 	args = append(args, limit)
 
 	argCount++
@@ -497,7 +523,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	var users []AdminUser
 	for rows.Next() {
 		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.IsPro, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
 			return
 		}
@@ -543,7 +569,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	if req.IsAdmin == nil && req.IsPro == nil {
+	if req.IsAdmin == nil && req.MembershipTier == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
 		return
 	}
@@ -568,12 +594,13 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		}
 	}
 
-	if req.IsPro != nil {
-		if _, err := database.GetDB().Exec(
-			"UPDATE users SET is_pro = $1 WHERE id = $2",
-			*req.IsPro, id,
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+	if req.MembershipTier != nil {
+		if err := h.policies.SetUserTier(c.Request.Context(), id, strings.TrimSpace(*req.MembershipTier)); err != nil {
+			if err == policy.ErrTierNotFound {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membership tier"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update membership tier"})
 			return
 		}
 	}
@@ -588,4 +615,104 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated"})
+}
+
+// GetPolicies handles GET /api/v1/admin/policies
+func (h *AdminHandler) GetPolicies(c *gin.Context) {
+	tiers, capabilities, matrix, err := h.policies.ListPolicies(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tiers":        tiers,
+		"capabilities": capabilities,
+		"matrix":       matrix,
+	})
+}
+
+// UpdatePolicies handles PATCH /api/v1/admin/policies
+func (h *AdminHandler) UpdatePolicies(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	var req AdminPolicyUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.policies.UpdatePolicies(c.Request.Context(), currentUserID.(uuid.UUID), req.Updates); err != nil {
+		if err == policy.ErrTierNotFound || err == policy.ErrCapabilityNotFound {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid policy update payload"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update policies"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Policies updated"})
+}
+
+// GetPolicyWriters handles GET /api/v1/admin/policy-writers
+func (h *AdminHandler) GetPolicyWriters(c *gin.Context) {
+	writers, err := h.policies.ListPolicyWriters(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policy writers"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"users": writers})
+}
+
+// UpdatePolicyWriter handles PUT /api/v1/admin/policy-writers/:id
+func (h *AdminHandler) UpdatePolicyWriter(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	var isSuperAdmin bool
+	if err := database.GetDB().QueryRow("SELECT is_super_admin FROM users WHERE id = $1", currentUserID.(uuid.UUID)).Scan(&isSuperAdmin); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify admin access"})
+		return
+	}
+	if !isSuperAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Super admin access required"})
+		return
+	}
+
+	idStr := c.Param("id")
+	targetUserID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req AdminPolicyWriterUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if err := h.policies.SetPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID), targetUserID, req.Enabled); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update policy writer"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Policy writer updated"})
 }

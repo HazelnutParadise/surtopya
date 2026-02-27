@@ -14,7 +14,8 @@ test("survey settings lock visibility + dataset sharing after first publish", as
         email: "me@example.com",
         displayName: "Me",
         pointsBalance: 0,
-        isPro: false,
+        membershipTier: "free",
+        capabilities: {},
         isAdmin: false,
         isSuperAdmin: false,
         locale: "en",
@@ -67,4 +68,3 @@ test("survey settings lock visibility + dataset sharing after first publish", as
   await expect(page.getByTestId("survey-settings-include-in-datasets")).toBeDisabled()
   await expect(page.getByTestId("survey-settings-publish-locked-hint")).toBeVisible()
 })
-

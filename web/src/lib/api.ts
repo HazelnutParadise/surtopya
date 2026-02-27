@@ -291,7 +291,8 @@ export interface UserProfile {
   bio?: string;
   location?: string;
   pointsBalance: number;
-  isPro: boolean;
+  membershipTier: string;
+  capabilities: Record<string, boolean>;
   locale: string;
   createdAt: string;
   surveysCompleted: number;
@@ -303,10 +304,40 @@ export interface AdminUser {
   id: string;
   email?: string;
   displayName?: string;
-  isPro: boolean;
+  membershipTier: string;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   createdAt: string;
+}
+
+export interface MembershipTier {
+  id: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface Capability {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+}
+
+export interface PolicyMatrixEntry {
+  tierCode: string;
+  capabilityKey: string;
+  isAllowed: boolean;
+}
+
+export interface PolicyWriter {
+  id: string;
+  email?: string;
+  displayName?: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  canWritePolicy: boolean;
 }
 
 // Export singleton instance

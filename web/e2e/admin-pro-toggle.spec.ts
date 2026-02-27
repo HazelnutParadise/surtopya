@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
 
-test("admin can toggle Pro membership for a user (mocked API)", async ({
+test("admin can switch membership tier to pro (mocked API)", async ({
   page,
 }) => {
   let patchCalls = 0
@@ -15,7 +15,8 @@ test("admin can toggle Pro membership for a user (mocked API)", async ({
         email: "me@example.com",
         displayName: "Super Admin",
         pointsBalance: 0,
-        isPro: false,
+        membershipTier: "free",
+        capabilities: {},
         isAdmin: true,
         isSuperAdmin: true,
         locale: "en",
@@ -51,13 +52,35 @@ test("admin can toggle Pro membership for a user (mocked API)", async ({
             id: "u-1",
             email: "user@example.com",
             displayName: "User One",
-            isPro: false,
+            membershipTier: "free",
             isAdmin: false,
             isSuperAdmin: false,
             createdAt: new Date().toISOString(),
           },
         ],
         meta: { limit: 20, offset: 0 },
+      }),
+    })
+  })
+
+  await page.route("**/api/admin/policies", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tiers: [],
+        capabilities: [],
+        matrix: [],
+      }),
+    })
+  })
+
+  await page.route("**/api/admin/policy-writers", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        users: [],
       }),
     })
   })
@@ -82,8 +105,8 @@ test("admin can toggle Pro membership for a user (mocked API)", async ({
   await page.getByRole("tab", { name: "Admins" }).click()
   await expect(page.getByText("User One")).toBeVisible()
 
-  await page.getByTestId("admin-pro-u-1").click()
+  await page.getByTestId("admin-tier-pro-u-1").click()
 
   await expect.poll(() => patchCalls).toBe(1)
-  expect(lastPatchBody).toEqual({ isPro: true })
+  expect(lastPatchBody).toEqual({ membershipTier: "pro" })
 })

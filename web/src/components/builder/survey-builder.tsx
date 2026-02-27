@@ -19,7 +19,7 @@ import { SurveyTheme, LogicRule } from "@/types/survey";
 import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
-import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
+import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import {
   Tooltip,
   TooltipContent,
@@ -108,7 +108,7 @@ export function SurveyBuilder() {
   const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(false);
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
-  const [everPublic, setEverPublic] = useState(false);
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
 
   const notifyChange = () => {
       setIsDirty(true);
@@ -136,7 +136,7 @@ export function SurveyBuilder() {
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isBuilderDatasetSharingLocked = isSurveyDatasetSharingLocked({
     publishedCount,
-    everPublic,
+    capabilities,
     visibility: settingsDraft?.isPublic ? "public" : "non-public",
   })
 
@@ -184,10 +184,9 @@ export function SurveyBuilder() {
         );
         setPointsReward(mapped.settings.pointsReward);
         setIsPublic(mapped.settings.visibility === "public");
-        setIncludeInDatasets(mapped.settings.everPublic ? true : mapped.settings.isDatasetActive);
+        setIncludeInDatasets(mapped.settings.isDatasetActive);
         setIsPublished(mapped.settings.isPublished);
         setPublishedCount(mapped.settings.publishedCount || 0);
-        setEverPublic(Boolean(mapped.settings.everPublic));
         setHasUnpublishedChanges(!mapped.settings.isPublished);
         setIsDirty(false);
       } catch (error) {
@@ -205,6 +204,28 @@ export function SurveyBuilder() {
       isActive = false;
     };
   }, [defaultPageTitle, editId]);
+
+  React.useEffect(() => {
+    let isActive = true
+    const loadCapabilities = async () => {
+      try {
+        const response = await fetch("/api/me", { cache: "no-store" })
+        const payload = await response.json().catch(() => ({}))
+        if (isActive && response.ok) {
+          setCapabilities(payload.capabilities || {})
+        }
+      } catch {
+        if (isActive) {
+          setCapabilities({})
+        }
+      }
+    }
+
+    loadCapabilities()
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   // Warn on exit if unsaved
   React.useEffect(() => {
@@ -587,7 +608,11 @@ export function SurveyBuilder() {
         title,
         description,
         visibility: isPublic ? "public" : "non-public",
-        includeInDatasets,
+        includeInDatasets: getSurveyDatasetSharingEffectiveValue({
+          capabilities,
+          visibility: isPublic ? "public" : "non-public",
+          includeInDatasets,
+        }),
         theme,
         pointsReward,
         questions: buildQuestionsPayload(),
@@ -642,7 +667,11 @@ export function SurveyBuilder() {
         },
         body: JSON.stringify({
           visibility: isPublic ? "public" : "non-public",
-          includeInDatasets,
+          includeInDatasets: getSurveyDatasetSharingEffectiveValue({
+            capabilities,
+            visibility: isPublic ? "public" : "non-public",
+            includeInDatasets,
+          }),
           pointsReward,
         }),
       });
@@ -787,13 +816,13 @@ export function SurveyBuilder() {
                         size="sm"
                         onClick={() => {
                             if (isDirty) notifyChange();
-                            // Initialize settings draft with current values
+                                // Initialize settings draft with current values
                             setSettingsDraft({
                                 title,
                                 description,
                                 pointsReward,
                                 isPublic,
-                                includeInDatasets: everPublic ? true : includeInDatasets,
+                                includeInDatasets,
                             });
                             setViewMode('settings');
                         }}
@@ -972,7 +1001,7 @@ export function SurveyBuilder() {
                                 <button
                                     data-testid="builder-settings-visibility-public"
                                     disabled={isPublishLocked}
-                                    onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: true, includeInDatasets: true }) : null)}
+                                    onClick={() => setSettingsDraft(prev => prev ? ({ ...prev, isPublic: true }) : null)}
                                     className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${settingsDraft?.isPublic ? 'bg-white dark:bg-gray-700 shadow-sm text-purple-600' : 'text-gray-500'}`}
                                 >
                                     {tBuilder("visibilityPublic")}
@@ -1020,7 +1049,7 @@ export function SurveyBuilder() {
                                 <div className="flex items-center gap-3">
                                     <Switch 
                                         checked={getSurveyDatasetSharingEffectiveValue({
-                                          everPublic,
+                                          capabilities,
                                           visibility: settingsDraft?.isPublic ? "public" : "non-public",
                                           includeInDatasets: settingsDraft?.includeInDatasets,
                                         })}
@@ -1293,11 +1322,9 @@ export function SurveyBuilder() {
                                     disabled={isPublishLocked}
                                     onCheckedChange={(checked) => {
                                         setIsPublic(checked);
-                                        // Auto-force dataset logic
-                                        if (checked) {
+                                        // Auto-force dataset logic for tiers without opt-out capability.
+                                        if (checked && !capabilities[CAP_SURVEY_PUBLIC_DATASET_OPT_OUT]) {
                                             setIncludeInDatasets(true);
-                                        } else if (!everPublic) {
-                                            setIncludeInDatasets(false);
                                         }
                                     }}
                                 />
@@ -1318,11 +1345,15 @@ export function SurveyBuilder() {
                             </div>
                             <Switch 
                                 checked={getSurveyDatasetSharingEffectiveValue({
-                                  everPublic,
+                                  capabilities,
                                   visibility: isPublic ? "public" : "non-public",
                                   includeInDatasets,
                                 })}
-                                disabled={isPublishLocked || isPublic || everPublic}
+                                disabled={isSurveyDatasetSharingLocked({
+                                  publishedCount,
+                                  capabilities,
+                                  visibility: isPublic ? "public" : "non-public",
+                                })}
                                 onCheckedChange={setIncludeInDatasets}
                                 data-testid="builder-publish-include-in-datasets"
                             />

@@ -7,6 +7,7 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/models"
+	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,13 +15,16 @@ import (
 
 // SurveyHandler handles survey-related requests
 type SurveyHandler struct {
-	repo *repository.SurveyRepository
+	repo     *repository.SurveyRepository
+	policies *policy.Service
 }
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
+	db := database.GetDB()
 	return &SurveyHandler{
-		repo: repository.NewSurveyRepository(database.GetDB()),
+		repo:     repository.NewSurveyRepository(db),
+		policies: policy.NewService(db),
 	}
 }
 
@@ -67,8 +71,14 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		req.Visibility = "non-public"
 	}
 
-	// Enforce dataset sharing for public surveys
-	if req.Visibility == "public" {
+	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), userID.(uuid.UUID), policy.CapabilitySurveyPublicDatasetOptOut)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership capability"})
+		return
+	}
+
+	// Enforce dataset sharing for public surveys when capability is denied.
+	if req.Visibility == "public" && !canOptOutPublicDataset {
 		req.IncludeInDatasets = true
 	}
 
@@ -239,6 +249,12 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
+	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), userID.(uuid.UUID), policy.CapabilitySurveyPublicDatasetOptOut)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership capability"})
+		return
+	}
+
 	// Update fields if provided
 	if req.Title != nil {
 		survey.Title = *req.Title
@@ -251,24 +267,24 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visibility option"})
 			return
 		}
-		if survey.PublishedCount > 0 && survey.Visibility == "non-public" && *req.Visibility == "public" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change from non-public to public after first publish"})
+		if survey.PublishedCount > 0 && survey.Visibility != *req.Visibility {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
 		}
 		survey.Visibility = *req.Visibility
-		if survey.Visibility == "public" {
+		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
-			if survey.PublishedCount > 0 {
-				survey.EverPublic = true
-			}
+		}
+		if survey.Visibility == "public" && survey.PublishedCount > 0 {
+			survey.EverPublic = true
 		}
 	}
 	if req.IncludeInDatasets != nil {
-		if survey.EverPublic && !*req.IncludeInDatasets {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable dataset sharing after public publish"})
+		if survey.PublishedCount > 0 && survey.IncludeInDatasets != *req.IncludeInDatasets {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
-		if survey.Visibility == "public" || survey.EverPublic {
+		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
@@ -292,10 +308,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			expiresAt := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC)
 			survey.ExpiresAt = &expiresAt
 		}
-	}
-
-	if survey.EverPublic {
-		survey.IncludeInDatasets = true
 	}
 
 	if err := h.repo.Update(survey); err != nil {
@@ -379,36 +391,43 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		return
 	}
 
+	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), userID.(uuid.UUID), policy.CapabilitySurveyPublicDatasetOptOut)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership capability"})
+		return
+	}
+
 	// First publish rules
 	if survey.PublishedCount == 0 {
 		// Set visibility (locked after first publish)
 		if req.Visibility == "public" || req.Visibility == "non-public" {
 			survey.Visibility = req.Visibility
 		}
-		// Public surveys must include in datasets
+		// Public surveys require capability to opt-out.
 		if survey.Visibility == "public" {
-			survey.IncludeInDatasets = true
 			survey.EverPublic = true
+			if canOptOutPublicDataset {
+				survey.IncludeInDatasets = req.IncludeInDatasets
+			} else {
+				survey.IncludeInDatasets = true
+			}
 		} else {
 			survey.IncludeInDatasets = req.IncludeInDatasets
 		}
 	} else {
-		// After first publish, can't change visibility from non-public to public
-		if survey.Visibility == "non-public" && req.Visibility == "public" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change from non-public to public after first publish"})
+		if req.Visibility != "" && req.Visibility != survey.Visibility {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
 		}
-		if req.Visibility == "public" {
-			survey.EverPublic = true
+		if req.IncludeInDatasets != survey.IncludeInDatasets {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
+			return
 		}
 	}
 
 	survey.IsPublished = true
 	survey.PublishedCount++
 	survey.PointsReward = req.PointsReward
-	if survey.EverPublic {
-		survey.IncludeInDatasets = true
-	}
 	now := time.Now()
 	survey.PublishedAt = &now
 

@@ -95,14 +95,17 @@ func (r *PointsRepository) GrantProMonthlyPointsIfEligibleTx(tx *sql.Tx, userID 
 
 	res, err := tx.Exec(
 		`
-		UPDATE users
-		SET points_balance = points_balance + $2,
+		UPDATE users u
+		SET points_balance = u.points_balance + $2,
 		    pro_points_last_granted_at = $3
-		WHERE id = $1
-		  AND is_pro = true
+		FROM user_memberships um
+		JOIN membership_tiers mt ON mt.id = um.tier_id
+		WHERE u.id = $1
+		  AND um.user_id = u.id
+		  AND mt.code = 'pro'
 		  AND (
-		    pro_points_last_granted_at IS NULL
-		    OR date_trunc('month', pro_points_last_granted_at) < date_trunc('month', $3)
+		    u.pro_points_last_granted_at IS NULL
+		    OR date_trunc('month', u.pro_points_last_granted_at) < date_trunc('month', $3)
 		  )
 		`,
 		userID, amount, now,

@@ -14,7 +14,8 @@ test("builder settings lock visibility + dataset sharing after first publish", a
         email: "me@example.com",
         displayName: "Me",
         pointsBalance: 0,
-        isPro: false,
+        membershipTier: "free",
+        capabilities: {},
         isAdmin: false,
         isSuperAdmin: false,
         locale: "en",
@@ -62,4 +63,3 @@ test("builder settings lock visibility + dataset sharing after first publish", a
   await expect(page.getByTestId("builder-settings-include-in-datasets")).toBeDisabled()
   await expect(page.getByTestId("builder-settings-publish-locked-hint")).toBeVisible()
 })
-

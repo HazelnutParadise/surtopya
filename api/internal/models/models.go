@@ -8,21 +8,21 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID            uuid.UUID `json:"id" db:"id"`
-	LogtoUserID   string    `json:"logtoUserId" db:"logto_user_id"`
-	Email         *string   `json:"email,omitempty" db:"email"`
-	DisplayName   *string   `json:"displayName,omitempty" db:"display_name"`
-	AvatarURL     *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
-	Phone         *string   `json:"phone,omitempty" db:"phone"`
-	Bio           *string   `json:"bio,omitempty" db:"bio"`
-	Location      *string   `json:"location,omitempty" db:"location"`
-	PointsBalance int       `json:"pointsBalance" db:"points_balance"`
-	IsPro         bool      `json:"isPro" db:"is_pro"`
-	IsAdmin       bool      `json:"isAdmin" db:"is_admin"`
-	IsSuperAdmin  bool      `json:"isSuperAdmin" db:"is_super_admin"`
-	Locale        string    `json:"locale" db:"locale"`
-	CreatedAt     time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt     time.Time `json:"updatedAt" db:"updated_at"`
+	ID             uuid.UUID `json:"id" db:"id"`
+	LogtoUserID    string    `json:"logtoUserId" db:"logto_user_id"`
+	Email          *string   `json:"email,omitempty" db:"email"`
+	DisplayName    *string   `json:"displayName,omitempty" db:"display_name"`
+	AvatarURL      *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
+	Phone          *string   `json:"phone,omitempty" db:"phone"`
+	Bio            *string   `json:"bio,omitempty" db:"bio"`
+	Location       *string   `json:"location,omitempty" db:"location"`
+	PointsBalance  int       `json:"pointsBalance" db:"points_balance"`
+	MembershipTier string    `json:"membershipTier,omitempty"`
+	IsAdmin        bool      `json:"isAdmin" db:"is_admin"`
+	IsSuperAdmin   bool      `json:"isSuperAdmin" db:"is_super_admin"`
+	Locale         string    `json:"locale" db:"locale"`
+	CreatedAt      time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt      time.Time `json:"updatedAt" db:"updated_at"`
 }
 
 // SurveyTheme represents the visual theme of a survey
@@ -155,5 +155,5 @@ var ValidAccessTypes = []string{"free", "paid"}
 
 // Valid transaction types
 var ValidTransactionTypes = []string{
-	"survey_reward", "dataset_purchase", "dataset_sale", "admin_grant", "referral",
+	"survey_reward", "dataset_purchase", "dataset_sale", "admin_grant", "referral", "pro_monthly_grant", "survey_boost_spend",
 }

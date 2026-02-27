@@ -78,6 +78,7 @@ export default function SurveyManagementPage() {
   const [publishing, setPublishing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
   const [formState, setFormState] = useState({
     title: "",
     description: "",
@@ -134,8 +135,26 @@ export default function SurveyManagementPage() {
       }
     };
 
+    const fetchCapabilities = async () => {
+      try {
+        const response = await fetch("/api/me", {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        const payload = await response.json().catch(() => ({}))
+        if (isMounted && response.ok) {
+          setCapabilities(payload.capabilities || {})
+        }
+      } catch {
+        if (isMounted) {
+          setCapabilities({})
+        }
+      }
+    }
+
     fetchSurvey();
     fetchResponses();
+    fetchCapabilities();
 
     return () => {
       isMounted = false;
@@ -149,7 +168,7 @@ export default function SurveyManagementPage() {
       title: survey.title,
       description: survey.description || "",
       visibility: survey.settings.visibility,
-      includeInDatasets: survey.settings.everPublic ? true : survey.settings.isDatasetActive,
+      includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
       expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
     });
@@ -261,8 +280,11 @@ export default function SurveyManagementPage() {
       title: formState.title.trim() || survey.title,
       description: formState.description,
       visibility: formState.visibility,
-      includeInDatasets:
-        formState.visibility === "public" || survey.settings.everPublic ? true : formState.includeInDatasets,
+      includeInDatasets: getSurveyDatasetSharingEffectiveValue({
+        capabilities,
+        visibility: formState.visibility,
+        includeInDatasets: formState.includeInDatasets,
+      }),
       pointsReward: formState.pointsReward,
       expiresAt: formState.expiresAt,
     };
@@ -292,7 +314,7 @@ export default function SurveyManagementPage() {
       title: survey.title,
       description: survey.description || "",
       visibility: survey.settings.visibility,
-      includeInDatasets: survey.settings.everPublic ? true : survey.settings.isDatasetActive,
+      includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
       expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
     });
@@ -356,7 +378,7 @@ export default function SurveyManagementPage() {
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isDatasetSharingLocked = isSurveyDatasetSharingLocked({
     publishedCount,
-    everPublic: survey.settings.everPublic,
+    capabilities,
     visibility: formState.visibility,
   })
 
@@ -771,7 +793,7 @@ export default function SurveyManagementPage() {
                       <Switch
                         id="dataset"
                         checked={getSurveyDatasetSharingEffectiveValue({
-                          everPublic: survey.settings.everPublic,
+                          capabilities,
                           visibility: formState.visibility,
                           includeInDatasets: formState.includeInDatasets,
                         })}
