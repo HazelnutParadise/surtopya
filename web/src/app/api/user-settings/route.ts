@@ -1,30 +1,21 @@
 import { NextResponse } from "next/server"
-import { getAccessToken, getLogtoContext } from "@logto/next/server-actions"
-import { getLogtoConfig } from "@/lib/logto"
+import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { defaultLocale, locales } from "@/lib/locale"
+import type { NextRequest } from "next/server"
 
-const API_BASE_URL =
-  process.env.INTERNAL_API_URL ||
-  process.env.PUBLIC_API_URL ||
-  "http://api:8080/api/v1"
-
-const getAuthToken = async () => {
-  try {
-    const config = await getLogtoConfig()
-    const context = await getLogtoContext(config)
-    if (!context.isAuthenticated) {
-      return null
-    }
-    return getAccessToken(config)
-  } catch (error) {
-    console.error("Logto config error:", error)
-    return null
-  }
+const isSupportedLocale = (value: unknown): value is string => {
+  return typeof value === "string" && locales.includes(value as (typeof locales)[number])
 }
 
-export async function GET() {
+const getCookieLocale = (request: NextRequest) => {
+  const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value
+  return isSupportedLocale(cookieLocale) ? cookieLocale : defaultLocale
+}
+
+export async function GET(request: NextRequest) {
   const token = await getAuthToken()
   if (!token) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    return NextResponse.json({ locale: getCookieLocale(request) })
   }
 
   const response = await fetch(`${API_BASE_URL}/me/settings`, {
@@ -35,16 +26,33 @@ export async function GET() {
   })
 
   const payload = await response.json().catch(() => ({}))
+  if (response.status === 401) {
+    return NextResponse.json({ locale: getCookieLocale(request) })
+  }
   return NextResponse.json(payload, { status: response.status })
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   const token = await getAuthToken()
-  if (!token) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
   const body = await request.json().catch(() => ({}))
+  const requestedLocale = isSupportedLocale(body?.locale) ? body.locale : null
+
+  if (!token) {
+    if (!requestedLocale) {
+      return NextResponse.json(
+        { error: "locale is required and must be one of zh-TW, en, ja" },
+        { status: 400 }
+      )
+    }
+
+    const response = NextResponse.json({ locale: requestedLocale })
+    response.cookies.set("NEXT_LOCALE", requestedLocale, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    })
+    return response
+  }
   const response = await fetch(`${API_BASE_URL}/me/settings`, {
     method: "PATCH",
     headers: {
@@ -55,5 +63,14 @@ export async function PATCH(request: Request) {
   })
 
   const payload = await response.json().catch(() => ({}))
+  if (response.status === 401 && requestedLocale) {
+    const fallback = NextResponse.json({ locale: requestedLocale })
+    fallback.cookies.set("NEXT_LOCALE", requestedLocale, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    })
+    return fallback
+  }
   return NextResponse.json(payload, { status: response.status })
 }

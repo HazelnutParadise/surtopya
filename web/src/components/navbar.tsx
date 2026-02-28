@@ -45,7 +45,7 @@ export function Navbar() {
     let isMounted = true;
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" });
+        const response = await fetch("/api/me?optional=1", { cache: "no-store" });
         if (!response.ok) {
           if (isMounted) {
             setUser(null);
@@ -188,10 +188,10 @@ export function Navbar() {
              ) : (
                <>
                  <Button asChild variant="ghost" size="sm">
-                   <Link href="/api/logto/sign-in">{t("login")}</Link>
+                   <a href="/api/logto/sign-in">{t("login")}</a>
                  </Button>
                  <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20">
-                   <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
+                   <a href="/api/logto/sign-in">{t("getStarted")}</a>
                  </Button>
                </>
              )}
@@ -253,10 +253,10 @@ export function Navbar() {
                ) : (
                   <div className="flex flex-col gap-3">
                     <Button asChild variant="outline" className="w-full rounded-xl h-12 text-base">
-                      <Link href="/api/logto/sign-in">{t("login")}</Link>
+                      <a href="/api/logto/sign-in">{t("login")}</a>
                     </Button>
                     <Button asChild className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-12 text-base shadow-lg shadow-purple-500/20">
-                      <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
+                      <a href="/api/logto/sign-in">{t("getStarted")}</a>
                     </Button>
                   </div>
                )}

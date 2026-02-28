@@ -10,7 +10,6 @@ import { Camera, Mail, User, Phone, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
-import Link from "next/link"
 
 export default function ProfilePage() {
   const tProfile = useTranslations("Profile")
@@ -31,7 +30,7 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       setLoading(true)
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/me?optional=1", { cache: "no-store" })
         if (!response.ok) {
           if (isMounted) {
             setProfile(null)
@@ -128,7 +127,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white">
-              <Link href="/api/logto/sign-in">{tProfile("signInAction")}</Link>
+              <a href="/api/logto/sign-in">{tProfile("signInAction")}</a>
             </Button>
           </CardContent>
         </Card>

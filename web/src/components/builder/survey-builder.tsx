@@ -209,7 +209,7 @@ export function SurveyBuilder() {
     let isActive = true
     const loadCapabilities = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/me?optional=1", { cache: "no-store" })
         const payload = await response.json().catch(() => ({}))
         if (isActive && response.ok) {
           setCapabilities(payload.capabilities || {})

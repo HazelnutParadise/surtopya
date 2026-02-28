@@ -1,4 +1,4 @@
-﻿-- Subscription plan management + dynamic pricing metadata + membership grant lifecycle.
+-- Subscription plan management + dynamic pricing metadata + membership grant lifecycle.
 
 ALTER TABLE membership_tiers
 ADD COLUMN IF NOT EXISTS name_i18n JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -68,3 +68,4 @@ FROM membership_tiers mt
 WHERE mt.id = um.tier_id;
 
 CREATE INDEX IF NOT EXISTS idx_user_memberships_period_end_at ON user_memberships(period_end_at);
+

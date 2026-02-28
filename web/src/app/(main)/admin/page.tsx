@@ -105,7 +105,7 @@ export default function AdminPage() {
     let isMounted = true
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/me?optional=1", { cache: "no-store" })
         if (!response.ok) {
           return
         }

@@ -19,9 +19,14 @@ const getRecordString = (record: UnknownRecord, key: string): string | null => {
   return typeof value === "string" ? value : null
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const optional = url.searchParams.get("optional") === "1"
   const token = await getAuthToken()
   if (!token) {
+    if (optional) {
+      return NextResponse.json(null, { status: 200 })
+    }
     return NextResponse.json(
       { error: "unauthorized" },
       { status: 401 }
