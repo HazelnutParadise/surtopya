@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -1086,126 +1086,146 @@ export default function AdminPage() {
                       <div key={tier.id} className="border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-3">
                         <div className="text-sm font-medium">{tier.code}</div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <Input
-                            value={tier.nameI18n?.["zh-TW"] || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value },
-                                      }
-                                    : item
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Name (zh-TW)</Label>
+                            <Input
+                              value={tier.nameI18n?.["zh-TW"] || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="name zh-TW"
-                            disabled={!canWritePolicies}
-                          />
-                          <Input
-                            value={tier.nameI18n?.en || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        nameI18n: { ...(item.nameI18n || {}), en: event.target.value },
-                                      }
-                                    : item
+                              }
+                              placeholder="name zh-TW"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Plan Name (en)</Label>
+                            <Input
+                              value={tier.nameI18n?.en || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          nameI18n: { ...(item.nameI18n || {}), en: event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="name en"
-                            disabled={!canWritePolicies}
-                          />
-                          <Input
-                            value={tier.nameI18n?.ja || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        nameI18n: { ...(item.nameI18n || {}), ja: event.target.value },
-                                      }
-                                    : item
+                              }
+                              placeholder="name en"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Name (ja)</Label>
+                            <Input
+                              value={tier.nameI18n?.ja || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          nameI18n: { ...(item.nameI18n || {}), ja: event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="name ja"
-                            disabled={!canWritePolicies}
-                          />
+                              }
+                              placeholder="name ja"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <Input
-                            value={tier.descriptionI18n?.["zh-TW"] || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value },
-                                      }
-                                    : item
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Description (zh-TW)</Label>
+                            <Input
+                              value={tier.descriptionI18n?.["zh-TW"] || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="description zh-TW"
-                            disabled={!canWritePolicies}
-                          />
-                          <Input
-                            value={tier.descriptionI18n?.en || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value },
-                                      }
-                                    : item
+                              }
+                              placeholder="description zh-TW"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Description (en)</Label>
+                            <Input
+                              value={tier.descriptionI18n?.en || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="description en"
-                            disabled={!canWritePolicies}
-                          />
-                          <Input
-                            value={tier.descriptionI18n?.ja || ""}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id
-                                    ? {
-                                        ...item,
-                                        descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value },
-                                      }
-                                    : item
+                              }
+                              placeholder="description en"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Description (ja)</Label>
+                            <Input
+                              value={tier.descriptionI18n?.ja || ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value },
+                                        }
+                                      : item
+                                  )
                                 )
-                              )
-                            }
-                            placeholder="description ja"
-                            disabled={!canWritePolicies}
-                          />
+                              }
+                              placeholder="description ja"
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <Label className="text-xs">USD cents</Label>
-                          <Input
-                            className="w-40"
-                            type="number"
-                            value={tier.priceCentsUsd ?? 0}
-                            onChange={(event) =>
-                              setTiers((prev) =>
-                                prev.map((item) =>
-                                  item.id === tier.id ? { ...item, priceCentsUsd: Number(event.target.value) } : item
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Price (USD cents)</Label>
+                            <Input
+                              className="w-40"
+                              type="number"
+                              value={tier.priceCentsUsd ?? 0}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id ? { ...item, priceCentsUsd: Number(event.target.value) } : item
+                                  )
                                 )
-                              )
-                            }
-                            disabled={!canWritePolicies}
-                          />
+                              }
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
                           <Label className="text-xs">Active</Label>
                           <Switch
                             checked={tier.isActive}
@@ -1264,32 +1284,56 @@ export default function AdminPage() {
                   <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
                     <div className="text-sm font-medium">New Plan</div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <Input
-                        value={newPlan.code}
-                        onChange={(event) => setNewPlan((prev) => ({ ...prev, code: event.target.value }))}
-                        placeholder="code"
-                        disabled={!canWritePolicies}
-                      />
-                      <Input
-                        type="number"
-                        value={newPlan.priceCentsUsd}
-                        onChange={(event) => setNewPlan((prev) => ({ ...prev, priceCentsUsd: Number(event.target.value) }))}
-                        placeholder="price cents usd"
-                        disabled={!canWritePolicies}
-                      />
-                      <Button onClick={createPlan} disabled={!canWritePolicies || creatingPlan}>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Plan Code</Label>
+                        <Input
+                          value={newPlan.code}
+                          onChange={(event) => setNewPlan((prev) => ({ ...prev, code: event.target.value }))}
+                          placeholder="code"
+                          disabled={!canWritePolicies}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Price (USD cents)</Label>
+                        <Input
+                          type="number"
+                          value={newPlan.priceCentsUsd}
+                          onChange={(event) => setNewPlan((prev) => ({ ...prev, priceCentsUsd: Number(event.target.value) }))}
+                          placeholder="price cents usd"
+                          disabled={!canWritePolicies}
+                        />
+                      </div>
+                      <Button className="md:self-end" onClick={createPlan} disabled={!canWritePolicies || creatingPlan}>
                         {creatingPlan ? tCommon("saving") : "Create Plan"}
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <Input value={newPlan.nameI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, "zh-TW": event.target.value } }))} placeholder="name zh-TW" disabled={!canWritePolicies} />
-                      <Input value={newPlan.nameI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, en: event.target.value } }))} placeholder="name en" disabled={!canWritePolicies} />
-                      <Input value={newPlan.nameI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, ja: event.target.value } }))} placeholder="name ja" disabled={!canWritePolicies} />
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Name (zh-TW)</Label>
+                        <Input value={newPlan.nameI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, "zh-TW": event.target.value } }))} placeholder="name zh-TW" disabled={!canWritePolicies} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Plan Name (en)</Label>
+                        <Input value={newPlan.nameI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, en: event.target.value } }))} placeholder="name en" disabled={!canWritePolicies} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Name (ja)</Label>
+                        <Input value={newPlan.nameI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, ja: event.target.value } }))} placeholder="name ja" disabled={!canWritePolicies} />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <Input value={newPlan.descriptionI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, "zh-TW": event.target.value } }))} placeholder="description zh-TW" disabled={!canWritePolicies} />
-                      <Input value={newPlan.descriptionI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, en: event.target.value } }))} placeholder="description en" disabled={!canWritePolicies} />
-                      <Input value={newPlan.descriptionI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, ja: event.target.value } }))} placeholder="description ja" disabled={!canWritePolicies} />
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Description (zh-TW)</Label>
+                        <Input value={newPlan.descriptionI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, "zh-TW": event.target.value } }))} placeholder="description zh-TW" disabled={!canWritePolicies} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Description (en)</Label>
+                        <Input value={newPlan.descriptionI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, en: event.target.value } }))} placeholder="description en" disabled={!canWritePolicies} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Description (ja)</Label>
+                        <Input value={newPlan.descriptionI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, ja: event.target.value } }))} placeholder="description ja" disabled={!canWritePolicies} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1301,14 +1345,32 @@ export default function AdminPage() {
                       <div key={capability.id} className="border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2 space-y-2">
                         <div className="text-sm font-medium">{capability.key}</div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <Input value={capability.nameI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="name zh-TW" disabled={!canWritePolicies} />
-                          <Input value={capability.nameI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), en: event.target.value } } : item))} placeholder="name en" disabled={!canWritePolicies} />
-                          <Input value={capability.nameI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), ja: event.target.value } } : item))} placeholder="name ja" disabled={!canWritePolicies} />
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Name (zh-TW)</Label>
+                            <Input value={capability.nameI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="name zh-TW" disabled={!canWritePolicies} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Name (en)</Label>
+                            <Input value={capability.nameI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), en: event.target.value } } : item))} placeholder="name en" disabled={!canWritePolicies} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Name (ja)</Label>
+                            <Input value={capability.nameI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), ja: event.target.value } } : item))} placeholder="name ja" disabled={!canWritePolicies} />
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                          <Input value={capability.descriptionI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="description zh-TW" disabled={!canWritePolicies} />
-                          <Input value={capability.descriptionI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value } } : item))} placeholder="description en" disabled={!canWritePolicies} />
-                          <Input value={capability.descriptionI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value } } : item))} placeholder="description ja" disabled={!canWritePolicies} />
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Description (zh-TW)</Label>
+                            <Input value={capability.descriptionI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="description zh-TW" disabled={!canWritePolicies} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Description (en)</Label>
+                            <Input value={capability.descriptionI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value } } : item))} placeholder="description en" disabled={!canWritePolicies} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Benefit Description (ja)</Label>
+                            <Input value={capability.descriptionI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value } } : item))} placeholder="description ja" disabled={!canWritePolicies} />
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <Label className="text-xs">Show on pricing</Label>
