@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,8 +19,10 @@ const (
 )
 
 var (
-	ErrTierNotFound       = errors.New("membership tier not found")
-	ErrCapabilityNotFound = errors.New("capability not found")
+	ErrTierNotFound           = errors.New("membership tier not found")
+	ErrCapabilityNotFound     = errors.New("capability not found")
+	ErrInvalidMembershipGrant = errors.New("invalid membership grant payload")
+	ErrPlanCodeExists         = errors.New("subscription plan code already exists")
 )
 
 type Service struct {
@@ -30,18 +34,34 @@ func NewService(db *sql.DB) *Service {
 }
 
 type Tier struct {
-	ID       uuid.UUID `json:"id"`
-	Code     string    `json:"code"`
-	Name     string    `json:"name"`
-	IsActive bool      `json:"isActive"`
+	ID                      uuid.UUID         `json:"id"`
+	Code                    string            `json:"code"`
+	Name                    string            `json:"name"`
+	NameI18n                map[string]string `json:"nameI18n,omitempty"`
+	DescriptionI18n         map[string]string `json:"descriptionI18n,omitempty"`
+	IsActive                bool              `json:"isActive"`
+	IsPurchasable           bool              `json:"isPurchasable,omitempty"`
+	ShowOnPricing           bool              `json:"showOnPricing,omitempty"`
+	PriceCentsUSD           int               `json:"priceCentsUsd,omitempty"`
+	BillingInterval         string            `json:"billingInterval,omitempty"`
+	AllowRenewalForExisting bool              `json:"allowRenewalForExisting,omitempty"`
 }
 
 type Capability struct {
-	ID          uuid.UUID `json:"id"`
-	Key         string    `json:"key"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description,omitempty"`
-	IsActive    bool      `json:"isActive"`
+	ID              uuid.UUID         `json:"id"`
+	Key             string            `json:"key"`
+	Name            string            `json:"name"`
+	Description     *string           `json:"description,omitempty"`
+	NameI18n        map[string]string `json:"nameI18n,omitempty"`
+	DescriptionI18n map[string]string `json:"descriptionI18n,omitempty"`
+	IsActive        bool              `json:"isActive"`
+	ShowOnPricing   bool              `json:"showOnPricing,omitempty"`
+}
+
+type MembershipGrant struct {
+	TierCode              string     `json:"membershipTier"`
+	MembershipPeriodEndAt *time.Time `json:"membershipPeriodEndAt,omitempty"`
+	MembershipIsPermanent bool       `json:"membershipIsPermanent"`
 }
 
 type MatrixEntry struct {
@@ -161,7 +181,7 @@ func (s *Service) ResolveTierIDByCode(ctx context.Context, code string) (uuid.UU
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id
 		FROM membership_tiers
-		WHERE code = $1 AND is_active = true
+		WHERE code = $1
 	`, code).Scan(&id)
 	if err == sql.ErrNoRows {
 		return uuid.Nil, ErrTierNotFound
@@ -189,6 +209,98 @@ func (s *Service) SetUserTier(ctx context.Context, userID uuid.UUID, tierCode st
 		return fmt.Errorf("failed to set user tier: %w", err)
 	}
 	return nil
+}
+
+func (s *Service) ResolveMembershipGrant(ctx context.Context, userID uuid.UUID) (MembershipGrant, error) {
+	if err := s.EnsureUserMembership(ctx, userID); err != nil {
+		return MembershipGrant{}, err
+	}
+
+	var grant MembershipGrant
+	err := s.db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(mt.code, $2) AS tier_code,
+			um.period_end_at,
+			COALESCE(um.is_permanent, true) AS is_permanent
+		FROM user_memberships um
+		LEFT JOIN membership_tiers mt ON mt.id = um.tier_id
+		WHERE um.user_id = $1
+	`, userID, DefaultMembershipTierCode).Scan(&grant.TierCode, &grant.MembershipPeriodEndAt, &grant.MembershipIsPermanent)
+	if err == sql.ErrNoRows {
+		return MembershipGrant{
+			TierCode:              DefaultMembershipTierCode,
+			MembershipIsPermanent: true,
+		}, nil
+	}
+	if err != nil {
+		return MembershipGrant{}, fmt.Errorf("failed to resolve membership grant: %w", err)
+	}
+	return grant, nil
+}
+
+func (s *Service) SetUserMembershipGrant(ctx context.Context, userID uuid.UUID, tierCode string, isPermanent bool, periodEndAt *time.Time) error {
+	tierCode = strings.TrimSpace(tierCode)
+	if tierCode == "" {
+		return ErrInvalidMembershipGrant
+	}
+	if isPermanent {
+		if periodEndAt != nil {
+			return ErrInvalidMembershipGrant
+		}
+	} else {
+		if periodEndAt == nil || !periodEndAt.After(time.Now().UTC()) {
+			return ErrInvalidMembershipGrant
+		}
+	}
+
+	tierID, err := s.ResolveTierIDByCode(ctx, tierCode)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO user_memberships (user_id, tier_id, started_at, period_end_at, is_permanent)
+		VALUES ($1, $2, NOW(), $3, $4)
+		ON CONFLICT (user_id) DO UPDATE SET
+			tier_id = EXCLUDED.tier_id,
+			started_at = NOW(),
+			period_end_at = EXCLUDED.period_end_at,
+			is_permanent = EXCLUDED.is_permanent,
+			updated_at = NOW()
+	`, userID, tierID, periodEndAt, isPermanent)
+	if err != nil {
+		return fmt.Errorf("failed to set user membership grant: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) ExpireMembershipIfNeeded(ctx context.Context, userID uuid.UUID) (bool, error) {
+	if err := s.EnsureUserMembership(ctx, userID); err != nil {
+		return false, err
+	}
+
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE user_memberships um
+		SET tier_id = free_tier.id,
+			started_at = NOW(),
+			period_end_at = NULL,
+			is_permanent = TRUE,
+			updated_at = NOW()
+		FROM membership_tiers free_tier
+		WHERE um.user_id = $1
+		  AND free_tier.code = $2
+		  AND um.is_permanent = FALSE
+		  AND um.period_end_at IS NOT NULL
+		  AND um.period_end_at <= NOW()
+	`, userID, DefaultMembershipTierCode)
+	if err != nil {
+		return false, fmt.Errorf("failed to expire membership: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to read expired membership update result: %w", err)
+	}
+	return affected > 0, nil
 }
 
 func (s *Service) IsPolicyWriter(ctx context.Context, userID uuid.UUID) (bool, error) {

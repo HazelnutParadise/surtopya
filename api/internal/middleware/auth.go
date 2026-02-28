@@ -64,6 +64,12 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("userID", userID)
 		c.Set("logtoUserID", logtoUserID)
 
+		if _, err := policy.NewService(database.GetDB()).ExpireMembershipIfNeeded(context.Background(), userID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership expiry"})
+			c.Abort()
+			return
+		}
+
 		maybeGrantProMonthlyPoints(userID)
 
 		_, _ = EnsureSuperAdmin(userID)

@@ -21,21 +21,23 @@ func NewUserHandler() *UserHandler {
 }
 
 type UserProfileResponse struct {
-	ID               uuid.UUID       `json:"id"`
-	Email            *string         `json:"email,omitempty"`
-	DisplayName      *string         `json:"displayName,omitempty"`
-	AvatarURL        *string         `json:"avatarUrl,omitempty"`
-	Phone            *string         `json:"phone,omitempty"`
-	Bio              *string         `json:"bio,omitempty"`
-	Location         *string         `json:"location,omitempty"`
-	PointsBalance    int             `json:"pointsBalance"`
-	MembershipTier   string          `json:"membershipTier"`
-	Capabilities     map[string]bool `json:"capabilities"`
-	IsAdmin          bool            `json:"isAdmin"`
-	IsSuperAdmin     bool            `json:"isSuperAdmin"`
-	Locale           string          `json:"locale"`
-	CreatedAt        time.Time       `json:"createdAt"`
-	SurveysCompleted int             `json:"surveysCompleted"`
+	ID                    uuid.UUID       `json:"id"`
+	Email                 *string         `json:"email,omitempty"`
+	DisplayName           *string         `json:"displayName,omitempty"`
+	AvatarURL             *string         `json:"avatarUrl,omitempty"`
+	Phone                 *string         `json:"phone,omitempty"`
+	Bio                   *string         `json:"bio,omitempty"`
+	Location              *string         `json:"location,omitempty"`
+	PointsBalance         int             `json:"pointsBalance"`
+	MembershipTier        string          `json:"membershipTier"`
+	MembershipPeriodEndAt *time.Time      `json:"membershipPeriodEndAt,omitempty"`
+	MembershipIsPermanent bool            `json:"membershipIsPermanent"`
+	Capabilities          map[string]bool `json:"capabilities"`
+	IsAdmin               bool            `json:"isAdmin"`
+	IsSuperAdmin          bool            `json:"isSuperAdmin"`
+	Locale                string          `json:"locale"`
+	CreatedAt             time.Time       `json:"createdAt"`
+	SurveysCompleted      int             `json:"surveysCompleted"`
 }
 
 type UpdateUserProfileRequest struct {
@@ -94,7 +96,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	}
 
 	policySvc := policy.NewService(db)
-	tier, err := policySvc.ResolveMembershipTier(c.Request.Context(), profile.ID)
+	grant, err := policySvc.ResolveMembershipGrant(c.Request.Context(), profile.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get membership tier"})
 		return
@@ -104,7 +106,9 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get capabilities"})
 		return
 	}
-	profile.MembershipTier = tier
+	profile.MembershipTier = grant.TierCode
+	profile.MembershipPeriodEndAt = grant.MembershipPeriodEndAt
+	profile.MembershipIsPermanent = grant.MembershipIsPermanent
 	profile.Capabilities = capabilities
 
 	c.JSON(http.StatusOK, profile)

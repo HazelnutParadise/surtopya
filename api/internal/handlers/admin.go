@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -54,18 +55,22 @@ type AdminDatasetUpdateRequest struct {
 }
 
 type AdminUser struct {
-	ID             uuid.UUID `json:"id"`
-	Email          *string   `json:"email,omitempty"`
-	DisplayName    *string   `json:"displayName,omitempty"`
-	MembershipTier string    `json:"membershipTier"`
-	IsAdmin        bool      `json:"isAdmin"`
-	IsSuperAdmin   bool      `json:"isSuperAdmin"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID                    uuid.UUID  `json:"id"`
+	Email                 *string    `json:"email,omitempty"`
+	DisplayName           *string    `json:"displayName,omitempty"`
+	MembershipTier        string     `json:"membershipTier"`
+	MembershipPeriodEndAt *time.Time `json:"membershipPeriodEndAt,omitempty"`
+	MembershipIsPermanent bool       `json:"membershipIsPermanent"`
+	IsAdmin               bool       `json:"isAdmin"`
+	IsSuperAdmin          bool       `json:"isSuperAdmin"`
+	CreatedAt             time.Time  `json:"createdAt"`
 }
 
 type AdminUserUpdateRequest struct {
-	IsAdmin        *bool   `json:"isAdmin"`
-	MembershipTier *string `json:"membershipTier"`
+	IsAdmin               *bool   `json:"isAdmin"`
+	MembershipTier        *string `json:"membershipTier"`
+	MembershipPeriodEndAt *string `json:"membershipPeriodEndAt"`
+	MembershipIsPermanent *bool   `json:"membershipIsPermanent"`
 }
 
 type AdminPolicyUpdateRequest struct {
@@ -74,6 +79,35 @@ type AdminPolicyUpdateRequest struct {
 
 type AdminPolicyWriterUpdateRequest struct {
 	Enabled bool `json:"enabled"`
+}
+
+type AdminSubscriptionPlanCreateRequest struct {
+	Code                    string            `json:"code"`
+	NameI18n                map[string]string `json:"nameI18n"`
+	DescriptionI18n         map[string]string `json:"descriptionI18n"`
+	IsActive                bool              `json:"isActive"`
+	IsPurchasable           bool              `json:"isPurchasable"`
+	ShowOnPricing           bool              `json:"showOnPricing"`
+	PriceCentsUSD           int               `json:"priceCentsUsd"`
+	BillingInterval         string            `json:"billingInterval"`
+	AllowRenewalForExisting bool              `json:"allowRenewalForExisting"`
+}
+
+type AdminSubscriptionPlanPatchRequest struct {
+	NameI18n                *map[string]string `json:"nameI18n"`
+	DescriptionI18n         *map[string]string `json:"descriptionI18n"`
+	IsActive                *bool              `json:"isActive"`
+	IsPurchasable           *bool              `json:"isPurchasable"`
+	ShowOnPricing           *bool              `json:"showOnPricing"`
+	PriceCentsUSD           *int               `json:"priceCentsUsd"`
+	BillingInterval         *string            `json:"billingInterval"`
+	AllowRenewalForExisting *bool              `json:"allowRenewalForExisting"`
+}
+
+type AdminCapabilityPatchRequest struct {
+	NameI18n        *map[string]string `json:"nameI18n"`
+	DescriptionI18n *map[string]string `json:"descriptionI18n"`
+	ShowOnPricing   *bool              `json:"showOnPricing"`
 }
 
 // GetSurveys handles GET /api/v1/admin/surveys
@@ -488,6 +522,8 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 			u.email,
 			u.display_name,
 			COALESCE(mt.code, 'free') AS membership_tier,
+			um.period_end_at,
+			COALESCE(um.is_permanent, true) AS membership_is_permanent,
 			u.is_admin,
 			u.is_super_admin,
 			u.created_at
@@ -523,7 +559,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	var users []AdminUser
 	for rows.Next() {
 		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
 			return
 		}
@@ -569,7 +605,8 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	if req.IsAdmin == nil && req.MembershipTier == nil {
+	membershipUpdateRequested := req.MembershipTier != nil || req.MembershipIsPermanent != nil || req.MembershipPeriodEndAt != nil
+	if req.IsAdmin == nil && !membershipUpdateRequested {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
 		return
 	}
@@ -594,13 +631,43 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		}
 	}
 
-	if req.MembershipTier != nil {
-		if err := h.policies.SetUserTier(c.Request.Context(), id, strings.TrimSpace(*req.MembershipTier)); err != nil {
-			if err == policy.ErrTierNotFound {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membership tier"})
+	if membershipUpdateRequested {
+		currentGrant, err := h.policies.ResolveMembershipGrant(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load current membership grant"})
+			return
+		}
+
+		nextTier := currentGrant.TierCode
+		if req.MembershipTier != nil {
+			nextTier = strings.TrimSpace(*req.MembershipTier)
+		}
+
+		nextIsPermanent := currentGrant.MembershipIsPermanent
+		if req.MembershipIsPermanent != nil {
+			nextIsPermanent = *req.MembershipIsPermanent
+		}
+
+		nextPeriodEndAt := currentGrant.MembershipPeriodEndAt
+		if req.MembershipPeriodEndAt != nil {
+			if strings.TrimSpace(*req.MembershipPeriodEndAt) == "" {
+				nextPeriodEndAt = nil
+			} else {
+				parsed, parseErr := parseMembershipPeriodEndAt(*req.MembershipPeriodEndAt)
+				if parseErr != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membershipPeriodEndAt"})
+					return
+				}
+				nextPeriodEndAt = &parsed
+			}
+		}
+
+		if err := h.policies.SetUserMembershipGrant(c.Request.Context(), id, nextTier, nextIsPermanent, nextPeriodEndAt); err != nil {
+			if err == policy.ErrTierNotFound || err == policy.ErrInvalidMembershipGrant {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membership grant payload"})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update membership tier"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update membership grant"})
 			return
 		}
 	}
@@ -619,7 +686,17 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 
 // GetPolicies handles GET /api/v1/admin/policies
 func (h *AdminHandler) GetPolicies(c *gin.Context) {
-	tiers, capabilities, matrix, err := h.policies.ListPolicies(c.Request.Context())
+	_, _, matrix, err := h.policies.ListPolicies(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
+		return
+	}
+	tiers, err := h.policies.ListSubscriptionPlans(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
+		return
+	}
+	capabilities, err := h.policies.ListCapabilitiesAdmin(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
 		return
@@ -715,4 +792,193 @@ func (h *AdminHandler) UpdatePolicyWriter(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Policy writer updated"})
+}
+
+// GetSubscriptionPlans handles GET /api/v1/admin/subscription-plans
+func (h *AdminHandler) GetSubscriptionPlans(c *gin.Context) {
+	plans, err := h.policies.ListSubscriptionPlans(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load subscription plans"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"plans": plans})
+}
+
+// CreateSubscriptionPlan handles POST /api/v1/admin/subscription-plans
+func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	var req AdminSubscriptionPlanCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	plan, err := h.policies.CreateSubscriptionPlan(c.Request.Context(), policy.SubscriptionPlanCreate{
+		Code:                    req.Code,
+		NameI18n:                req.NameI18n,
+		DescriptionI18n:         req.DescriptionI18n,
+		IsActive:                req.IsActive,
+		IsPurchasable:           req.IsPurchasable,
+		ShowOnPricing:           req.ShowOnPricing,
+		PriceCentsUSD:           req.PriceCentsUSD,
+		BillingInterval:         req.BillingInterval,
+		AllowRenewalForExisting: req.AllowRenewalForExisting,
+	})
+	if err != nil {
+		if err == policy.ErrInvalidMembershipGrant || err == policy.ErrPlanCodeExists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan payload"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create subscription plan"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, plan)
+}
+
+// UpdateSubscriptionPlan handles PATCH /api/v1/admin/subscription-plans/:id
+func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	planID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subscription plan ID"})
+		return
+	}
+
+	var req AdminSubscriptionPlanPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	plan, err := h.policies.UpdateSubscriptionPlan(c.Request.Context(), planID, policy.SubscriptionPlanPatch{
+		NameI18n:                req.NameI18n,
+		DescriptionI18n:         req.DescriptionI18n,
+		IsActive:                req.IsActive,
+		IsPurchasable:           req.IsPurchasable,
+		ShowOnPricing:           req.ShowOnPricing,
+		PriceCentsUSD:           req.PriceCentsUSD,
+		BillingInterval:         req.BillingInterval,
+		AllowRenewalForExisting: req.AllowRenewalForExisting,
+	})
+	if err != nil {
+		if err == policy.ErrTierNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Subscription plan not found"})
+			return
+		}
+		if err == policy.ErrInvalidMembershipGrant {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan payload"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update subscription plan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, plan)
+}
+
+// UpdateCapability handles PATCH /api/v1/admin/capabilities/:id
+func (h *AdminHandler) UpdateCapability(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	capabilityID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid capability ID"})
+		return
+	}
+
+	var req AdminCapabilityPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	capability, err := h.policies.UpdateCapabilityDisplay(c.Request.Context(), capabilityID, policy.CapabilityPatch{
+		NameI18n:        req.NameI18n,
+		DescriptionI18n: req.DescriptionI18n,
+		ShowOnPricing:   req.ShowOnPricing,
+	})
+	if err != nil {
+		if err == policy.ErrCapabilityNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Capability not found"})
+			return
+		}
+		if err == policy.ErrInvalidMembershipGrant {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid capability payload"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update capability"})
+		return
+	}
+
+	c.JSON(http.StatusOK, capability)
+}
+
+// GetPricingPlans handles GET /api/v1/pricing/plans
+func (h *AdminHandler) GetPricingPlans(c *gin.Context) {
+	locale := strings.TrimSpace(c.DefaultQuery("locale", "en"))
+	plans, err := h.policies.ListPricingPlans(c.Request.Context(), locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load pricing plans"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"plans": plans})
+}
+
+func parseMembershipPeriodEndAt(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, fmt.Errorf("empty period end")
+	}
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed.UTC(), nil
+	}
+	if parsed, err := time.Parse("2006-01-02", raw); err == nil {
+		return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC), nil
+	}
+	return time.Time{}, fmt.Errorf("unsupported period end format")
 }

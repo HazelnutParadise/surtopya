@@ -65,6 +65,7 @@ func SetupRouter() *gin.Engine {
 		// Bootstrap status
 		adminHandler := handlers.NewAdminHandler()
 		api.GET("/bootstrap", adminHandler.GetBootstrapStatus)
+		api.GET("/pricing/plans", adminHandler.GetPricingPlans)
 
 		// User profile and settings routes
 		userSettingsHandler := handlers.NewUserSettingsHandler()
@@ -89,8 +90,12 @@ func SetupRouter() *gin.Engine {
 			admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
 			admin.GET("/users", adminHandler.GetUsers)
 			admin.PATCH("/users/:id", adminHandler.UpdateUser)
+			admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
+			admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
+			admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
 			admin.GET("/policies", adminHandler.GetPolicies)
 			admin.PATCH("/policies", adminHandler.UpdatePolicies)
+			admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
 			admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
 			admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
 		}

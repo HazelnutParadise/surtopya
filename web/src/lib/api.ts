@@ -292,6 +292,8 @@ export interface UserProfile {
   location?: string;
   pointsBalance: number;
   membershipTier: string;
+  membershipPeriodEndAt?: string;
+  membershipIsPermanent?: boolean;
   capabilities: Record<string, boolean>;
   locale: string;
   createdAt: string;
@@ -305,6 +307,8 @@ export interface AdminUser {
   email?: string;
   displayName?: string;
   membershipTier: string;
+  membershipPeriodEndAt?: string;
+  membershipIsPermanent?: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   createdAt: string;
@@ -314,7 +318,14 @@ export interface MembershipTier {
   id: string;
   code: string;
   name: string;
+  nameI18n?: Record<string, string>;
+  descriptionI18n?: Record<string, string>;
   isActive: boolean;
+  isPurchasable?: boolean;
+  showOnPricing?: boolean;
+  priceCentsUsd?: number;
+  billingInterval?: string;
+  allowRenewalForExisting?: boolean;
 }
 
 export interface Capability {
@@ -322,7 +333,10 @@ export interface Capability {
   key: string;
   name: string;
   description?: string;
+  nameI18n?: Record<string, string>;
+  descriptionI18n?: Record<string, string>;
   isActive: boolean;
+  showOnPricing?: boolean;
 }
 
 export interface PolicyMatrixEntry {
@@ -338,6 +352,23 @@ export interface PolicyWriter {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   canWritePolicy: boolean;
+}
+
+export interface PricingBenefit {
+  key: string;
+  name: string;
+  description: string;
+}
+
+export interface PricingPlan {
+  code: string;
+  name: string;
+  description: string;
+  priceCentsUsd: number;
+  currency: "USD";
+  billingInterval: "month";
+  isPurchasable: boolean;
+  benefits: PricingBenefit[];
 }
 
 // Export singleton instance

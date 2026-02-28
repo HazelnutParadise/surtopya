@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -69,5 +70,43 @@ func TestService_SetUserTier_UpsertMembership(t *testing.T) {
 
 	err = svc.SetUserTier(context.Background(), userID, "pro")
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestService_SetUserMembershipGrant_RejectsInvalidPayload(t *testing.T) {
+	db, _, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := NewService(db)
+	userID := uuid.New()
+	future := time.Now().UTC().Add(24 * time.Hour)
+
+	err = svc.SetUserMembershipGrant(context.Background(), userID, "pro", true, &future)
+	require.ErrorIs(t, err, ErrInvalidMembershipGrant)
+
+	err = svc.SetUserMembershipGrant(context.Background(), userID, "pro", false, nil)
+	require.ErrorIs(t, err, ErrInvalidMembershipGrant)
+}
+
+func TestService_ExpireMembershipIfNeeded_DowngradesExpiredGrant(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := NewService(db)
+	userID := uuid.New()
+
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(userID, DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectExec("UPDATE user_memberships um").
+		WithArgs(userID, DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	changed, err := svc.ExpireMembershipIfNeeded(context.Background(), userID)
+	require.NoError(t, err)
+	require.True(t, changed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -49,6 +49,23 @@ export default function AdminPage() {
   const [matrix, setMatrix] = useState<PolicyMatrixEntry[]>([])
   const [policyWriters, setPolicyWriters] = useState<PolicyWriter[]>([])
   const [savingPolicyWriterId, setSavingPolicyWriterId] = useState<string | null>(null)
+  const [membershipDrafts, setMembershipDrafts] = useState<
+    Record<string, { membershipTier: string; membershipIsPermanent: boolean; membershipPeriodEndAt: string }>
+  >({})
+  const [creatingPlan, setCreatingPlan] = useState(false)
+  const [savingPlanId, setSavingPlanId] = useState<string | null>(null)
+  const [savingCapabilityId, setSavingCapabilityId] = useState<string | null>(null)
+  const [newPlan, setNewPlan] = useState({
+    code: "",
+    nameI18n: { "zh-TW": "", en: "", ja: "" } as Record<string, string>,
+    descriptionI18n: { "zh-TW": "", en: "", ja: "" } as Record<string, string>,
+    isActive: true,
+    isPurchasable: false,
+    showOnPricing: false,
+    priceCentsUsd: 0,
+    billingInterval: "month",
+    allowRenewalForExisting: false,
+  })
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null)
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null)
@@ -216,6 +233,20 @@ export default function AdminPage() {
       isMounted = false
     }
   }, [userSearch, tAdmin])
+
+  useEffect(() => {
+    setMembershipDrafts((prev) => {
+      const next = { ...prev }
+      for (const user of users) {
+        next[user.id] = next[user.id] || {
+          membershipTier: user.membershipTier,
+          membershipIsPermanent: user.membershipIsPermanent ?? true,
+          membershipPeriodEndAt: user.membershipPeriodEndAt ? user.membershipPeriodEndAt.slice(0, 10) : "",
+        }
+      }
+      return next
+    })
+  }, [users])
 
   useEffect(() => {
     let isMounted = true
@@ -456,15 +487,40 @@ export default function AdminPage() {
     }
   }
 
-  const setMembershipTier = async (user: AdminUser, nextTier: string) => {
-    if (user.membershipTier === nextTier) return
+  const patchMembershipDraft = (
+    userId: string,
+    patch: Partial<{ membershipTier: string; membershipIsPermanent: boolean; membershipPeriodEndAt: string }>
+  ) => {
+    setMembershipDrafts((prev) => {
+      const current = prev[userId] || {
+        membershipTier: "free",
+        membershipIsPermanent: true,
+        membershipPeriodEndAt: "",
+      }
+      return {
+        ...prev,
+        [userId]: {
+          ...current,
+          ...patch,
+        },
+      }
+    })
+  }
+
+  const saveMembershipGrant = async (user: AdminUser) => {
+    const draft = membershipDrafts[user.id]
+    if (!draft) return
     setSavingUserId(user.id)
     setError(null)
     try {
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ membershipTier: nextTier }),
+        body: JSON.stringify({
+          membershipTier: draft.membershipTier,
+          membershipIsPermanent: draft.membershipIsPermanent,
+          membershipPeriodEndAt: draft.membershipIsPermanent ? "" : draft.membershipPeriodEndAt,
+        }),
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
@@ -472,10 +528,19 @@ export default function AdminPage() {
       }
       setUsers((prev) =>
         prev.map((item) =>
-          item.id === user.id ? { ...item, membershipTier: nextTier } : item
+          item.id === user.id
+            ? {
+                ...item,
+                membershipTier: draft.membershipTier,
+                membershipIsPermanent: draft.membershipIsPermanent,
+                membershipPeriodEndAt: draft.membershipIsPermanent
+                  ? undefined
+                  : draft.membershipPeriodEndAt,
+              }
+            : item
         )
       )
-    } catch (err) {
+    } catch {
       setError(tAdmin("updateError"))
     } finally {
       setSavingUserId(null)
@@ -524,6 +589,96 @@ export default function AdminPage() {
       setError(tAdmin("updateError"))
     } finally {
       setPolicySaving(false)
+    }
+  }
+
+  const savePlan = async (plan: MembershipTier) => {
+    setSavingPlanId(plan.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/subscription-plans/${plan.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nameI18n: plan.nameI18n,
+          descriptionI18n: plan.descriptionI18n,
+          isActive: plan.isActive,
+          isPurchasable: plan.isPurchasable,
+          showOnPricing: plan.showOnPricing,
+          priceCentsUsd: plan.priceCentsUsd,
+          billingInterval: plan.billingInterval || "month",
+          allowRenewalForExisting: plan.allowRenewalForExisting,
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      const payload = await response.json()
+      setTiers((prev) => prev.map((item) => (item.id === plan.id ? payload : item)))
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingPlanId(null)
+    }
+  }
+
+  const createPlan = async () => {
+    setCreatingPlan(true)
+    setError(null)
+    try {
+      const response = await fetch("/api/admin/subscription-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPlan),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Create failed")
+      }
+      const payload = await response.json()
+      setTiers((prev) => [...prev, payload])
+      setNewPlan({
+        code: "",
+        nameI18n: { "zh-TW": "", en: "", ja: "" },
+        descriptionI18n: { "zh-TW": "", en: "", ja: "" },
+        isActive: true,
+        isPurchasable: false,
+        showOnPricing: false,
+        priceCentsUsd: 0,
+        billingInterval: "month",
+        allowRenewalForExisting: false,
+      })
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setCreatingPlan(false)
+    }
+  }
+
+  const saveCapability = async (capability: Capability) => {
+    setSavingCapabilityId(capability.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/capabilities/${capability.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nameI18n: capability.nameI18n,
+          descriptionI18n: capability.descriptionI18n,
+          showOnPricing: capability.showOnPricing,
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      const payload = await response.json()
+      setCapabilities((prev) => prev.map((item) => (item.id === capability.id ? payload : item)))
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingCapabilityId(null)
     }
   }
 
@@ -779,35 +934,70 @@ export default function AdminPage() {
                               </div>
                               <p className="text-sm text-gray-500">{user.email}</p>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-gray-500">{tAdmin("membershipTierLabel")}</span>
-                              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-md p-1">
-                                <button
-                                  type="button"
-                                  className={`px-3 py-1 text-xs rounded ${
-                                    user.membershipTier === "free"
-                                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                      : "text-gray-500"
-                                  }`}
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500">{tAdmin("membershipTierLabel")}</span>
+                                <div className="flex flex-wrap bg-gray-100 dark:bg-gray-800 rounded-md p-1 gap-1">
+                                  {tiers.map((tier) => {
+                                    const draft = membershipDrafts[user.id]
+                                    const selectedTier = draft?.membershipTier || user.membershipTier
+                                    return (
+                                      <button
+                                        key={`${user.id}-${tier.code}`}
+                                        type="button"
+                                        className={`px-3 py-1 text-xs rounded ${
+                                          selectedTier === tier.code
+                                            ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            : "text-gray-500"
+                                        }`}
+                                        disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
+                                        onClick={() => patchMembershipDraft(user.id, { membershipTier: tier.code })}
+                                        data-testid={`admin-tier-${tier.code}-${user.id}`}
+                                      >
+                                        {tier.code}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3">
+                                <span className="text-xs text-gray-500">Permanent</span>
+                                <Switch
+                                  checked={membershipDrafts[user.id]?.membershipIsPermanent ?? user.membershipIsPermanent ?? true}
+                                  onCheckedChange={(checked) =>
+                                    patchMembershipDraft(user.id, {
+                                      membershipIsPermanent: checked,
+                                      membershipPeriodEndAt: checked
+                                        ? ""
+                                        : membershipDrafts[user.id]?.membershipPeriodEndAt || "",
+                                    })
+                                  }
                                   disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
-                                  onClick={() => setMembershipTier(user, "free")}
-                                  data-testid={`admin-tier-free-${user.id}`}
-                                >
-                                  free
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`px-3 py-1 text-xs rounded ${
-                                    user.membershipTier === "pro"
-                                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                                      : "text-gray-500"
-                                  }`}
+                                  data-testid={`admin-membership-permanent-${user.id}`}
+                                />
+                                <Input
+                                  type="date"
+                                  value={membershipDrafts[user.id]?.membershipPeriodEndAt || ""}
+                                  onChange={(event) =>
+                                    patchMembershipDraft(user.id, { membershipPeriodEndAt: event.target.value })
+                                  }
+                                  disabled={
+                                    !currentUser?.isSuperAdmin ||
+                                    savingUserId === user.id ||
+                                    (membershipDrafts[user.id]?.membershipIsPermanent ?? user.membershipIsPermanent ?? true)
+                                  }
+                                  className="w-44"
+                                  data-testid={`admin-membership-end-at-${user.id}`}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => saveMembershipGrant(user)}
                                   disabled={!currentUser?.isSuperAdmin || savingUserId === user.id}
-                                  onClick={() => setMembershipTier(user, "pro")}
-                                  data-testid={`admin-tier-pro-${user.id}`}
+                                  data-testid={`admin-membership-save-${user.id}`}
                                 >
-                                  pro
-                                </button>
+                                  {savingUserId === user.id ? tCommon("saving") : tCommon("save")}
+                                </Button>
                               </div>
                               <span className="text-xs text-gray-500">{tAdmin("adminToggleLabel")}</span>
                               <Switch
@@ -888,6 +1078,262 @@ export default function AdminPage() {
                     </table>
                   </div>
                 )}
+
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Subscription Plans</div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {tiers.map((tier) => (
+                      <div key={tier.id} className="border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-3">
+                        <div className="text-sm font-medium">{tier.code}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Input
+                            value={tier.nameI18n?.["zh-TW"] || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="name zh-TW"
+                            disabled={!canWritePolicies}
+                          />
+                          <Input
+                            value={tier.nameI18n?.en || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        nameI18n: { ...(item.nameI18n || {}), en: event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="name en"
+                            disabled={!canWritePolicies}
+                          />
+                          <Input
+                            value={tier.nameI18n?.ja || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        nameI18n: { ...(item.nameI18n || {}), ja: event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="name ja"
+                            disabled={!canWritePolicies}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Input
+                            value={tier.descriptionI18n?.["zh-TW"] || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="description zh-TW"
+                            disabled={!canWritePolicies}
+                          />
+                          <Input
+                            value={tier.descriptionI18n?.en || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="description en"
+                            disabled={!canWritePolicies}
+                          />
+                          <Input
+                            value={tier.descriptionI18n?.ja || ""}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value },
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            placeholder="description ja"
+                            disabled={!canWritePolicies}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Label className="text-xs">USD cents</Label>
+                          <Input
+                            className="w-40"
+                            type="number"
+                            value={tier.priceCentsUsd ?? 0}
+                            onChange={(event) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id ? { ...item, priceCentsUsd: Number(event.target.value) } : item
+                                )
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Label className="text-xs">Active</Label>
+                          <Switch
+                            checked={tier.isActive}
+                            onCheckedChange={(checked) =>
+                              setTiers((prev) =>
+                                prev.map((item) => (item.id === tier.id ? { ...item, isActive: checked } : item))
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Label className="text-xs">Show on pricing</Label>
+                          <Switch
+                            checked={tier.showOnPricing ?? false}
+                            onCheckedChange={(checked) =>
+                              setTiers((prev) =>
+                                prev.map((item) => (item.id === tier.id ? { ...item, showOnPricing: checked } : item))
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Label className="text-xs">Purchasable</Label>
+                          <Switch
+                            checked={tier.isPurchasable ?? false}
+                            onCheckedChange={(checked) =>
+                              setTiers((prev) =>
+                                prev.map((item) => (item.id === tier.id ? { ...item, isPurchasable: checked } : item))
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Label className="text-xs">Renewal</Label>
+                          <Switch
+                            checked={tier.allowRenewalForExisting ?? false}
+                            onCheckedChange={(checked) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id ? { ...item, allowRenewalForExisting: checked } : item
+                                )
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => savePlan(tier)}
+                            disabled={!canWritePolicies || savingPlanId === tier.id}
+                          >
+                            {savingPlanId === tier.id ? tCommon("saving") : tCommon("save")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
+                    <div className="text-sm font-medium">New Plan</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                      <Input
+                        value={newPlan.code}
+                        onChange={(event) => setNewPlan((prev) => ({ ...prev, code: event.target.value }))}
+                        placeholder="code"
+                        disabled={!canWritePolicies}
+                      />
+                      <Input
+                        type="number"
+                        value={newPlan.priceCentsUsd}
+                        onChange={(event) => setNewPlan((prev) => ({ ...prev, priceCentsUsd: Number(event.target.value) }))}
+                        placeholder="price cents usd"
+                        disabled={!canWritePolicies}
+                      />
+                      <Button onClick={createPlan} disabled={!canWritePolicies || creatingPlan}>
+                        {creatingPlan ? tCommon("saving") : "Create Plan"}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <Input value={newPlan.nameI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, "zh-TW": event.target.value } }))} placeholder="name zh-TW" disabled={!canWritePolicies} />
+                      <Input value={newPlan.nameI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, en: event.target.value } }))} placeholder="name en" disabled={!canWritePolicies} />
+                      <Input value={newPlan.nameI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, nameI18n: { ...prev.nameI18n, ja: event.target.value } }))} placeholder="name ja" disabled={!canWritePolicies} />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <Input value={newPlan.descriptionI18n["zh-TW"]} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, "zh-TW": event.target.value } }))} placeholder="description zh-TW" disabled={!canWritePolicies} />
+                      <Input value={newPlan.descriptionI18n.en} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, en: event.target.value } }))} placeholder="description en" disabled={!canWritePolicies} />
+                      <Input value={newPlan.descriptionI18n.ja} onChange={(event) => setNewPlan((prev) => ({ ...prev, descriptionI18n: { ...prev.descriptionI18n, ja: event.target.value } }))} placeholder="description ja" disabled={!canWritePolicies} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">Capability Display</div>
+                  <div className="space-y-2">
+                    {capabilities.map((capability) => (
+                      <div key={capability.id} className="border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2 space-y-2">
+                        <div className="text-sm font-medium">{capability.key}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Input value={capability.nameI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="name zh-TW" disabled={!canWritePolicies} />
+                          <Input value={capability.nameI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), en: event.target.value } } : item))} placeholder="name en" disabled={!canWritePolicies} />
+                          <Input value={capability.nameI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, nameI18n: { ...(item.nameI18n || {}), ja: event.target.value } } : item))} placeholder="name ja" disabled={!canWritePolicies} />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                          <Input value={capability.descriptionI18n?.["zh-TW"] || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), "zh-TW": event.target.value } } : item))} placeholder="description zh-TW" disabled={!canWritePolicies} />
+                          <Input value={capability.descriptionI18n?.en || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), en: event.target.value } } : item))} placeholder="description en" disabled={!canWritePolicies} />
+                          <Input value={capability.descriptionI18n?.ja || ""} onChange={(event) => setCapabilities((prev) => prev.map((item) => item.id === capability.id ? { ...item, descriptionI18n: { ...(item.descriptionI18n || {}), ja: event.target.value } } : item))} placeholder="description ja" disabled={!canWritePolicies} />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Label className="text-xs">Show on pricing</Label>
+                          <Switch
+                            checked={capability.showOnPricing ?? false}
+                            onCheckedChange={(checked) =>
+                              setCapabilities((prev) =>
+                                prev.map((item) => (item.id === capability.id ? { ...item, showOnPricing: checked } : item))
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => saveCapability(capability)}
+                            disabled={!canWritePolicies || savingCapabilityId === capability.id}
+                          >
+                            {savingCapabilityId === capability.id ? tCommon("saving") : tCommon("save")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="space-y-3">
                   <div className="text-sm font-medium">{tAdmin("policyWritersTitle")}</div>

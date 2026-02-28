@@ -53,6 +53,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
             email: "user@example.com",
             displayName: "User One",
             membershipTier: "free",
+            membershipIsPermanent: true,
             isAdmin: false,
             isSuperAdmin: false,
             createdAt: new Date().toISOString(),
@@ -68,8 +69,22 @@ test("admin can switch membership tier to pro (mocked API)", async ({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        tiers: [],
-        capabilities: [],
+        tiers: [
+          { id: "t-free", code: "free", name: "Free", isActive: true },
+          { id: "t-pro", code: "pro", name: "Pro", isActive: true },
+        ],
+        capabilities: [
+          {
+            id: "c-1",
+            key: "survey.public_dataset_opt_out",
+            name: "opt out",
+            description: "desc",
+            isActive: true,
+            showOnPricing: true,
+            nameI18n: { "zh-TW": "a", en: "a", ja: "a" },
+            descriptionI18n: { "zh-TW": "b", en: "b", ja: "b" },
+          },
+        ],
         matrix: [],
       }),
     })
@@ -106,7 +121,12 @@ test("admin can switch membership tier to pro (mocked API)", async ({
   await expect(page.getByText("User One")).toBeVisible()
 
   await page.getByTestId("admin-tier-pro-u-1").click()
+  await page.getByTestId("admin-membership-save-u-1").click()
 
   await expect.poll(() => patchCalls).toBe(1)
-  expect(lastPatchBody).toEqual({ membershipTier: "pro" })
+  expect(lastPatchBody).toEqual({
+    membershipTier: "pro",
+    membershipIsPermanent: true,
+    membershipPeriodEndAt: "",
+  })
 })
