@@ -326,6 +326,7 @@ export interface MembershipTier {
   priceCentsUsd?: number;
   billingInterval?: string;
   allowRenewalForExisting?: boolean;
+  monthlyPointsGrant?: number;
 }
 
 export interface Capability {

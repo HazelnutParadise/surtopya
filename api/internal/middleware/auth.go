@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -70,7 +69,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		maybeGrantProMonthlyPoints(userID)
+		maybeGrantMembershipMonthlyPoints(userID)
 
 		_, _ = EnsureSuperAdmin(userID)
 
@@ -159,12 +158,7 @@ func getClaimString(claims jwt.MapClaims, keys ...string) string {
 	return ""
 }
 
-func maybeGrantProMonthlyPoints(userID uuid.UUID) {
-	amount := parseIntEnv("PRO_MONTHLY_POINTS")
-	if amount <= 0 {
-		return
-	}
-
+func maybeGrantMembershipMonthlyPoints(userID uuid.UUID) {
 	db := database.GetDB()
 	tx, err := db.Begin()
 	if err != nil {
@@ -178,7 +172,7 @@ func maybeGrantProMonthlyPoints(userID uuid.UUID) {
 	}()
 
 	repo := repository.NewPointsRepository(db)
-	_, err = repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, amount, time.Now().UTC(), "")
+	_, err = repo.GrantMonthlyPointsIfEligibleTx(tx, userID, time.Now().UTC(), "")
 	if err != nil {
 		return
 	}
@@ -187,18 +181,6 @@ func maybeGrantProMonthlyPoints(userID uuid.UUID) {
 		return
 	}
 	committed = true
-}
-
-func parseIntEnv(key string) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return 0
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0
-	}
-	return v
 }
 
 // CORSMiddleware handles CORS headers

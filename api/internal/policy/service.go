@@ -14,6 +14,7 @@ import (
 
 const (
 	CapabilitySurveyPublicDatasetOptOut = "survey.public_dataset_opt_out"
+	CapabilityPointsMonthlyGrant        = "points.monthly_grant"
 	PermissionPolicyWrite               = "policy.write"
 	DefaultMembershipTierCode           = "free"
 )
@@ -151,6 +152,9 @@ func (s *Service) ResolveCapabilities(ctx context.Context, userID uuid.UUID) (ma
 	// Always expose known keys even if table state is incomplete.
 	if _, ok := capabilities[CapabilitySurveyPublicDatasetOptOut]; !ok {
 		capabilities[CapabilitySurveyPublicDatasetOptOut] = false
+	}
+	if _, ok := capabilities[CapabilityPointsMonthlyGrant]; !ok {
+		capabilities[CapabilityPointsMonthlyGrant] = false
 	}
 
 	return capabilities, nil

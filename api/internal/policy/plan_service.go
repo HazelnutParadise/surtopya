@@ -21,6 +21,7 @@ type SubscriptionPlan struct {
 	PriceCentsUSD           int               `json:"priceCentsUsd"`
 	BillingInterval         string            `json:"billingInterval"`
 	AllowRenewalForExisting bool              `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      int               `json:"monthlyPointsGrant"`
 }
 
 type SubscriptionPlanCreate struct {
@@ -33,6 +34,7 @@ type SubscriptionPlanCreate struct {
 	PriceCentsUSD           int               `json:"priceCentsUsd"`
 	BillingInterval         string            `json:"billingInterval"`
 	AllowRenewalForExisting bool              `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      int               `json:"monthlyPointsGrant"`
 }
 
 type SubscriptionPlanPatch struct {
@@ -44,6 +46,7 @@ type SubscriptionPlanPatch struct {
 	PriceCentsUSD           *int               `json:"priceCentsUsd"`
 	BillingInterval         *string            `json:"billingInterval"`
 	AllowRenewalForExisting *bool              `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      *int               `json:"monthlyPointsGrant"`
 }
 
 type CapabilityPatch struct {
@@ -81,7 +84,7 @@ func i18nJSON(value map[string]string, fallback string) (string, error) {
 
 func (s *Service) ListSubscriptionPlans(ctx context.Context) ([]SubscriptionPlan, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, code, name, name_i18n, description_i18n, is_active, is_purchasable, show_on_pricing, price_cents_usd, billing_interval, allow_renewal_for_existing
+		SELECT id, code, name, name_i18n, description_i18n, is_active, is_purchasable, show_on_pricing, price_cents_usd, billing_interval, allow_renewal_for_existing, monthly_points_grant
 		FROM membership_tiers
 		ORDER BY code
 	`)
@@ -95,7 +98,7 @@ func (s *Service) ListSubscriptionPlans(ctx context.Context) ([]SubscriptionPlan
 		var plan SubscriptionPlan
 		var nameI18nRaw []byte
 		var descriptionI18nRaw []byte
-		if err := rows.Scan(&plan.ID, &plan.Code, &plan.Name, &nameI18nRaw, &descriptionI18nRaw, &plan.IsActive, &plan.IsPurchasable, &plan.ShowOnPricing, &plan.PriceCentsUSD, &plan.BillingInterval, &plan.AllowRenewalForExisting); err != nil {
+		if err := rows.Scan(&plan.ID, &plan.Code, &plan.Name, &nameI18nRaw, &descriptionI18nRaw, &plan.IsActive, &plan.IsPurchasable, &plan.ShowOnPricing, &plan.PriceCentsUSD, &plan.BillingInterval, &plan.AllowRenewalForExisting, &plan.MonthlyPointsGrant); err != nil {
 			return nil, fmt.Errorf("failed to scan subscription plan: %w", err)
 		}
 		_ = json.Unmarshal(nameI18nRaw, &plan.NameI18n)
@@ -112,7 +115,7 @@ func (s *Service) ListSubscriptionPlans(ctx context.Context) ([]SubscriptionPlan
 
 func (s *Service) CreateSubscriptionPlan(ctx context.Context, input SubscriptionPlanCreate) (SubscriptionPlan, error) {
 	input.Code = strings.TrimSpace(strings.ToLower(input.Code))
-	if input.Code == "" || input.BillingInterval == "" || input.BillingInterval != "month" || input.PriceCentsUSD < 0 {
+	if input.Code == "" || input.BillingInterval == "" || input.BillingInterval != "month" || input.PriceCentsUSD < 0 || input.MonthlyPointsGrant < 0 {
 		return SubscriptionPlan{}, ErrInvalidMembershipGrant
 	}
 	if !validateI18n(input.NameI18n) || !validateI18n(input.DescriptionI18n) {
@@ -134,9 +137,9 @@ func (s *Service) CreateSubscriptionPlan(ctx context.Context, input Subscription
 
 	id := uuid.New()
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO membership_tiers (id, code, name, name_i18n, description_i18n, is_active, is_purchasable, show_on_pricing, price_cents_usd, billing_interval, allow_renewal_for_existing)
-		VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10, $11)
-	`, id, input.Code, name, nameI18nJSON, descriptionI18nJSON, input.IsActive, input.IsPurchasable, input.ShowOnPricing, input.PriceCentsUSD, input.BillingInterval, input.AllowRenewalForExisting)
+		INSERT INTO membership_tiers (id, code, name, name_i18n, description_i18n, is_active, is_purchasable, show_on_pricing, price_cents_usd, billing_interval, allow_renewal_for_existing, monthly_points_grant)
+		VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)
+	`, id, input.Code, name, nameI18nJSON, descriptionI18nJSON, input.IsActive, input.IsPurchasable, input.ShowOnPricing, input.PriceCentsUSD, input.BillingInterval, input.AllowRenewalForExisting, input.MonthlyPointsGrant)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
 			return SubscriptionPlan{}, ErrPlanCodeExists
@@ -197,8 +200,11 @@ func (s *Service) UpdateSubscriptionPlan(ctx context.Context, id uuid.UUID, patc
 	if patch.AllowRenewalForExisting != nil {
 		target.AllowRenewalForExisting = *patch.AllowRenewalForExisting
 	}
+	if patch.MonthlyPointsGrant != nil {
+		target.MonthlyPointsGrant = *patch.MonthlyPointsGrant
+	}
 
-	if target.BillingInterval == "" || target.BillingInterval != "month" || target.PriceCentsUSD < 0 {
+	if target.BillingInterval == "" || target.BillingInterval != "month" || target.PriceCentsUSD < 0 || target.MonthlyPointsGrant < 0 {
 		return SubscriptionPlan{}, ErrInvalidMembershipGrant
 	}
 	if !validateI18n(target.NameI18n) || !validateI18n(target.DescriptionI18n) {
@@ -229,9 +235,10 @@ func (s *Service) UpdateSubscriptionPlan(ctx context.Context, id uuid.UUID, patc
 			price_cents_usd = $8,
 			billing_interval = $9,
 			allow_renewal_for_existing = $10,
+			monthly_points_grant = $11,
 			updated_at = NOW()
 		WHERE id = $1
-	`, target.ID, name, nameI18nJSON, descriptionI18nJSON, target.IsActive, target.IsPurchasable, target.ShowOnPricing, target.PriceCentsUSD, target.BillingInterval, target.AllowRenewalForExisting)
+	`, target.ID, name, nameI18nJSON, descriptionI18nJSON, target.IsActive, target.IsPurchasable, target.ShowOnPricing, target.PriceCentsUSD, target.BillingInterval, target.AllowRenewalForExisting, target.MonthlyPointsGrant)
 	if err != nil {
 		return SubscriptionPlan{}, fmt.Errorf("failed to update subscription plan: %w", err)
 	}

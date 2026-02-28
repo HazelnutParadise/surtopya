@@ -91,6 +91,7 @@ type AdminSubscriptionPlanCreateRequest struct {
 	PriceCentsUSD           int               `json:"priceCentsUsd"`
 	BillingInterval         string            `json:"billingInterval"`
 	AllowRenewalForExisting bool              `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      int               `json:"monthlyPointsGrant"`
 }
 
 type AdminSubscriptionPlanPatchRequest struct {
@@ -102,6 +103,7 @@ type AdminSubscriptionPlanPatchRequest struct {
 	PriceCentsUSD           *int               `json:"priceCentsUsd"`
 	BillingInterval         *string            `json:"billingInterval"`
 	AllowRenewalForExisting *bool              `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      *int               `json:"monthlyPointsGrant"`
 }
 
 type AdminCapabilityPatchRequest struct {
@@ -838,6 +840,7 @@ func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
 		PriceCentsUSD:           req.PriceCentsUSD,
 		BillingInterval:         req.BillingInterval,
 		AllowRenewalForExisting: req.AllowRenewalForExisting,
+		MonthlyPointsGrant:      req.MonthlyPointsGrant,
 	})
 	if err != nil {
 		if err == policy.ErrInvalidMembershipGrant || err == policy.ErrPlanCodeExists {
@@ -890,6 +893,7 @@ func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 		PriceCentsUSD:           req.PriceCentsUSD,
 		BillingInterval:         req.BillingInterval,
 		AllowRenewalForExisting: req.AllowRenewalForExisting,
+		MonthlyPointsGrant:      req.MonthlyPointsGrant,
 	})
 	if err != nil {
 		if err == policy.ErrTierNotFound {

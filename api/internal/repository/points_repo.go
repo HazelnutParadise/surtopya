@@ -85,47 +85,41 @@ func (r *PointsRepository) DeductForDatasetTx(tx *sql.Tx, userID uuid.UUID, data
 	return nil
 }
 
-func (r *PointsRepository) GrantProMonthlyPointsIfEligibleTx(tx *sql.Tx, userID uuid.UUID, amount int, now time.Time, description string) (bool, error) {
-	if amount <= 0 {
-		return false, nil
-	}
+func (r *PointsRepository) GrantMonthlyPointsIfEligibleTx(tx *sql.Tx, userID uuid.UUID, now time.Time, description string) (bool, error) {
 	if description == "" {
-		description = "Pro monthly points grant"
+		description = "Membership monthly points grant"
 	}
 
-	res, err := tx.Exec(
+	var grantAmount int
+	err := tx.QueryRow(
 		`
 		UPDATE users u
-		SET points_balance = u.points_balance + $2,
-		    pro_points_last_granted_at = $3
+		SET points_balance = u.points_balance + mt.monthly_points_grant,
+		    pro_points_last_granted_at = $2
 		FROM user_memberships um
 		JOIN membership_tiers mt ON mt.id = um.tier_id
 		WHERE u.id = $1
 		  AND um.user_id = u.id
-		  AND mt.code = 'pro'
+		  AND mt.monthly_points_grant > 0
 		  AND (
 		    u.pro_points_last_granted_at IS NULL
-		    OR date_trunc('month', u.pro_points_last_granted_at) < date_trunc('month', $3)
+		    OR date_trunc('month', u.pro_points_last_granted_at) < date_trunc('month', $2)
 		  )
+		RETURNING mt.monthly_points_grant
 		`,
-		userID, amount, now,
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to grant pro monthly points: %w", err)
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("failed to read affected rows: %w", err)
-	}
-	if affected == 0 {
+		userID, now,
+	).Scan(&grantAmount)
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to grant membership monthly points: %w", err)
 	}
 
 	if _, err := tx.Exec(
 		`INSERT INTO points_transactions (id, user_id, amount, type, description)
 		 VALUES ($1, $2, $3, 'pro_monthly_grant', $4)`,
-		uuid.New(), userID, amount, description,
+		uuid.New(), userID, grantAmount, description,
 	); err != nil {
 		return false, fmt.Errorf("failed to insert points transaction: %w", err)
 	}

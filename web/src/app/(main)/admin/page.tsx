@@ -65,6 +65,7 @@ export default function AdminPage() {
     priceCentsUsd: 0,
     billingInterval: "month",
     allowRenewalForExisting: false,
+    monthlyPointsGrant: 0,
   })
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null)
@@ -608,6 +609,7 @@ export default function AdminPage() {
           priceCentsUsd: plan.priceCentsUsd,
           billingInterval: plan.billingInterval || "month",
           allowRenewalForExisting: plan.allowRenewalForExisting,
+          monthlyPointsGrant: plan.monthlyPointsGrant ?? 0,
         }),
       })
       if (!response.ok) {
@@ -648,6 +650,7 @@ export default function AdminPage() {
         priceCentsUsd: 0,
         billingInterval: "month",
         allowRenewalForExisting: false,
+        monthlyPointsGrant: 0,
       })
     } catch {
       setError(tAdmin("updateError"))
@@ -1226,6 +1229,24 @@ export default function AdminPage() {
                               disabled={!canWritePolicies}
                             />
                           </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Monthly points grant</Label>
+                            <Input
+                              className="w-40"
+                              type="number"
+                              value={tier.monthlyPointsGrant ?? 0}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? { ...item, monthlyPointsGrant: Number(event.target.value) }
+                                      : item
+                                  )
+                                )
+                              }
+                              disabled={!canWritePolicies}
+                            />
+                          </div>
                           <Label className="text-xs">Active</Label>
                           <Switch
                             checked={tier.isActive}
@@ -1300,6 +1321,16 @@ export default function AdminPage() {
                           value={newPlan.priceCentsUsd}
                           onChange={(event) => setNewPlan((prev) => ({ ...prev, priceCentsUsd: Number(event.target.value) }))}
                           placeholder="price cents usd"
+                          disabled={!canWritePolicies}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Monthly points grant</Label>
+                        <Input
+                          type="number"
+                          value={newPlan.monthlyPointsGrant}
+                          onChange={(event) => setNewPlan((prev) => ({ ...prev, monthlyPointsGrant: Number(event.target.value) }))}
+                          placeholder="monthly points"
                           disabled={!canWritePolicies}
                         />
                       </div>

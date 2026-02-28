@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
@@ -64,7 +65,7 @@ func TestPointsRepository_AwardSurveyPointsTx_InsertsTransaction(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_GrantsAndInsertsTransaction(t *testing.T) {
+func TestPointsRepository_GrantMonthlyPointsIfEligibleTx_GrantsAndInsertsTransaction(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -78,15 +79,15 @@ func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_GrantsAndInsertsTran
 	userID := uuid.New()
 	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectExec("UPDATE users").
-		WithArgs(userID, 100, now).
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("UPDATE users").
+		WithArgs(userID, now).
+		WillReturnRows(sqlmock.NewRows([]string{"monthly_points_grant"}).AddRow(100))
 
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), userID, 100, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	granted, err := repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, 100, now, "")
+	granted, err := repo.GrantMonthlyPointsIfEligibleTx(tx, userID, now, "")
 	require.NoError(t, err)
 	require.True(t, granted)
 
@@ -95,7 +96,7 @@ func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_GrantsAndInsertsTran
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(t *testing.T) {
+func TestPointsRepository_GrantMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
@@ -109,11 +110,11 @@ func TestPointsRepository_GrantProMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(
 	userID := uuid.New()
 	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectExec("UPDATE users").
-		WithArgs(userID, 100, now).
-		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("UPDATE users").
+		WithArgs(userID, now).
+		WillReturnError(sql.ErrNoRows)
 
-	granted, err := repo.GrantProMonthlyPointsIfEligibleTx(tx, userID, 100, now, "")
+	granted, err := repo.GrantMonthlyPointsIfEligibleTx(tx, userID, now, "")
 	require.NoError(t, err)
 	require.False(t, granted)
 

@@ -25,7 +25,9 @@ func TestService_ResolveCapabilities_FallbackIncludesKnownKey(t *testing.T) {
 	capabilities, err := svc.ResolveCapabilities(context.Background(), userID)
 	require.NoError(t, err)
 	require.Contains(t, capabilities, CapabilitySurveyPublicDatasetOptOut)
+	require.Contains(t, capabilities, CapabilityPointsMonthlyGrant)
 	require.False(t, capabilities[CapabilitySurveyPublicDatasetOptOut])
+	require.False(t, capabilities[CapabilityPointsMonthlyGrant])
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
