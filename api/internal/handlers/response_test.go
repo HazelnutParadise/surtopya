@@ -259,17 +259,6 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
 
-	// DeductForSurveyBoostTx: lock publisher row, deduct, insert transaction
-	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
-		WithArgs(publisherID).
-		WillReturnRows(sqlmock.NewRows([]string{"points_balance"}).AddRow(99))
-	mock.ExpectExec("UPDATE users SET points_balance = points_balance - \\$2 WHERE id = \\$1").
-		WithArgs(publisherID, 9).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("INSERT INTO points_transactions").
-		WithArgs(sqlmock.AnyArg(), publisherID, -9, sqlmock.AnyArg(), surveyID).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-
 	mock.ExpectExec("UPDATE responses SET status = 'completed'").
 		WithArgs(responseID, sqlmock.AnyArg(), 9).
 		WillReturnResult(sqlmock.NewResult(0, 1))

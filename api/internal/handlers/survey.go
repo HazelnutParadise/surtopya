@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,16 +16,20 @@ import (
 
 // SurveyHandler handles survey-related requests
 type SurveyHandler struct {
-	repo     *repository.SurveyRepository
-	policies *policy.Service
+	db         *sql.DB
+	repo       *repository.SurveyRepository
+	policies   *policy.Service
+	pointsRepo *repository.PointsRepository
 }
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
 	db := database.GetDB()
 	return &SurveyHandler{
-		repo:     repository.NewSurveyRepository(db),
-		policies: policy.NewService(db),
+		db:         db,
+		repo:       repository.NewSurveyRepository(db),
+		policies:   policy.NewService(db),
+		pointsRepo: repository.NewPointsRepository(db),
 	}
 }
 
@@ -69,6 +74,10 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	// Validate visibility
 	if req.Visibility != "public" && req.Visibility != "non-public" {
 		req.Visibility = "non-public"
+	}
+	if req.PointsReward < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+		return
 	}
 
 	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), userID.(uuid.UUID), policy.CapabilitySurveyPublicDatasetOptOut)
@@ -294,6 +303,18 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		survey.Theme = req.Theme
 	}
 	if req.PointsReward != nil {
+		if *req.PointsReward < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+			return
+		}
+		if survey.PublishedCount > 0 && *req.PointsReward < survey.PointsReward {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
+			return
+		}
+		if survey.PublishedCount > 0 && survey.IsPublished && *req.PointsReward > survey.PointsReward {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unpublish and publish again to increase boost points"})
+			return
+		}
 		survey.PointsReward = *req.PointsReward
 	}
 	if req.ExpiresAt != nil {
@@ -397,6 +418,12 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		return
 	}
 
+	desiredPointsReward := req.PointsReward
+	if desiredPointsReward < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+		return
+	}
+
 	// First publish rules
 	if survey.PublishedCount == 0 {
 		// Set visibility (locked after first publish)
@@ -423,16 +450,50 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
+		if desiredPointsReward < survey.PointsReward {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
+			return
+		}
+	}
+
+	boostTopUp := 0
+	if survey.PublishedCount == 0 {
+		boostTopUp = desiredPointsReward
+	} else if desiredPointsReward > survey.PointsReward {
+		boostTopUp = desiredPointsReward - survey.PointsReward
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	if boostTopUp > 0 {
+		if err := h.pointsRepo.DeductForSurveyBoostTx(tx, survey.UserID, survey.ID, boostTopUp, "Survey boost spend (publish)"); err != nil {
+			if err == repository.ErrInsufficientPoints {
+				c.JSON(http.StatusPaymentRequired, gin.H{"error": "Insufficient points for boost top-up"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to deduct boost points"})
+			return
+		}
 	}
 
 	survey.IsPublished = true
 	survey.PublishedCount++
-	survey.PointsReward = req.PointsReward
+	survey.PointsReward = desiredPointsReward
 	now := time.Now()
 	survey.PublishedAt = &now
 
-	if err := h.repo.Update(survey); err != nil {
+	if err := h.repo.UpdateTx(tx, survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to publish survey"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize publish"})
 		return
 	}
 

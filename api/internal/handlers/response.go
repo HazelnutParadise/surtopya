@@ -270,16 +270,11 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		}
 		pointsAwarded = basePoints
 
-		// Publisher can spend points to boost; each respondent earns 1/3 of spend.
+		// Survey boost spend is charged at publish time; each respondent earns 1/3 of configured spend.
 		if boostSpend > 0 {
 			boostReward = boostSpend / 3
 			if boostReward > 0 {
-				if err := h.pointsRepo.DeductForSurveyBoostTx(tx, survey.UserID, surveyID, boostSpend, "Survey boost spend"); err == nil {
-					pointsAwarded += boostReward
-				} else if err != repository.ErrInsufficientPoints {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to apply survey boost"})
-					return
-				}
+				pointsAwarded += boostReward
 			}
 		}
 	}

@@ -222,6 +222,10 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		}
 	}
 	if req.PointsReward != nil {
+		if *req.PointsReward < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+			return
+		}
 		survey.PointsReward = *req.PointsReward
 	}
 	if req.IsPublished != nil {

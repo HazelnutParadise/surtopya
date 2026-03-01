@@ -97,6 +97,7 @@ export function SurveyBuilder() {
   const [loadingSurvey, setLoadingSurvey] = useState(false);
   const [savingSurvey, setSavingSurvey] = useState(false);
   const [publishingSurvey, setPublishingSurvey] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // Consent Modal State
   const [consentGiven, setConsentGiven] = useState(false);
@@ -109,6 +110,15 @@ export function SurveyBuilder() {
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
+  const normalizeNonNegativePoints = (value: string) => Math.max(0, Number.parseInt(value || "0", 10) || 0)
+  const mapPublishError = (rawError?: string) => {
+    if (!rawError) return tBuilder("publishErrorGeneric")
+    if (rawError === "Insufficient points for boost top-up") return tBuilder("publishErrorInsufficientBoostPoints")
+    if (rawError === "Boost points can only increase after first publish") return tBuilder("publishErrorBoostIncreaseOnly")
+    if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")
+    if (rawError === "Boost points cannot be negative") return tBuilder("publishErrorBoostNonNegative")
+    return rawError
+  }
 
   const notifyChange = () => {
       setIsDirty(true);
@@ -138,6 +148,16 @@ export function SurveyBuilder() {
     publishedCount,
     capabilities,
     visibility: settingsDraft?.isPublic ? "public" : "non-public",
+  })
+  const isSettingsDraftDatasetSharingEnabled = getSurveyDatasetSharingEffectiveValue({
+    capabilities,
+    visibility: settingsDraft?.isPublic ? "public" : "non-public",
+    includeInDatasets: settingsDraft?.includeInDatasets,
+  })
+  const isBuilderDatasetSharingEnabled = getSurveyDatasetSharingEffectiveValue({
+    capabilities,
+    visibility: isPublic ? "public" : "non-public",
+    includeInDatasets,
   })
 
   React.useEffect(() => {
@@ -650,6 +670,7 @@ export function SurveyBuilder() {
 
   const publishSurvey = async () => {
     setPublishingSurvey(true);
+    setPublishError(null);
     try {
       let currentId = surveyId;
       if (!currentId) {
@@ -678,7 +699,7 @@ export function SurveyBuilder() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        throw new Error(errorPayload?.error || "Failed to publish survey");
+        throw new Error(mapPublishError(errorPayload?.error));
       }
 
       const data = await response.json();
@@ -692,8 +713,10 @@ export function SurveyBuilder() {
       setHasUnpublishedChanges(false);
       setIsDirty(false);
       setPublishSettingsOpen(false);
+      setPublishError(null);
     } catch (error) {
       console.error("Failed to publish survey:", error);
+      setPublishError(error instanceof Error ? error.message : tBuilder("publishErrorGeneric"));
     } finally {
       setPublishingSurvey(false);
     }
@@ -861,9 +884,12 @@ export function SurveyBuilder() {
                 <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-8">
                        <Eye className="mr-2 h-3 w-3" /> {tCommon("preview")}
                 </Button>
-               <Button 
-                      size="sm" 
-                      onClick={() => setPublishSettingsOpen(true)} 
+                <Button 
+                       size="sm" 
+                      onClick={() => {
+                        setPublishError(null)
+                        setPublishSettingsOpen(true)
+                      }} 
                       className={`h-8 ${hasUnpublishedChanges ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                       disabled={!hasUnpublishedChanges || publishingSurvey || loadingSurvey}
                   >
@@ -979,7 +1005,9 @@ export function SurveyBuilder() {
                                 <Input 
                                     type="number" 
                                 value={settingsDraft?.pointsReward || 0} 
-                                onChange={(e) => setSettingsDraft(prev => prev ? ({ ...prev, pointsReward: Number(e.target.value) }) : null)}
+                                onChange={(e) =>
+                                  setSettingsDraft(prev => prev ? ({ ...prev, pointsReward: normalizeNonNegativePoints(e.target.value) }) : null)
+                                }
                                 min={0}
                                 />
                                 <p className="text-xs text-gray-500">{tBuilder("pointsRewardDescription")}</p>
@@ -1059,7 +1087,7 @@ export function SurveyBuilder() {
                                     />
                                 </div>
                             </div>
-                            {settingsDraft?.isPublic && (
+                            {isSettingsDraftDatasetSharingEnabled && (
                                 <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 flex items-start gap-3">
                                     <AlertTriangle className="h-4 w-4 text-purple-600 mt-0.5" />
                                     <p className="text-xs text-purple-700 dark:text-purple-400">
@@ -1124,7 +1152,7 @@ export function SurveyBuilder() {
                         }} />
                     )}
 
-                    {activeSidebar === 'toolbox' && (
+                    {activeSidebar === 'toolbox' && isBuilderDatasetSharingEnabled && (
                         <div className="mt-8 p-4 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/50">
                             <div className="flex items-center gap-2 text-purple-600 font-bold text-xs uppercase tracking-widest mb-2">
                                 <Database className="h-3.5 w-3.5" />
@@ -1286,7 +1314,15 @@ export function SurveyBuilder() {
                   ) : null}
                 </DragOverlay>
 
-            <Dialog open={publishSettingsOpen} onOpenChange={setPublishSettingsOpen}>
+            <Dialog
+                open={publishSettingsOpen}
+                onOpenChange={(open) => {
+                  setPublishSettingsOpen(open)
+                  if (!open) {
+                    setPublishError(null)
+                  }
+                }}
+            >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{tBuilder("publishSettings")}</DialogTitle>
@@ -1367,14 +1403,28 @@ export function SurveyBuilder() {
                             <Input 
                                 type="number" 
                                 value={pointsReward} 
-                                onChange={(e) => setPointsReward(parseInt(e.target.value) || 0)}
+                                onChange={(e) => setPointsReward(normalizeNonNegativePoints(e.target.value))}
+                                min={0}
                                 className="w-24"
                             />
                         </div>
+                        {publishError ? (
+                          <p className="text-sm text-red-600" data-testid="builder-publish-error">
+                            {publishError}
+                          </p>
+                        ) : null}
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setPublishSettingsOpen(false)}>{tCommon("cancel")}</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setPublishError(null)
+                            setPublishSettingsOpen(false)
+                          }}
+                        >
+                          {tCommon("cancel")}
+                        </Button>
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
                             onClick={publishSurvey}

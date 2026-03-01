@@ -253,6 +253,11 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 
 // Update updates a survey
 func (r *SurveyRepository) Update(survey *models.Survey) error {
+	return r.UpdateTx(nil, survey)
+}
+
+// UpdateTx updates a survey using an existing transaction when provided.
+func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 	themeJSON, err := json.Marshal(survey.Theme)
 	if err != nil {
 		return fmt.Errorf("failed to marshal theme: %w", err)
@@ -266,12 +271,21 @@ func (r *SurveyRepository) Update(survey *models.Survey) error {
 		WHERE id = $1
 	`
 
-	_, err = r.db.Exec(
-		query,
-		survey.ID, survey.Title, survey.Description, survey.Visibility,
-		survey.IsPublished, survey.IncludeInDatasets, survey.EverPublic,
-		survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
-	)
+	if tx != nil {
+		_, err = tx.Exec(
+			query,
+			survey.ID, survey.Title, survey.Description, survey.Visibility,
+			survey.IsPublished, survey.IncludeInDatasets, survey.EverPublic,
+			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
+		)
+	} else {
+		_, err = r.db.Exec(
+			query,
+			survey.ID, survey.Title, survey.Description, survey.Visibility,
+			survey.IsPublished, survey.IncludeInDatasets, survey.EverPublic,
+			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
+		)
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to update survey: %w", err)
