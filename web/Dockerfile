@@ -34,6 +34,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/package.json /app/bun.lock ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/messages ./messages
 COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000

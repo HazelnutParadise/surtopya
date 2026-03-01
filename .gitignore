@@ -22,3 +22,6 @@ web/Dockerfile.npm-install-builder
 
 # OS / tooling
 *.log
+
+# Local development bind mounts (ignored to prevent accidental commits of environment-specific paths)
+mounts/

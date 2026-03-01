@@ -16,10 +16,6 @@ services:
       - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
       - REQUIRE_BOOTSTRAP_AUTH=${REQUIRE_BOOTSTRAP_AUTH:-false}
-    volumes:
-      - type: bind
-        source: ${WEB_MESSAGES_HOST_PATH:-./web/messages}
-        target: /app/messages
     depends_on:
       - api
     restart: always
