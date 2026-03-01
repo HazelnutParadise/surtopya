@@ -259,6 +259,7 @@ func (s *Service) ListCapabilitiesAdmin(ctx context.Context) ([]Capability, erro
 	capRows, err := s.db.QueryContext(ctx, `
 		SELECT id, key, name, description, name_i18n, description_i18n, is_active, show_on_pricing
 		FROM capabilities
+		WHERE is_active = TRUE
 		ORDER BY key
 	`)
 	if err != nil {
