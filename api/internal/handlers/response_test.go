@@ -103,7 +103,6 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 
 func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("SURVEY_BASE_POINTS", "6")
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
 	t.Cleanup(cleanup)
@@ -125,6 +124,9 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
 
 	mock.ExpectExec("UPDATE responses SET status = 'completed'").
 		WithArgs(responseID, sqlmock.AnyArg(), 6).
@@ -172,7 +174,6 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 
 func TestResponseHandler_SubmitAllAnswers_Anonymous_AwardsZeroPoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("SURVEY_BASE_POINTS", "6")
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
 	t.Cleanup(cleanup)
@@ -232,7 +233,6 @@ func TestResponseHandler_SubmitAllAnswers_Anonymous_AwardsZeroPoints(t *testing.
 
 func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("SURVEY_BASE_POINTS", "6")
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
 	t.Cleanup(cleanup)
@@ -255,6 +255,9 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
 
 	// DeductForSurveyBoostTx: lock publisher row, deduct, insert transaction
 	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
@@ -310,4 +313,3 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
-

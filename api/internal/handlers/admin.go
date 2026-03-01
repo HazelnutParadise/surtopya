@@ -115,6 +115,10 @@ type AdminCapabilityPatchRequest struct {
 	ShowOnPricing   *bool              `json:"showOnPricing"`
 }
 
+type AdminSystemSettingsPatchRequest struct {
+	SurveyBasePoints *int `json:"surveyBasePoints"`
+}
+
 // GetSurveys handles GET /api/v1/admin/surveys
 func (h *AdminHandler) GetSurveys(c *gin.Context) {
 	search := c.Query("search")
@@ -1017,6 +1021,67 @@ func (h *AdminHandler) UpdateCapability(c *gin.Context) {
 	c.JSON(http.StatusOK, capability)
 }
 
+// GetSystemSettings handles GET /api/v1/admin/system-settings
+func (h *AdminHandler) GetSystemSettings(c *gin.Context) {
+	points, err := loadSurveyBasePoints(database.GetDB())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"surveyBasePoints": points,
+	})
+}
+
+// UpdateSystemSettings handles PATCH /api/v1/admin/system-settings
+func (h *AdminHandler) UpdateSystemSettings(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	var req AdminSystemSettingsPatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if req.SurveyBasePoints == nil || *req.SurveyBasePoints < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid surveyBasePoints"})
+		return
+	}
+
+	if _, err := database.GetDB().Exec(
+		`
+		INSERT INTO system_settings (key, value, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (key) DO UPDATE
+		SET value = EXCLUDED.value,
+		    updated_at = NOW()
+		`,
+		surveyBasePointsSettingKey,
+		strconv.Itoa(*req.SurveyBasePoints),
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update system settings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"surveyBasePoints": *req.SurveyBasePoints,
+	})
+}
+
 // GetPricingPlans handles GET /api/v1/pricing/plans
 func (h *AdminHandler) GetPricingPlans(c *gin.Context) {
 	locale := strings.TrimSpace(c.DefaultQuery("locale", "en"))
@@ -1026,6 +1091,19 @@ func (h *AdminHandler) GetPricingPlans(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"plans": plans})
+}
+
+// GetPublicConfig handles GET /api/v1/config
+func (h *AdminHandler) GetPublicConfig(c *gin.Context) {
+	points, err := loadSurveyBasePoints(database.GetDB())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"surveyBasePoints": points,
+	})
 }
 
 func parseMembershipPeriodEndAt(raw string) (time.Time, error) {

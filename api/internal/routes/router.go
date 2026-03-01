@@ -65,6 +65,7 @@ func SetupRouter() *gin.Engine {
 		// Bootstrap status
 		adminHandler := handlers.NewAdminHandler()
 		api.GET("/bootstrap", adminHandler.GetBootstrapStatus)
+		api.GET("/config", adminHandler.GetPublicConfig)
 		api.GET("/pricing/plans", adminHandler.GetPricingPlans)
 
 		// User profile and settings routes
@@ -99,6 +100,8 @@ func SetupRouter() *gin.Engine {
 			admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
 			admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
 			admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
+			admin.GET("/system-settings", adminHandler.GetSystemSettings)
+			admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
 		}
 	}
 

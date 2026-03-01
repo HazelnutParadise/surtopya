@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server"
+import { API_BASE_URL } from "@/lib/api-server"
 
-const parseIntEnv = (key: string, def: number) => {
-  const raw = (process.env[key] || "").trim()
-  if (!raw) return def
-  const v = Number.parseInt(raw, 10)
-  return Number.isFinite(v) ? v : def
-}
+const DEFAULT_SURVEY_BASE_POINTS = 1
 
 export async function GET() {
-  return NextResponse.json({
-    surveyBasePoints: parseIntEnv("SURVEY_BASE_POINTS", 0),
-  })
-}
+  const response = await fetch(`${API_BASE_URL}/config`, { cache: "no-store" })
+  if (!response.ok) {
+    return NextResponse.json({
+      surveyBasePoints: DEFAULT_SURVEY_BASE_POINTS,
+    })
+  }
 
+  const payload = await response.json().catch(() => ({}))
+  const raw = Number(payload?.surveyBasePoints)
+  const surveyBasePoints =
+    Number.isFinite(raw) && raw >= 0
+      ? Math.floor(raw)
+      : DEFAULT_SURVEY_BASE_POINTS
+
+  return NextResponse.json({ surveyBasePoints })
+}

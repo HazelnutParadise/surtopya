@@ -4,9 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
@@ -261,12 +258,16 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	}
 
 	pointsAwarded := 0
-	basePoints := parseIntEnvWithDefault("SURVEY_BASE_POINTS", 0)
 	boostSpend := survey.PointsReward
 	boostReward := 0
 
 	// Only authenticated users earn points.
 	if userID.Valid {
+		basePoints, err := loadSurveyBasePoints(tx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+			return
+		}
 		pointsAwarded = basePoints
 
 		// Publisher can spend points to boost; each respondent earns 1/3 of spend.
@@ -318,18 +319,6 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		"response":      response,
 		"pointsAwarded": pointsAwarded,
 	})
-}
-
-func parseIntEnvWithDefault(key string, def int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return def
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil {
-		return def
-	}
-	return v
 }
 
 // GetResponse handles GET /api/v1/responses/:id

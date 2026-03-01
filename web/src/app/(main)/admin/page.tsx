@@ -44,6 +44,9 @@ export default function AdminPage() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [policyLoading, setPolicyLoading] = useState(true)
   const [policySaving, setPolicySaving] = useState(false)
+  const [systemSettingsLoading, setSystemSettingsLoading] = useState(true)
+  const [savingSystemSettings, setSavingSystemSettings] = useState(false)
+  const [surveyBasePointsDraft, setSurveyBasePointsDraft] = useState(1)
   const [tiers, setTiers] = useState<MembershipTier[]>([])
   const [capabilities, setCapabilities] = useState<Capability[]>([])
   const [matrix, setMatrix] = useState<PolicyMatrixEntry[]>([])
@@ -257,11 +260,13 @@ export default function AdminPage() {
 
     const loadPolicies = async () => {
       setPolicyLoading(true)
+      setSystemSettingsLoading(true)
       setError(null)
       try {
-        const [policiesRes, writersRes] = await Promise.all([
+        const [policiesRes, writersRes, settingsRes] = await Promise.all([
           fetch("/api/admin/policies", { cache: "no-store" }),
           fetch("/api/admin/policy-writers", { cache: "no-store" }),
+          fetch("/api/admin/system-settings", { cache: "no-store" }),
         ])
 
         if (!policiesRes.ok) {
@@ -272,15 +277,25 @@ export default function AdminPage() {
           const payload = await writersRes.json().catch(() => ({}))
           throw new Error(payload?.error || "Failed to load policy writers")
         }
+        if (!settingsRes.ok) {
+          const payload = await settingsRes.json().catch(() => ({}))
+          throw new Error(payload?.error || "Failed to load system settings")
+        }
 
         const policiesPayload = await policiesRes.json()
         const writersPayload = await writersRes.json()
+        const settingsPayload = await settingsRes.json()
 
         if (isMounted) {
           setTiers(policiesPayload.tiers || [])
           setCapabilities(policiesPayload.capabilities || [])
           setMatrix(policiesPayload.matrix || [])
           setPolicyWriters(writersPayload.users || [])
+          setSurveyBasePointsDraft(
+            Number.isFinite(Number(settingsPayload?.surveyBasePoints))
+              ? Math.max(0, Math.floor(Number(settingsPayload.surveyBasePoints)))
+              : 1
+          )
         }
       } catch {
         if (isMounted) {
@@ -289,10 +304,12 @@ export default function AdminPage() {
           setCapabilities([])
           setMatrix([])
           setPolicyWriters([])
+          setSurveyBasePointsDraft(1)
         }
       } finally {
         if (isMounted) {
           setPolicyLoading(false)
+          setSystemSettingsLoading(false)
         }
       }
     }
@@ -674,6 +691,33 @@ export default function AdminPage() {
       setError(tAdmin("updateError"))
     } finally {
       setCreatingPlan(false)
+    }
+  }
+
+  const saveSystemSettings = async () => {
+    setSavingSystemSettings(true)
+    setError(null)
+    try {
+      const surveyBasePoints = Math.max(0, Math.floor(Number(surveyBasePointsDraft) || 0))
+      const response = await fetch("/api/admin/system-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ surveyBasePoints }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Update failed")
+      }
+      const payload = await response.json().catch(() => ({}))
+      if (Number.isFinite(Number(payload?.surveyBasePoints))) {
+        setSurveyBasePointsDraft(Math.max(0, Math.floor(Number(payload.surveyBasePoints))))
+      } else {
+        setSurveyBasePointsDraft(surveyBasePoints)
+      }
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setSavingSystemSettings(false)
     }
   }
 
@@ -1120,6 +1164,34 @@ export default function AdminPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-3">
+                  <div className="text-sm font-medium">System Settings</div>
+                  <div className="flex flex-wrap items-end gap-3 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Survey base points</Label>
+                      <Input
+                        className="w-40"
+                        type="number"
+                        min={0}
+                        value={surveyBasePointsDraft}
+                        onChange={(event) =>
+                          setSurveyBasePointsDraft(Math.max(0, Number(event.target.value) || 0))
+                        }
+                        disabled={!canWritePolicies || systemSettingsLoading || savingSystemSettings}
+                      />
+                    </div>
+                    <Button
+                      onClick={saveSystemSettings}
+                      disabled={!canWritePolicies || systemSettingsLoading || savingSystemSettings}
+                    >
+                      {savingSystemSettings ? tCommon("saving") : tCommon("save")}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Base points awarded to authenticated respondents when completing a survey.
+                  </p>
+                </div>
+
                 {policyLoading ? (
                   <div className="text-sm text-gray-500">{tCommon("loading")}</div>
                 ) : tiers.length === 0 || capabilities.length === 0 ? (
