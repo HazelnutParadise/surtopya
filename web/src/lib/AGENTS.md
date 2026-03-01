@@ -12,7 +12,6 @@ Shared utilities and platform integration layer providing styling helpers, i18n 
 - `i18n-server.ts` — Server-side translation bridge for Next.js
 - `api.ts` — Centralized backend API client with token management
 - `logto.ts` — Logto OIDC configuration
-- `supabase/` — Server and client-side Supabase factory functions
 - `data.ts`, `datasets-data.ts` — Mock data providers (legacy)
 
 ## WHERE TO LOOK
@@ -22,7 +21,7 @@ Shared utilities and platform integration layer providing styling helpers, i18n 
 | i18n Client | `locale.ts` | `getLocaleFromPath()`, `withLocale()` for route-aware locale handling |
 | i18n Server | `i18n-server.ts` | `getServerTranslator()` for Server Component translations |
 | API Integration | `api.ts` | Singleton API client with error handling and token management |
-| Auth | `logto.ts` + `supabase/` | Logto config + Supabase session management |
+| Auth | `logto.ts` | Logto OIDC configuration and token helpers |
 
 ## CONVENTIONS
 - **No Semicolons**: Follow frontend's ASI-based style (no trailing semicolons)
@@ -32,10 +31,9 @@ Shared utilities and platform integration layer providing styling helpers, i18n 
 
 ## ANTI-PATTERNS
 - **Hardcoded Strings**: User-facing text must go through i18n system, not direct strings
-- **Direct Supabase Calls**: Use factory functions in `supabase/` instead of direct client imports
 - **Mock Data Usage**: API is functional - avoid `lib/data.ts` for new features
 
 ## UNIQUE PATTERNS
 - **Runtime Env Injection**: `api.ts` reads `process.env.PUBLIC_API_URL` at request time for Docker portability
-- **Locale Persistence**: Translation files at `../messages/` mounted as Docker volume for persistence
+- **Locale Persistence**: Translation files at `../messages/` mounted as Docker bind mount for persistence
 - **Accessibility First**: `getContrastColor()` ensures text readability across dynamic themes

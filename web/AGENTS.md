@@ -12,7 +12,7 @@ web/
 ├── src/
 │   ├── app/           # App Router ( (main)/ group, [locale]/ routing )
 │   ├── components/    # UI components (ui/, builder/, survey/)
-│   ├── lib/           # Logic (api.ts, supabase/, utils.ts)
+│   ├── lib/           # Logic (api.ts, runtime-config.ts, utils.ts)
 │   └── types/         # TypeScript definitions
 ├── messages/          # i18n JSON files (Source: zh-TW.json)
 ```

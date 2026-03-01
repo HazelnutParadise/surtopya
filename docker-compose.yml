@@ -16,10 +16,10 @@ services:
       - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
       - REQUIRE_BOOTSTRAP_AUTH=${REQUIRE_BOOTSTRAP_AUTH:-false}
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
     volumes:
-      - ./web/messages:/app/messages
+      - type: bind
+        source: ${WEB_MESSAGES_HOST_PATH:-./web/messages}
+        target: /app/messages
     depends_on:
       - api
     restart: always
@@ -54,7 +54,9 @@ services:
         condition: service_healthy
     restart: always
     volumes:
-      - datasets_data:/data/datasets
+      - type: bind
+        source: ${API_DATASETS_HOST_PATH:-./.data/datasets}
+        target: /data/datasets
 
   postgres:
     image: postgres:16-alpine
@@ -65,14 +67,12 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
       - POSTGRES_DB=${DB_NAME:-surtopya}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - type: bind
+        source: ${POSTGRES_DATA_HOST_PATH:-./.data/postgres}
+        target: /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: always
-
-volumes:
-  postgres_data:
-  datasets_data:

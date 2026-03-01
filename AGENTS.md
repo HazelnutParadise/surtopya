@@ -18,7 +18,7 @@ surtopya/
 │   ├── src/
 │   │   ├── app/           # File-system routing (App Router)
 │   │   ├── components/     # UI components (ui/, builder/, survey/)
-│   │   └── lib/          # API client, Supabase integration, utilities
+│   │   └── lib/          # API client, runtime config, utilities
 │   ├── messages/          # i18n JSON files (zh-TW, en, ja)
 └── docker-compose.yml       # Full-stack orchestration
 ```
@@ -103,7 +103,10 @@ surtopya/
 ## COMMANDS
 ```bash
 # Full stack development
-docker compose up --build
+docker compose --env-file .env.development up --build
+
+# Production-like runtime
+docker compose --env-file .env.production up -d --build
 
 # Frontend dev (inside web container)
 bun run dev          # Start Next.js dev server
@@ -125,7 +128,7 @@ go build -o bin/server cmd/server/main.go
 ## NOTES
 
 ### Gotchas
-1. **i18n persistence**: `web/messages` mounted as Docker volume to persist translations
+1. **i18n persistence**: `web/messages` mounted as Docker bind mount to persist translations
 2. **No CI/CD**: No GitHub Workflows, deployment is Docker Compose manual
 3. **SEO**: Non-public surveys should output `robots: { index: false, follow: true }`
 4. **Lock-in**: Post-publish lockdown - dataset sharing cannot be changed after first publish
@@ -133,7 +136,7 @@ go build -o bin/server cmd/server/main.go
 ### Dependencies
 - **Frontend**: Bun for package management (bun.lockb)
 - **Backend**: Go modules (go.mod/go.sum)
-- **Auth**: Logto (`@logto/next`) + Supabase (`@supabase/ssr`)
+- **Auth**: Logto (`@logto/next`)
 - **UI**: Radix UI primitives, Lucide icons
 
 ### Next Steps for New Development
