@@ -14,6 +14,7 @@ services:
       - LOGTO_APP_ID=${LOGTO_APP_ID:-}
       - LOGTO_APP_SECRET=${LOGTO_APP_SECRET:-}
       - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
+      - LOGTO_AUDIENCE=${LOGTO_AUDIENCE:-}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
       - REQUIRE_BOOTSTRAP_AUTH=${REQUIRE_BOOTSTRAP_AUTH:-false}
     depends_on:

@@ -7,6 +7,34 @@ export const API_BASE_URL =
   process.env.PUBLIC_API_URL ||
   "http://api:8080/api/v1"
 
+const LOGTO_AUDIENCE = process.env.LOGTO_AUDIENCE?.trim() || ""
+
+const loggedTokenSources = new Set<string>()
+const loggedWarnings = new Set<string>()
+
+const logTokenSourceOnce = (source: "logto" | "fallback", reason?: string) => {
+  if (loggedTokenSources.has(source)) {
+    return
+  }
+
+  loggedTokenSources.add(source)
+  if (source === "logto") {
+    console.info("[auth] token_source=logto")
+    return
+  }
+
+  const suffix = reason ? ` reason=${reason}` : ""
+  console.warn(`[auth] token_source=fallback${suffix}`)
+}
+
+const logWarningOnce = (key: string, message: string) => {
+  if (loggedWarnings.has(key)) {
+    return
+  }
+  loggedWarnings.add(key)
+  console.warn(message)
+}
+
 const base64UrlEncode = (input: Buffer | string) => {
   const buffer = typeof input === "string" ? Buffer.from(input) : input
   return buffer
@@ -33,17 +61,28 @@ export const getAuthToken = async () => {
       return null
     }
 
-    try {
-      const token = await getAccessToken(config, API_BASE_URL)
-      if (token) {
-        return token
+    if (LOGTO_AUDIENCE) {
+      try {
+        const token = await getAccessToken(config, LOGTO_AUDIENCE)
+        if (token) {
+          logTokenSourceOnce("logto")
+          return token
+        }
+        logTokenSourceOnce("fallback", "empty_logto_access_token")
+      } catch {
+        logTokenSourceOnce("fallback", "logto_access_token_error")
       }
-    } catch {
-      // fallback to local JWT
+    } else {
+      logWarningOnce(
+        "missing_logto_audience",
+        "[auth] LOGTO_AUDIENCE is empty, skipping Logto access-token request and using local fallback"
+      )
+      logTokenSourceOnce("fallback", "missing_logto_audience")
     }
 
     const subject = context.claims?.sub
     if (!subject) {
+      logTokenSourceOnce("fallback", "missing_subject_claim")
       return null
     }
 
