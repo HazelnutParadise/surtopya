@@ -54,12 +54,15 @@ export default function AdminPage() {
   >({})
   const [creatingPlan, setCreatingPlan] = useState(false)
   const [savingPlanId, setSavingPlanId] = useState<string | null>(null)
+  const [deactivatingPlanId, setDeactivatingPlanId] = useState<string | null>(null)
+  const [planRetirementDrafts, setPlanRetirementDrafts] = useState<
+    Record<string, { replacementTierCode: string; executionTiming: "immediate" | "on_expiry" }>
+  >({})
   const [savingCapabilityId, setSavingCapabilityId] = useState<string | null>(null)
   const [newPlan, setNewPlan] = useState({
     code: "",
     nameI18n: { "zh-TW": "", en: "", ja: "" } as Record<string, string>,
     descriptionI18n: { "zh-TW": "", en: "", ja: "" } as Record<string, string>,
-    isActive: true,
     isPurchasable: false,
     showOnPricing: false,
     priceCentsUsd: 0,
@@ -299,6 +302,23 @@ export default function AdminPage() {
       isMounted = false
     }
   }, [tAdmin])
+
+  useEffect(() => {
+    setPlanRetirementDrafts((prev) => {
+      const next = { ...prev }
+      for (const tier of tiers) {
+        if (next[tier.id]) continue
+        const fallback = tiers.find(
+          (candidate) => candidate.id !== tier.id && candidate.isActive !== false
+        )
+        next[tier.id] = {
+          replacementTierCode: fallback?.code || "",
+          executionTiming: "immediate",
+        }
+      }
+      return next
+    })
+  }, [tiers])
 
   const openSurveyEditor = (survey: Survey) => {
     setEditingSurvey(survey)
@@ -603,7 +623,6 @@ export default function AdminPage() {
         body: JSON.stringify({
           nameI18n: plan.nameI18n,
           descriptionI18n: plan.descriptionI18n,
-          isActive: plan.isActive,
           isPurchasable: plan.isPurchasable,
           showOnPricing: plan.showOnPricing,
           priceCentsUsd: plan.priceCentsUsd,
@@ -644,7 +663,6 @@ export default function AdminPage() {
         code: "",
         nameI18n: { "zh-TW": "", en: "", ja: "" },
         descriptionI18n: { "zh-TW": "", en: "", ja: "" },
-        isActive: true,
         isPurchasable: false,
         showOnPricing: false,
         priceCentsUsd: 0,
@@ -656,6 +674,66 @@ export default function AdminPage() {
       setError(tAdmin("updateError"))
     } finally {
       setCreatingPlan(false)
+    }
+  }
+
+  const patchPlanRetirementDraft = (
+    planId: string,
+    patch: Partial<{ replacementTierCode: string; executionTiming: "immediate" | "on_expiry" }>
+  ) => {
+    setPlanRetirementDrafts((prev) => {
+      const current = prev[planId] || {
+        replacementTierCode: "",
+        executionTiming: "immediate" as const,
+      }
+      return {
+        ...prev,
+        [planId]: {
+          ...current,
+          ...patch,
+        },
+      }
+    })
+  }
+
+  const deactivatePlan = async (plan: MembershipTier) => {
+    const draft = planRetirementDrafts[plan.id]
+    if (!draft?.replacementTierCode) {
+      setError("Please select a replacement plan")
+      return
+    }
+
+    if (
+      !window.confirm(
+        `Deactivate ${plan.code} and migrate subscribers to ${draft.replacementTierCode}?`
+      )
+    ) {
+      return
+    }
+
+    setDeactivatingPlanId(plan.id)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/subscription-plans/${plan.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          replacementTierCode: draft.replacementTierCode,
+          executionTiming: draft.executionTiming,
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Deactivate failed")
+      }
+      const payload = await response.json()
+      if (payload?.plan?.id) {
+        setTiers((prev) => prev.map((item) => (item.id === payload.plan.id ? payload.plan : item)))
+      }
+    } catch {
+      setError(tAdmin("updateError"))
+    } finally {
+      setDeactivatingPlanId(null)
     }
   }
 
@@ -944,6 +1022,9 @@ export default function AdminPage() {
                                   {tiers.map((tier) => {
                                     const draft = membershipDrafts[user.id]
                                     const selectedTier = draft?.membershipTier || user.membershipTier
+                                    if (tier.isActive === false && selectedTier !== tier.code) {
+                                      return null
+                                    }
                                     return (
                                       <button
                                         key={`${user.id}-${tier.code}`}
@@ -1087,7 +1168,17 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 gap-3">
                     {tiers.map((tier) => (
                       <div key={tier.id} className="border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-3">
-                        <div className="text-sm font-medium">{tier.code}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium">{tier.code}</div>
+                          <Badge variant={tier.isActive === false ? "secondary" : "default"}>
+                            {tier.isActive === false ? tAdmin("inactive") : tAdmin("active")}
+                          </Badge>
+                          {tier.replacementTierCode && (
+                            <span className="text-xs text-gray-500">
+                              on expiry to {tier.replacementTierCode}
+                            </span>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">Name (zh-TW)</Label>
@@ -1247,16 +1338,6 @@ export default function AdminPage() {
                               disabled={!canWritePolicies}
                             />
                           </div>
-                          <Label className="text-xs">Active</Label>
-                          <Switch
-                            checked={tier.isActive}
-                            onCheckedChange={(checked) =>
-                              setTiers((prev) =>
-                                prev.map((item) => (item.id === tier.id ? { ...item, isActive: checked } : item))
-                              )
-                            }
-                            disabled={!canWritePolicies}
-                          />
                           <Label className="text-xs">Show on pricing</Label>
                           <Switch
                             checked={tier.showOnPricing ?? false}
@@ -1298,6 +1379,61 @@ export default function AdminPage() {
                             {savingPlanId === tier.id ? tCommon("saving") : tCommon("save")}
                           </Button>
                         </div>
+                        {tier.code !== "free" && tier.isActive !== false && (
+                          <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 dark:border-gray-800 pt-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-gray-500">Replacement plan</Label>
+                              <select
+                                className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 min-w-36"
+                                value={planRetirementDrafts[tier.id]?.replacementTierCode || ""}
+                                onChange={(event) =>
+                                  patchPlanRetirementDraft(tier.id, {
+                                    replacementTierCode: event.target.value,
+                                  })
+                                }
+                                disabled={!canWritePolicies || deactivatingPlanId === tier.id}
+                              >
+                                <option value="">Select</option>
+                                {tiers
+                                  .filter((candidate) => candidate.id !== tier.id && candidate.isActive !== false)
+                                  .map((candidate) => (
+                                    <option key={candidate.id} value={candidate.code}>
+                                      {candidate.code}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs text-gray-500">Execute</Label>
+                              <select
+                                className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 min-w-36"
+                                value={planRetirementDrafts[tier.id]?.executionTiming || "immediate"}
+                                onChange={(event) =>
+                                  patchPlanRetirementDraft(tier.id, {
+                                    executionTiming:
+                                      event.target.value === "on_expiry" ? "on_expiry" : "immediate",
+                                  })
+                                }
+                                disabled={!canWritePolicies || deactivatingPlanId === tier.id}
+                              >
+                                <option value="immediate">Immediate</option>
+                                <option value="on_expiry">On expiry</option>
+                              </select>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deactivatePlan(tier)}
+                              disabled={
+                                !canWritePolicies ||
+                                deactivatingPlanId === tier.id ||
+                                !(planRetirementDrafts[tier.id]?.replacementTierCode || "")
+                              }
+                            >
+                              {deactivatingPlanId === tier.id ? tCommon("saving") : "Deactivate Plan"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

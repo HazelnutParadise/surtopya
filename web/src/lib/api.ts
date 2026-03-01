@@ -320,13 +320,14 @@ export interface MembershipTier {
   name: string;
   nameI18n?: Record<string, string>;
   descriptionI18n?: Record<string, string>;
-  isActive: boolean;
+  isActive?: boolean;
   isPurchasable?: boolean;
   showOnPricing?: boolean;
   priceCentsUsd?: number;
   billingInterval?: string;
   allowRenewalForExisting?: boolean;
   monthlyPointsGrant?: number;
+  replacementTierCode?: string;
 }
 
 export interface Capability {

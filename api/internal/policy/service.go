@@ -19,10 +19,11 @@ const (
 )
 
 var (
-	ErrTierNotFound           = errors.New("membership tier not found")
-	ErrCapabilityNotFound     = errors.New("capability not found")
-	ErrInvalidMembershipGrant = errors.New("invalid membership grant payload")
-	ErrPlanCodeExists         = errors.New("subscription plan code already exists")
+	ErrTierNotFound            = errors.New("membership tier not found")
+	ErrCapabilityNotFound      = errors.New("capability not found")
+	ErrInvalidMembershipGrant  = errors.New("invalid membership grant payload")
+	ErrPlanCodeExists          = errors.New("subscription plan code already exists")
+	ErrInvalidPlanDeactivation = errors.New("invalid subscription plan deactivation payload")
 )
 
 type Service struct {
@@ -280,14 +281,16 @@ func (s *Service) ExpireMembershipIfNeeded(ctx context.Context, userID uuid.UUID
 
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE user_memberships um
-		SET tier_id = free_tier.id,
+		SET tier_id = COALESCE(current_tier.replacement_tier_id, free_tier.id),
 			started_at = NOW(),
 			period_end_at = NULL,
 			is_permanent = TRUE,
 			updated_at = NOW()
-		FROM membership_tiers free_tier
+		FROM membership_tiers free_tier,
+		     membership_tiers current_tier
 		WHERE um.user_id = $1
 		  AND free_tier.code = $2
+		  AND current_tier.id = um.tier_id
 		  AND um.is_permanent = FALSE
 		  AND um.period_end_at IS NOT NULL
 		  AND um.period_end_at <= NOW()

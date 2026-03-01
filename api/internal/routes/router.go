@@ -93,6 +93,7 @@ func SetupRouter() *gin.Engine {
 			admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
 			admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
 			admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
+			admin.DELETE("/subscription-plans/:id", adminHandler.DeactivateSubscriptionPlan)
 			admin.GET("/policies", adminHandler.GetPolicies)
 			admin.PATCH("/policies", adminHandler.UpdatePolicies)
 			admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)

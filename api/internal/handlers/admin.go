@@ -85,7 +85,6 @@ type AdminSubscriptionPlanCreateRequest struct {
 	Code                    string            `json:"code"`
 	NameI18n                map[string]string `json:"nameI18n"`
 	DescriptionI18n         map[string]string `json:"descriptionI18n"`
-	IsActive                bool              `json:"isActive"`
 	IsPurchasable           bool              `json:"isPurchasable"`
 	ShowOnPricing           bool              `json:"showOnPricing"`
 	PriceCentsUSD           int               `json:"priceCentsUsd"`
@@ -97,13 +96,17 @@ type AdminSubscriptionPlanCreateRequest struct {
 type AdminSubscriptionPlanPatchRequest struct {
 	NameI18n                *map[string]string `json:"nameI18n"`
 	DescriptionI18n         *map[string]string `json:"descriptionI18n"`
-	IsActive                *bool              `json:"isActive"`
 	IsPurchasable           *bool              `json:"isPurchasable"`
 	ShowOnPricing           *bool              `json:"showOnPricing"`
 	PriceCentsUSD           *int               `json:"priceCentsUsd"`
 	BillingInterval         *string            `json:"billingInterval"`
 	AllowRenewalForExisting *bool              `json:"allowRenewalForExisting"`
 	MonthlyPointsGrant      *int               `json:"monthlyPointsGrant"`
+}
+
+type AdminSubscriptionPlanDeactivateRequest struct {
+	ReplacementTierCode string `json:"replacementTierCode"`
+	ExecutionTiming     string `json:"executionTiming"`
 }
 
 type AdminCapabilityPatchRequest struct {
@@ -834,7 +837,6 @@ func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
 		Code:                    req.Code,
 		NameI18n:                req.NameI18n,
 		DescriptionI18n:         req.DescriptionI18n,
-		IsActive:                req.IsActive,
 		IsPurchasable:           req.IsPurchasable,
 		ShowOnPricing:           req.ShowOnPricing,
 		PriceCentsUSD:           req.PriceCentsUSD,
@@ -887,7 +889,6 @@ func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 	plan, err := h.policies.UpdateSubscriptionPlan(c.Request.Context(), planID, policy.SubscriptionPlanPatch{
 		NameI18n:                req.NameI18n,
 		DescriptionI18n:         req.DescriptionI18n,
-		IsActive:                req.IsActive,
 		IsPurchasable:           req.IsPurchasable,
 		ShowOnPricing:           req.ShowOnPricing,
 		PriceCentsUSD:           req.PriceCentsUSD,
@@ -909,6 +910,60 @@ func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, plan)
+}
+
+// DeactivateSubscriptionPlan handles DELETE /api/v1/admin/subscription-plans/:id
+func (h *AdminHandler) DeactivateSubscriptionPlan(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	canWrite, err := h.policies.IsPolicyWriter(c.Request.Context(), currentUserID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify policy write permission"})
+		return
+	}
+	if !canWrite {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Policy writer permission required"})
+		return
+	}
+
+	planID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subscription plan ID"})
+		return
+	}
+
+	var req AdminSubscriptionPlanDeactivateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	updatedPlan, migratedUsers, err := h.policies.DeactivateSubscriptionPlan(c.Request.Context(), currentUserID.(uuid.UUID), planID, policy.SubscriptionPlanDeactivate{
+		ReplacementTierCode: req.ReplacementTierCode,
+		ExecutionTiming:     req.ExecutionTiming,
+	})
+	if err != nil {
+		if err == policy.ErrTierNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Subscription plan not found"})
+			return
+		}
+		if err == policy.ErrInvalidPlanDeactivation {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plan deactivation payload"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to deactivate subscription plan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Subscription plan deactivated",
+		"plan":          updatedPlan,
+		"migratedUsers": migratedUsers,
+	})
 }
 
 // UpdateCapability handles PATCH /api/v1/admin/capabilities/:id

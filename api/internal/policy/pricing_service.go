@@ -50,7 +50,8 @@ func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]Pricin
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, code, name, name_i18n, description_i18n, price_cents_usd, billing_interval, is_purchasable
 		FROM membership_tiers
-		WHERE is_active = TRUE AND show_on_pricing = TRUE
+		WHERE is_active = TRUE
+		  AND show_on_pricing = TRUE
 		ORDER BY price_cents_usd ASC, code ASC
 	`)
 	if err != nil {
