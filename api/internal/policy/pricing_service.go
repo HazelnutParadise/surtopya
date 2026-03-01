@@ -17,14 +17,15 @@ type PricingBenefit struct {
 }
 
 type PricingPlan struct {
-	Code            string           `json:"code"`
-	Name            string           `json:"name"`
-	Description     string           `json:"description"`
-	PriceCentsUSD   int              `json:"priceCentsUsd"`
-	Currency        string           `json:"currency"`
-	BillingInterval string           `json:"billingInterval"`
-	IsPurchasable   bool             `json:"isPurchasable"`
-	Benefits        []PricingBenefit `json:"benefits"`
+	Code               string           `json:"code"`
+	Name               string           `json:"name"`
+	Description        string           `json:"description"`
+	PriceCentsUSD      int              `json:"priceCentsUsd"`
+	MonthlyPointsGrant int              `json:"monthlyPointsGrant"`
+	Currency           string           `json:"currency"`
+	BillingInterval    string           `json:"billingInterval"`
+	IsPurchasable      bool             `json:"isPurchasable"`
+	Benefits           []PricingBenefit `json:"benefits"`
 }
 
 func localizedFromI18n(i18n map[string]string, locale, fallback string) string {
@@ -46,9 +47,24 @@ func localizedFromI18n(i18n map[string]string, locale, fallback string) string {
 	return fallback
 }
 
+func monthlyPointsBenefit(locale string, points int) PricingBenefit {
+	name := fmt.Sprintf("%d base points per month", points)
+	switch locale {
+	case "zh-TW":
+		name = fmt.Sprintf("\u6bcf\u6708\u57fa\u790e\u9ede\u6578 %d \u9ede", points)
+	case "ja":
+		name = fmt.Sprintf("\u6bce\u6708\u306e\u57fa\u672c\u30dd\u30a4\u30f3\u30c8 %d", points)
+	}
+	return PricingBenefit{
+		Key:         "points.monthly_base",
+		Name:        name,
+		Description: "",
+	}
+}
+
 func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]PricingPlan, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, code, name, name_i18n, description_i18n, price_cents_usd, billing_interval, is_purchasable
+		SELECT id, code, name, name_i18n, description_i18n, price_cents_usd, monthly_points_grant, billing_interval, is_purchasable
 		FROM membership_tiers
 		WHERE is_active = TRUE
 		  AND show_on_pricing = TRUE
@@ -68,9 +84,10 @@ func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]Pricin
 		var nameI18nRaw []byte
 		var descriptionI18nRaw []byte
 		var price int
+		var monthlyPointsGrant int
 		var billingInterval string
 		var isPurchasable bool
-		if err := rows.Scan(&tierID, &code, &fallbackName, &nameI18nRaw, &descriptionI18nRaw, &price, &billingInterval, &isPurchasable); err != nil {
+		if err := rows.Scan(&tierID, &code, &fallbackName, &nameI18nRaw, &descriptionI18nRaw, &price, &monthlyPointsGrant, &billingInterval, &isPurchasable); err != nil {
 			return nil, fmt.Errorf("failed to scan pricing plan: %w", err)
 		}
 		nameI18n := map[string]string{}
@@ -79,14 +96,15 @@ func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]Pricin
 		_ = json.Unmarshal(descriptionI18nRaw, &descriptionI18n)
 		planIndex[tierID] = len(plans)
 		plans = append(plans, PricingPlan{
-			Code:            code,
-			Name:            localizedFromI18n(nameI18n, locale, fallbackName),
-			Description:     localizedFromI18n(descriptionI18n, locale, ""),
-			PriceCentsUSD:   price,
-			Currency:        "USD",
-			BillingInterval: billingInterval,
-			IsPurchasable:   isPurchasable,
-			Benefits:        []PricingBenefit{},
+			Code:               code,
+			Name:               localizedFromI18n(nameI18n, locale, fallbackName),
+			Description:        localizedFromI18n(descriptionI18n, locale, ""),
+			PriceCentsUSD:      price,
+			MonthlyPointsGrant: monthlyPointsGrant,
+			Currency:           "USD",
+			BillingInterval:    billingInterval,
+			IsPurchasable:      isPurchasable,
+			Benefits:           []PricingBenefit{monthlyPointsBenefit(locale, monthlyPointsGrant)},
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -80,7 +80,7 @@ export default function PricingPage() {
         ) : sortedPlans.length === 0 ? (
           <div className="text-center text-sm text-gray-500">No plans available</div>
         ) : (
-          <div className={`grid grid-cols-1 gap-8 ${sortedPlans.length > 2 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <div className="flex flex-wrap justify-center gap-8">
             {sortedPlans.map((plan) => {
               const isCurrent = isAuthenticated && currentTier === plan.code
               const planButtonLabel = isCurrent
@@ -94,7 +94,7 @@ export default function PricingPage() {
               return (
                 <div
                   key={plan.code}
-                  className={`relative flex flex-col p-8 bg-white dark:bg-gray-900 rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${
+                  className={`relative flex w-full max-w-md flex-col p-8 bg-white dark:bg-gray-900 rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${
                     isCurrent
                       ? "border-2 border-purple-600"
                       : "border-gray-200 dark:border-gray-800 hover:border-purple-500/30"

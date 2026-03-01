@@ -367,6 +367,7 @@ export interface PricingPlan {
   name: string;
   description: string;
   priceCentsUsd: number;
+  monthlyPointsGrant: number;
   currency: "USD";
   billingInterval: "month";
   isPurchasable: boolean;
