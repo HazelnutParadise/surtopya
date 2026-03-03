@@ -202,7 +202,7 @@
     "saveErrorUnauthorized": "請先登入再儲存草稿。",
     "authRequiredTitle": "登入後即可開始建立問卷",
     "authRequiredDescription": "登入可儲存草稿、管理版本，並在準備好時一鍵發布。",
-    "authRequiredAction": "立即登入"
+    "authRequiredAction": "立即登入/註冊"
   },
   "QuestionTypes": {
     "single": "單選題",

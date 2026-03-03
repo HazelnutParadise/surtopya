@@ -202,7 +202,7 @@
     "saveErrorUnauthorized": "下書きを保存する前にログインしてください。",
     "authRequiredTitle": "ログインするとアンケート作成を始められます",
     "authRequiredDescription": "ログインすると下書き保存、バージョン管理、公開までスムーズに進められます。",
-    "authRequiredAction": "今すぐログイン"
+    "authRequiredAction": "ログイン/新規登録"
   },
   "QuestionTypes": {
     "single": "単一選択",

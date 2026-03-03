@@ -202,7 +202,7 @@
     "saveErrorUnauthorized": "Please sign in before saving this draft.",
     "authRequiredTitle": "Sign in to start creating your survey",
     "authRequiredDescription": "Signing in lets you save drafts, manage versions, and publish when you're ready.",
-    "authRequiredAction": "Sign in now"
+    "authRequiredAction": "Sign in / Register"
   },
   "QuestionTypes": {
     "single": "Single Choice",
