@@ -40,6 +40,7 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
       expiresAt: survey.expiresAt || undefined,
       publishedCount: survey.publishedCount,
       currentPublishedVersionNumber: survey.currentPublishedVersionNumber,
+      hasUnpublishedChanges: survey.hasUnpublishedChanges,
     },
     responseCount: survey.responseCount,
     estimatedMinutes,

@@ -31,8 +31,8 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 			id, user_id, title, description, visibility, is_response_open,
 			include_in_datasets, ever_public, published_count,
 			current_published_version_id, current_published_version_number,
-			theme, points_reward, expires_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			theme, points_reward, expires_at, has_unpublished_changes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -42,7 +42,7 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 		survey.Visibility, survey.IsResponseOpen, survey.IncludeInDatasets,
 		survey.EverPublic, survey.PublishedCount,
 		survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber,
-		themeJSON, survey.PointsReward, survey.ExpiresAt,
+		themeJSON, survey.PointsReward, survey.ExpiresAt, survey.HasUnpublishedChanges,
 	).Scan(&survey.ID, &survey.CreatedAt, &survey.UpdatedAt)
 
 	if err != nil {
@@ -58,11 +58,15 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 	var themeJSON []byte
 
 	query := `
-		SELECT id, user_id, title, description, visibility, is_response_open,
-			include_in_datasets, ever_public, published_count, theme, points_reward,
-			expires_at, response_count, created_at, updated_at, published_at,
-			current_published_version_id, current_published_version_number
-		FROM surveys WHERE id = $1
+		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+			s.current_published_version_id, s.current_published_version_number,
+			s.has_unpublished_changes
+		FROM surveys s
+		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
+		WHERE s.id = $1
 	`
 
 	err := r.db.QueryRow(query, id).Scan(
@@ -72,6 +76,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
 		&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
+		&survey.HasUnpublishedChanges,
 	)
 
 	if err == sql.ErrNoRows {
@@ -101,12 +106,16 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 // GetByUserID retrieves all surveys for a user
 func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error) {
 	query := `
-		SELECT id, user_id, title, description, visibility, is_response_open,
-			include_in_datasets, ever_public, published_count, theme, points_reward,
-			expires_at, response_count, created_at, updated_at, published_at,
-			current_published_version_id, current_published_version_number
-		FROM surveys WHERE user_id = $1
-		ORDER BY updated_at DESC
+		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+			s.current_published_version_id, s.current_published_version_number,
+			s.has_unpublished_changes
+		FROM surveys s
+		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
+		WHERE s.user_id = $1
+		ORDER BY s.updated_at DESC
 	`
 
 	rows, err := r.db.Query(query, userID)
@@ -127,6 +136,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
+			&survey.HasUnpublishedChanges,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -172,11 +182,14 @@ func (r *SurveyRepository) CountActiveResponseOpenByUser(userID uuid.UUID, exclu
 // GetAllAdmin retrieves all surveys with optional filters for admin usage
 func (r *SurveyRepository) GetAllAdmin(search string, visibility string, published *bool, limit, offset int) ([]models.Survey, error) {
 	query := `
-		SELECT id, user_id, title, description, visibility, is_response_open,
-			include_in_datasets, ever_public, published_count, theme, points_reward,
-			expires_at, response_count, created_at, updated_at, published_at,
-			current_published_version_id, current_published_version_number
-		FROM surveys
+		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+			s.current_published_version_id, s.current_published_version_number,
+			s.has_unpublished_changes
+		FROM surveys s
+		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE 1=1
 	`
 	args := []interface{}{}
@@ -184,24 +197,24 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 
 	if search != "" {
 		argCount++
-		query += fmt.Sprintf(" AND (title ILIKE $%d OR description ILIKE $%d)", argCount, argCount)
+		query += fmt.Sprintf(" AND (s.title ILIKE $%d OR s.description ILIKE $%d)", argCount, argCount)
 		args = append(args, "%"+search+"%")
 	}
 
 	if visibility != "" && visibility != "all" {
 		argCount++
-		query += fmt.Sprintf(" AND visibility = $%d", argCount)
+		query += fmt.Sprintf(" AND s.visibility = $%d", argCount)
 		args = append(args, visibility)
 	}
 
 	if published != nil {
 		argCount++
-		query += fmt.Sprintf(" AND is_response_open = $%d", argCount)
+		query += fmt.Sprintf(" AND (s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) = $%d", argCount)
 		args = append(args, *published)
 	}
 
 	argCount++
-	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argCount)
+	query += fmt.Sprintf(" ORDER BY s.updated_at DESC LIMIT $%d", argCount)
 	args = append(args, limit)
 
 	argCount++
@@ -226,6 +239,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
+			&survey.HasUnpublishedChanges,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -245,10 +259,12 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 // GetPublicSurveys retrieves all public surveys with responses currently open.
 func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey, error) {
 	query := `
-		SELECT s.id, s.user_id, s.title, s.description, s.visibility, s.is_response_open,
+		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
-			s.current_published_version_id, s.current_published_version_number
+			s.current_published_version_id, s.current_published_version_number,
+			s.has_unpublished_changes
 		FROM surveys s
 		JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.visibility = 'public'
@@ -276,6 +292,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
+			&survey.HasUnpublishedChanges,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -309,7 +326,8 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 			title = $2, description = $3, visibility = $4, is_response_open = $5,
 			include_in_datasets = $6, ever_public = $7, published_count = $8, theme = $9,
 			points_reward = $10, expires_at = $11, published_at = $12,
-			current_published_version_id = $13, current_published_version_number = $14
+			current_published_version_id = $13, current_published_version_number = $14,
+			has_unpublished_changes = $15
 		WHERE id = $1
 	`
 
@@ -319,7 +337,7 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
 			survey.IsResponseOpen, survey.IncludeInDatasets, survey.EverPublic,
 			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
-			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber,
+			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)
 	} else {
 		_, err = r.db.Exec(
@@ -327,7 +345,7 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
 			survey.IsResponseOpen, survey.IncludeInDatasets, survey.EverPublic,
 			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
-			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber,
+			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)
 	}
 
@@ -455,6 +473,30 @@ func (r *SurveyRepository) SetResponseOpen(surveyID uuid.UUID, isOpen bool) erro
 		return fmt.Errorf("failed to update response-open status: %w", err)
 	}
 	return nil
+}
+
+// CloseExpiredResponseOpenSurveys closes response-open surveys whose current published version is expired.
+func (r *SurveyRepository) CloseExpiredResponseOpenSurveys() (int64, error) {
+	query := `
+		UPDATE surveys s
+		SET is_response_open = FALSE
+		FROM survey_versions sv
+		WHERE s.current_published_version_id = sv.id
+		  AND s.is_response_open = TRUE
+		  AND sv.expires_at IS NOT NULL
+		  AND sv.expires_at <= NOW()
+	`
+	result, err := r.db.Exec(query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to close expired response-open surveys: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to read affected rows: %w", err)
+	}
+
+	return affected, nil
 }
 
 // GetCurrentPublishedVersion retrieves the current published version for a survey.

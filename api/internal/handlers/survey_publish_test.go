@@ -48,7 +48,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		"id", "user_id", "title", "description", "visibility", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
-		"current_published_version_id", "current_published_version_number",
+		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
 	}
 	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
 		id,
@@ -69,6 +69,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		nil,
 		currentVersionIDValue,
 		currentVersionNumberValue,
+		false,
 	)
 
 	questionCols := []string{
@@ -89,7 +90,7 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	publisherID := uuid.New()
 
 	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
@@ -163,7 +164,7 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_BoostCanOnlyIncrease(t *t
 	currentVersionID := uuid.New()
 	currentVersionNumber := 1
 	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false, &currentVersionID, &currentVersionNumber)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
@@ -214,7 +215,7 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	currentVersionID := uuid.New()
 	currentVersionNumber := 1
 	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false, &currentVersionID, &currentVersionNumber)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
@@ -285,7 +286,7 @@ func TestSurveyHandler_PublishSurvey_NegativeBoostRejected(t *testing.T) {
 	publisherID := uuid.New()
 
 	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
@@ -328,7 +329,7 @@ func TestSurveyHandler_PublishSurvey_RejectsWhenActiveSurveyLimitReached(t *test
 	publisherID := uuid.New()
 
 	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
@@ -367,5 +368,57 @@ func TestSurveyHandler_PublishSurvey_RejectsWhenActiveSurveyLimitReached(t *test
 
 	require.Equal(t, http.StatusForbidden, w.Code)
 	require.Contains(t, w.Body.String(), activeSurveyLimitReachedError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_OpenSurveyResponses_ExpiredVersionReturnsConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	currentVersionID := uuid.New()
+	currentVersionNumber := 1
+	now := time.Now().UTC()
+	expired := now.Add(-1 * time.Hour)
+
+	surveyRows, questionRows := surveyRowsForPublishTest(
+		surveyID,
+		publisherID,
+		"public",
+		true,
+		0,
+		1,
+		false,
+		&currentVersionID,
+		&currentVersionNumber,
+	)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 1, []byte(`{"questions":[]}`), 0, expired, now, publisherID, now))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/open", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.OpenSurveyResponses(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/open", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	require.Contains(t, w.Body.String(), publishedVersionExpiredError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

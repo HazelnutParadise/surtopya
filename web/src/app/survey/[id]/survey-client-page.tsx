@@ -131,6 +131,10 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
       return
     }
     if (!survey) return
+    if (!survey.settings.isResponseOpen) {
+      setFlowError(t("responsesNotOpen"))
+      return
+    }
 
     setStarting(true)
     try {
@@ -415,12 +419,17 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
                     <Button 
                       onClick={handleStartSurvey}
                       size="lg"
-                      disabled={starting}
+                      disabled={starting || (!isPreview && !survey.settings.isResponseOpen)}
                       className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
                     >
                       {starting ? tCommon("loading") : t("startSurvey")}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
+                    {!isPreview && !survey.settings.isResponseOpen ? (
+                      <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                        {t("responsesNotOpen")}
+                      </p>
+                    ) : null}
 
                     <Button 
                       variant="ghost" 

@@ -21,6 +21,7 @@ import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import type { SurveyVersion } from "@/lib/api";
+import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import {
   Tooltip,
   TooltipContent,
@@ -115,6 +116,7 @@ export function SurveyBuilder() {
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null);
   const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null);
+  const [confirmRestoreVersionNumber, setConfirmRestoreVersionNumber] = useState<number | null>(null);
   const [versionError, setVersionError] = useState<string | null>(null);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const normalizeNonNegativePoints = (value: string) => Math.max(0, Number.parseInt(value || "0", 10) || 0)
@@ -126,6 +128,7 @@ export function SurveyBuilder() {
     if (rawError === "Boost points can only increase after first publish") return tBuilder("publishErrorBoostIncreaseOnly")
     if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")
     if (rawError === "Boost points cannot be negative") return tBuilder("publishErrorBoostNonNegative")
+    if (rawError === "Published version expired") return tBuilder("publishedVersionExpired")
     return rawError
   }
 
@@ -168,6 +171,33 @@ export function SurveyBuilder() {
     visibility: isPublic ? "public" : "non-public",
     includeInDatasets,
   })
+  const draftSnapshot: SurveyVersionSnapshotPreview = React.useMemo(
+    () => ({
+      title,
+      description,
+      visibility: isPublic ? "public" : "non-public",
+      includeInDatasets: getSurveyDatasetSharingEffectiveValue({
+        capabilities,
+        visibility: isPublic ? "public" : "non-public",
+        includeInDatasets,
+      }),
+      pointsReward,
+      questions: questions
+        .filter((question) => question.id !== "placeholder")
+        .map((question, index) => ({
+          id: question.id,
+          type: question.type,
+          title: question.title,
+          description: question.description || undefined,
+          options: question.options || [],
+          required: question.required,
+          maxRating: question.maxRating,
+          logic: question.logic,
+          sortOrder: index,
+        })),
+    }),
+    [title, description, isPublic, capabilities, includeInDatasets, pointsReward, questions]
+  )
 
   React.useEffect(() => {
     setMounted(true);
@@ -189,7 +219,6 @@ export function SurveyBuilder() {
 
         if (!isActive) return;
         applyMappedSurvey(mapped)
-        setHasUnpublishedChanges(!(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0));
         setIsDirty(false);
         await loadSurveyVersions(mapped.id)
       } catch (error) {
@@ -633,6 +662,7 @@ export function SurveyBuilder() {
     setIncludeInDatasets(mapped.settings.isDatasetActive)
     setIsPublished(Boolean(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
+    setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
   }
 
   const loadSurveyVersions = async (id: string) => {
@@ -645,7 +675,13 @@ export function SurveyBuilder() {
         throw new Error(errorPayload?.error || "Failed to load survey versions")
       }
       const payload = await response.json()
-      setVersions(payload.versions || [])
+      const loadedVersions = payload.versions || []
+      setVersions(loadedVersions)
+      setSelectedVersion((previous) => {
+        if (loadedVersions.length === 0) return null
+        if (!previous) return loadedVersions[0]
+        return loadedVersions.find((version: SurveyVersion) => version.id === previous.id) || loadedVersions[0]
+      })
     } catch {
       setVersions([])
       setVersionError(tBuilder("versionLoadFailed"))
@@ -670,7 +706,6 @@ export function SurveyBuilder() {
       const payload = await response.json()
       const mapped = mapApiSurveyToUi(payload)
       applyMappedSurvey(mapped)
-      setHasUnpublishedChanges(true)
       setIsDirty(true)
       setRestoreNotice(tBuilder("restoredToDraft"))
     } catch {
@@ -678,6 +713,13 @@ export function SurveyBuilder() {
     } finally {
       setRestoringVersionNumber(null)
     }
+  }
+
+  const confirmRestoreVersionToDraft = async () => {
+    if (confirmRestoreVersionNumber == null) return
+    const targetVersion = confirmRestoreVersionNumber
+    setConfirmRestoreVersionNumber(null)
+    await restoreVersionToDraft(targetVersion)
   }
 
   const saveSurvey = async () => {
@@ -714,7 +756,6 @@ export function SurveyBuilder() {
       const mapped = mapApiSurveyToUi(data);
 
       applyMappedSurvey(mapped)
-      setHasUnpublishedChanges((prev) => prev || !(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0));
       setIsDirty(false);
 
       return mapped;
@@ -1215,45 +1256,6 @@ export function SurveyBuilder() {
                             </p>
                         </div>
                     )}
-                    {surveyId ? (
-                      <div className="mt-4 p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 space-y-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                          <HistoryIcon className="h-3.5 w-3.5" />
-                          {tBuilder("versionHistory")}
-                        </div>
-                        {versionsLoading ? (
-                          <p className="text-xs text-gray-500">{tCommon("loading")}</p>
-                        ) : versions.length === 0 ? (
-                          <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
-                        ) : (
-                          <div className="space-y-2 max-h-56 overflow-y-auto">
-                            {versions.map((version) => (
-                              <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
-                                <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
-                                  {tBuilder("versionLabel", { version: version.versionNumber })}
-                                </div>
-                                <div className="mt-1 flex items-center gap-1">
-                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
-                                    {tBuilder("viewVersion")}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-[11px]"
-                                    onClick={() => restoreVersionToDraft(version.versionNumber)}
-                                    disabled={restoringVersionNumber === version.versionNumber}
-                                  >
-                                    {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
-                        {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
-                      </div>
-                    ) : null}
                   </aside>
 
                   {/* Canvas */}
@@ -1303,8 +1305,96 @@ export function SurveyBuilder() {
                             <span className="text-[10px] font-normal opacity-60">{tBuilder("addPageDescription")}</span>
                          </Button>
                        </div>
+                       {surveyId ? (
+                         <section className="xl:hidden mt-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-900/80 p-4 space-y-3">
+                           <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                             <HistoryIcon className="h-3.5 w-3.5" />
+                             {tBuilder("versionHistory")}
+                           </div>
+                           {versionsLoading ? (
+                             <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                           ) : versions.length === 0 ? (
+                             <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                           ) : (
+                             <div className="space-y-2">
+                               {versions.map((version) => (
+                                 <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
+                                   <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                                     {tBuilder("versionLabel", { version: version.versionNumber })}
+                                   </div>
+                                   <div className="mt-1 flex items-center gap-1">
+                                     <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                                       {tBuilder("viewVersion")}
+                                     </Button>
+                                     <Button
+                                       size="sm"
+                                       variant="outline"
+                                       className="h-6 px-2 text-[11px]"
+                                       onClick={() => setConfirmRestoreVersionNumber(version.versionNumber)}
+                                       disabled={restoringVersionNumber === version.versionNumber}
+                                     >
+                                       {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
+                                     </Button>
+                                   </div>
+                                 </div>
+                               ))}
+                             </div>
+                           )}
+                           {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
+                           {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                           <VersionDocumentPreview
+                             version={selectedVersion}
+                             draftSnapshot={draftSnapshot}
+                             className="max-h-[460px] overflow-y-auto"
+                           />
+                         </section>
+                       ) : null}
                     </div>
                   </main>
+                  {surveyId ? (
+                    <aside className="hidden xl:flex w-[360px] flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-4 gap-3 overflow-y-auto">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                        <HistoryIcon className="h-3.5 w-3.5" />
+                        {tBuilder("versionHistory")}
+                      </div>
+                      {versionsLoading ? (
+                        <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                      ) : versions.length === 0 ? (
+                        <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {versions.map((version) => (
+                            <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
+                              <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                                {tBuilder("versionLabel", { version: version.versionNumber })}
+                              </div>
+                              <div className="mt-1 flex items-center gap-1">
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                                  {tBuilder("viewVersion")}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-[11px]"
+                                  onClick={() => setConfirmRestoreVersionNumber(version.versionNumber)}
+                                  disabled={restoringVersionNumber === version.versionNumber}
+                                >
+                                  {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
+                      {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                      <VersionDocumentPreview
+                        version={selectedVersion}
+                        draftSnapshot={draftSnapshot}
+                        className="overflow-y-auto"
+                      />
+                    </aside>
+                  ) : null}
                 </div>
                 
                 {activeLogicQuestionId && questions.find(q => q.id === activeLogicQuestionId) && (
@@ -1528,22 +1618,22 @@ export function SurveyBuilder() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!selectedVersion} onOpenChange={(open) => !open && setSelectedVersion(null)}>
-              <DialogContent className="max-w-3xl">
+            <Dialog open={confirmRestoreVersionNumber != null} onOpenChange={(open) => !open && setConfirmRestoreVersionNumber(null)}>
+              <DialogContent onInteractOutside={(e) => e.preventDefault()}>
                 <DialogHeader>
-                  <DialogTitle>
-                    {selectedVersion
-                      ? tBuilder("versionPreviewTitle", { version: selectedVersion.versionNumber })
-                      : tBuilder("versionPreviewTitle", { version: 0 })}
-                  </DialogTitle>
-                  <DialogDescription>{tBuilder("versionPreviewDescription")}</DialogDescription>
+                  <DialogTitle>{tBuilder("restoreDraftConfirmTitle")}</DialogTitle>
+                  <DialogDescription>{tBuilder("restoreDraftConfirmDescription")}</DialogDescription>
                 </DialogHeader>
-                <pre className="max-h-[60vh] overflow-auto rounded-md bg-gray-50 dark:bg-gray-900 p-3 text-xs">
-                  {selectedVersion ? JSON.stringify(selectedVersion.snapshot, null, 2) : ""}
-                </pre>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setSelectedVersion(null)}>
+                  <Button variant="outline" onClick={() => setConfirmRestoreVersionNumber(null)}>
                     {tCommon("cancel")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={confirmRestoreVersionToDraft}
+                    disabled={confirmRestoreVersionNumber == null || restoringVersionNumber != null}
+                  >
+                    {tBuilder("restoreDraftConfirmAction")}
                   </Button>
                 </DialogFooter>
               </DialogContent>

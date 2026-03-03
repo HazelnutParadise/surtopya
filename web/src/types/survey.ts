@@ -38,5 +38,6 @@ export interface Survey {
         expiresAt?: string;
         publishedCount?: number; // Task 6
         currentPublishedVersionNumber?: number;
+        hasUnpublishedChanges?: boolean;
     };
 }

@@ -23,13 +23,23 @@ import {
   TrendingUp,
   Calendar,
   Lock,
+  Unlock,
   Send,
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
-import type { SurveyResponse } from "@/lib/api";
+import type { SurveyResponse, SurveyVersion } from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
+import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const formatDateTime = (value?: string) => {
   if (!value) return "";
@@ -79,6 +89,13 @@ export default function SurveyManagementPage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [surveyVersions, setSurveyVersions] = useState<SurveyVersion[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
+  const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null)
+  const [versionError, setVersionError] = useState<string | null>(null)
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
+  const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null)
+  const [confirmRestoreVersionNumber, setConfirmRestoreVersionNumber] = useState<number | null>(null)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
   const [formState, setFormState] = useState({
     title: "",
@@ -88,6 +105,33 @@ export default function SurveyManagementPage() {
     pointsReward: 0,
     expiresAt: "",
   });
+
+  const loadSurveyVersions = async () => {
+    setVersionsLoading(true)
+    setVersionError(null)
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/versions`, {
+        cache: "no-store",
+      })
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new Error(errorPayload?.error || "Failed to load survey versions")
+      }
+      const payload = await response.json()
+      const versions = payload.versions || []
+      setSurveyVersions(versions)
+      setSelectedVersion((previous) => {
+        if (versions.length === 0) return null
+        if (!previous) return versions[0]
+        return versions.find((version: SurveyVersion) => version.id === previous.id) || versions[0]
+      })
+    } catch {
+      setSurveyVersions([])
+      setVersionError(tBuilder("versionLoadFailed"))
+    } finally {
+      setVersionsLoading(false)
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -156,6 +200,7 @@ export default function SurveyManagementPage() {
     fetchSurvey();
     fetchResponses();
     fetchCapabilities();
+    void loadSurveyVersions()
 
     return () => {
       isMounted = false;
@@ -249,6 +294,7 @@ export default function SurveyManagementPage() {
     if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached");
     if (rawError === "No changes to publish") return tBuilder("noChangesToPublish");
     if (rawError === "Survey responses are closed") return tBuilder("responsesClosed");
+    if (rawError === "Published version expired") return tBuilder("publishedVersionExpired");
     return rawError;
   };
 
@@ -282,6 +328,9 @@ export default function SurveyManagementPage() {
         throw new Error(mapPublishStatusError(payload?.error));
       }
       setSurvey(mapApiSurveyToUi(payload));
+      if (endpoint === "publish") {
+        void loadSurveyVersions()
+      }
     } catch (error) {
       console.error("Failed to update publish status:", error);
       setPublishError(error instanceof Error ? error.message : tCommon("error"));
@@ -289,6 +338,35 @@ export default function SurveyManagementPage() {
       setPublishing(false);
     }
   };
+
+  const restoreVersionToDraft = async (versionNumber: number) => {
+    setRestoringVersionNumber(versionNumber)
+    setVersionError(null)
+    setRestoreNotice(null)
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
+        method: "POST",
+      })
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new Error(errorPayload?.error || "Failed to restore survey version")
+      }
+      const payload = await response.json()
+      setSurvey(mapApiSurveyToUi(payload))
+      setRestoreNotice(tBuilder("restoredToDraft"))
+    } catch {
+      setVersionError(tBuilder("versionRestoreFailed"))
+    } finally {
+      setRestoringVersionNumber(null)
+    }
+  }
+
+  const confirmRestoreVersionToDraft = async () => {
+    if (confirmRestoreVersionNumber == null) return
+    const targetVersion = confirmRestoreVersionNumber
+    setConfirmRestoreVersionNumber(null)
+    await restoreVersionToDraft(targetVersion)
+  }
 
   const handleSaveSettings = async () => {
     if (!survey) return;
@@ -360,6 +438,29 @@ export default function SurveyManagementPage() {
       document.body.removeChild(textArea);
     }
   };
+
+  const draftSnapshot: SurveyVersionSnapshotPreview | null = useMemo(() => {
+    if (!survey) return null
+    return {
+      title: survey.title,
+      description: survey.description,
+      visibility: survey.settings.visibility,
+      includeInDatasets: survey.settings.isDatasetActive,
+      pointsReward: survey.settings.pointsReward,
+      expiresAt: survey.settings.expiresAt,
+      questions: survey.questions.map((question, index) => ({
+        id: question.id,
+        type: question.type,
+        title: question.title,
+        description: question.description || undefined,
+        options: question.options || [],
+        required: question.required,
+        maxRating: question.maxRating,
+        logic: question.logic,
+        sortOrder: index,
+      })),
+    }
+  }, [survey])
 
   if (loading) {
     return (
@@ -449,7 +550,11 @@ export default function SurveyManagementPage() {
                     onClick={() => handleTogglePublish(!survey.settings.isResponseOpen)}
                     disabled={publishing}
                   >
-                    <Lock className="mr-2 h-4 w-4" />
+                    {survey.settings.isResponseOpen ? (
+                      <Lock className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Unlock className="mr-2 h-4 w-4" />
+                    )}
                     {survey.settings.isResponseOpen ? tCommon("closeResponses") : tCommon("openResponses")}
                   </Button>
                 ) : (
@@ -909,9 +1014,74 @@ export default function SurveyManagementPage() {
                 </Button>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{tBuilder("versionHistory")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {versionsLoading ? (
+                  <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                ) : surveyVersions.length === 0 ? (
+                  <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                ) : (
+                  <div className="space-y-2">
+                    {surveyVersions.map((version) => (
+                      <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
+                        <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                          {tBuilder("versionLabel", { version: version.versionNumber })}
+                        </div>
+                        <div className="mt-1 flex items-center gap-1">
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                            {tBuilder("viewVersion")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => setConfirmRestoreVersionNumber(version.versionNumber)}
+                            disabled={restoringVersionNumber === version.versionNumber}
+                          >
+                            {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {versionError ? <p className="text-xs text-red-600">{versionError}</p> : null}
+                {restoreNotice ? <p className="text-xs text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                <VersionDocumentPreview
+                  version={selectedVersion}
+                  draftSnapshot={draftSnapshot}
+                  className="max-h-[460px] overflow-y-auto"
+                />
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
+
+      <Dialog open={confirmRestoreVersionNumber != null} onOpenChange={(open) => !open && setConfirmRestoreVersionNumber(null)}>
+        <DialogContent onInteractOutside={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{tBuilder("restoreDraftConfirmTitle")}</DialogTitle>
+            <DialogDescription>{tBuilder("restoreDraftConfirmDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRestoreVersionNumber(null)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmRestoreVersionToDraft}
+              disabled={confirmRestoreVersionNumber == null || restoringVersionNumber != null}
+            >
+              {tBuilder("restoreDraftConfirmAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -36,7 +36,7 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		"id", "user_id", "title", "description", "visibility", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
-		"current_published_version_id", "current_published_version_number",
+		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
 	}
 	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
 		id,
@@ -57,6 +57,7 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		now,
 		currentVersionID,
 		currentVersionNumber,
+		false,
 	)
 
 	questionCols := []string{
@@ -79,7 +80,7 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 	now := time.Now().UTC()
 
 	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true, versionID, 1)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").

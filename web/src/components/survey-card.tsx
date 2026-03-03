@@ -40,6 +40,8 @@ interface SurveyCardProps {
   variant?: 'explore' | 'dashboard'; // explore = go to intro page, dashboard = go to management page
   visibility?: 'public' | 'non-public';
   hasUnpublishedChanges?: boolean;
+  currentPublishedVersionNumber?: number;
+  isResponseOpen?: boolean;
   locale?: string;
 }
 
@@ -57,10 +59,15 @@ export function SurveyCard({
   variant = 'explore',
   visibility = 'public',
   hasUnpublishedChanges = false,
+  currentPublishedVersionNumber,
+  isResponseOpen,
   locale,
 }: SurveyCardProps) {
   const t = useTranslations("SurveyCard");
+  const tDashboard = useTranslations("Dashboard")
   const cleanedDescription = stripMarkdown(description)
+  const isPublished = Boolean(currentPublishedVersionNumber && currentPublishedVersionNumber > 0)
+  const shouldShowEditedUnpublished = variant === "dashboard" && isPublished && hasUnpublishedChanges
   // Determine link based on variant
   const href = variant === 'dashboard' 
     ? `/dashboard/surveys/${id}` 
@@ -89,9 +96,33 @@ export function SurveyCard({
                     {tag}
                   </Badge>
                 ))}
-                {hasUnpublishedChanges && (
+                {variant === "dashboard" ? (
+                  <>
+                    <Badge
+                      variant="outline"
+                      className={
+                        isPublished
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 font-bold"
+                          : "bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
+                      }
+                    >
+                      {isPublished ? tDashboard("statusPublished") : tDashboard("statusDraft")}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        isResponseOpen
+                          ? "bg-blue-50 text-blue-700 border-blue-200 text-[10px] h-5 px-1.5 font-bold"
+                          : "bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
+                      }
+                    >
+                      {isResponseOpen ? tDashboard("statusResponsesOpen") : tDashboard("statusResponsesClosed")}
+                    </Badge>
+                  </>
+                ) : null}
+                {shouldShowEditedUnpublished && (
                   <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] h-5 px-1.5 font-bold">
-                    {t("newChanges")}
+                    {tDashboard("statusEditedUnpublished")}
                   </Badge>
                 )}
               </div>

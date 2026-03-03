@@ -44,6 +44,7 @@ type Survey struct {
 	IncludeInDatasets             bool         `json:"includeInDatasets" db:"include_in_datasets"`
 	EverPublic                    bool         `json:"everPublic" db:"ever_public"`
 	PublishedCount                int          `json:"publishedCount" db:"published_count"`
+	HasUnpublishedChanges         bool         `json:"hasUnpublishedChanges" db:"has_unpublished_changes"`
 	CurrentPublishedVersionID     *uuid.UUID   `json:"currentPublishedVersionId,omitempty" db:"current_published_version_id"`
 	CurrentPublishedVersionNumber *int         `json:"currentPublishedVersionNumber,omitempty" db:"current_published_version_number"`
 	Theme                         *SurveyTheme `json:"theme,omitempty" db:"theme"`

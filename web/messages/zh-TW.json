@@ -83,7 +83,12 @@
     "tagProduct": "產品",
     "responsesDelta": "較上月 +20.1%",
     "pointsValue": "約值 $56.00",
-    "endingSoon": "2 個即將結束"
+    "endingSoon": "2 個即將結束",
+    "statusDraft": "草稿",
+    "statusPublished": "已發布",
+    "statusEditedUnpublished": "已編輯未發布",
+    "statusResponsesOpen": "開放回應",
+    "statusResponsesClosed": "關閉回應"
   },
   "SurveyBuilder": {
     "title": "問卷編輯器",
@@ -180,7 +185,17 @@
     "versionPreviewTitle": "版本 {version} 快照",
     "versionPreviewDescription": "這是該版本發布時的內容快照。",
     "versionLoadFailed": "載入版本紀錄失敗。",
-    "versionRestoreFailed": "回復此版本到草稿失敗。"
+    "versionRestoreFailed": "回復此版本到草稿失敗。",
+    "publishedVersionExpired": "目前已發布版本已過期，請先發布新版後再開啟回應。",
+    "versionSelectHint": "請選擇版本以預覽內容。",
+    "versionDiffTitle": "與目前草稿差異",
+    "versionDiffNone": "與目前草稿沒有差異。",
+    "versionDiffChanged": "已變更",
+    "versionDiffAdded": "新增",
+    "versionDiffRemoved": "移除",
+    "restoreDraftConfirmTitle": "確定要回復此版本到草稿？",
+    "restoreDraftConfirmDescription": "此操作會覆蓋目前草稿，不會影響目前已發布版本與回應開關。",
+    "restoreDraftConfirmAction": "確認回復"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -467,7 +482,8 @@
     "typeDescriptionRating": "評分量表題",
     "typeDescriptionSelect": "下拉選單題",
     "typeDescriptionDate": "日期題",
-    "typeDescriptionDefault": "題目"
+    "typeDescriptionDefault": "題目",
+    "responsesNotOpen": "此問卷目前未開放回應。"
   },
   "ThemeEditor": {
     "primaryColor": "主要色",

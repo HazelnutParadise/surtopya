@@ -83,9 +83,7 @@ export default function DashboardPage() {
       surveys.filter((survey) => {
         if (!survey.isResponseOpen) return false
         if (!survey.currentPublishedVersionNumber || survey.currentPublishedVersionNumber < 1) return false
-        if (!survey.expiresAt) return true
-        const expiresAt = new Date(survey.expiresAt)
-        return !Number.isNaN(expiresAt.getTime()) && expiresAt > new Date()
+        return true
       }).length,
     [surveys]
   );
@@ -143,6 +141,9 @@ export default function DashboardPage() {
                   points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                   responses={survey.responseCount}
                   visibility={survey.visibility}
+                  hasUnpublishedChanges={survey.hasUnpublishedChanges}
+                  currentPublishedVersionNumber={survey.currentPublishedVersionNumber}
+                  isResponseOpen={survey.isResponseOpen}
                   variant="dashboard"
                   locale={locale}
                 />

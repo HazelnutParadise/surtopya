@@ -226,10 +226,18 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
+	hasDraftChanges := false
+
 	if req.Title != nil {
+		if survey.Title != *req.Title {
+			hasDraftChanges = true
+		}
 		survey.Title = *req.Title
 	}
 	if req.Description != nil {
+		if survey.Description != *req.Description {
+			hasDraftChanges = true
+		}
 		survey.Description = *req.Description
 	}
 	if req.Visibility != nil {
@@ -240,6 +248,9 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		if survey.PublishedCount > 0 && survey.Visibility != *req.Visibility {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
+		}
+		if survey.Visibility != *req.Visibility {
+			hasDraftChanges = true
 		}
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
@@ -254,10 +265,14 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
+		previousIncludeInDatasets := survey.IncludeInDatasets
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
+		}
+		if previousIncludeInDatasets != survey.IncludeInDatasets {
+			hasDraftChanges = true
 		}
 	}
 	if req.PointsReward != nil {
@@ -265,7 +280,13 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
 			return
 		}
+		if survey.PointsReward != *req.PointsReward {
+			hasDraftChanges = true
+		}
 		survey.PointsReward = *req.PointsReward
+	}
+	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 && hasDraftChanges {
+		survey.HasUnpublishedChanges = true
 	}
 	if err := h.surveys.Update(survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})

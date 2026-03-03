@@ -26,6 +26,7 @@ type SurveyHandler struct {
 
 const activeSurveyLimitReachedError = "Active survey limit reached"
 const noChangesToPublishError = "No changes to publish"
+const publishedVersionExpiredError = "Published version expired"
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
@@ -113,17 +114,18 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	}
 
 	survey := &models.Survey{
-		ID:                uuid.New(),
-		UserID:            userID.(uuid.UUID),
-		Title:             req.Title,
-		Description:       req.Description,
-		Visibility:        req.Visibility,
-		IsResponseOpen:    false,
-		IncludeInDatasets: req.IncludeInDatasets,
-		EverPublic:        false,
-		PublishedCount:    0,
-		Theme:             req.Theme,
-		PointsReward:      req.PointsReward,
+		ID:                    uuid.New(),
+		UserID:                userID.(uuid.UUID),
+		Title:                 req.Title,
+		Description:           req.Description,
+		Visibility:            req.Visibility,
+		IsResponseOpen:        false,
+		IncludeInDatasets:     req.IncludeInDatasets,
+		EverPublic:            false,
+		PublishedCount:        0,
+		HasUnpublishedChanges: false,
+		Theme:                 req.Theme,
+		PointsReward:          req.PointsReward,
 	}
 
 	if err := h.repo.Create(survey); err != nil {
@@ -286,11 +288,19 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
+	hasDraftChanges := false
+
 	// Update fields if provided
 	if req.Title != nil {
+		if survey.Title != *req.Title {
+			hasDraftChanges = true
+		}
 		survey.Title = *req.Title
 	}
 	if req.Description != nil {
+		if survey.Description != *req.Description {
+			hasDraftChanges = true
+		}
 		survey.Description = *req.Description
 	}
 	if req.Visibility != nil {
@@ -301,6 +311,9 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		if survey.PublishedCount > 0 && survey.Visibility != *req.Visibility {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
+		}
+		if survey.Visibility != *req.Visibility {
+			hasDraftChanges = true
 		}
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
@@ -315,13 +328,22 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
+		previousIncludeInDatasets := survey.IncludeInDatasets
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
 		}
+		if previousIncludeInDatasets != survey.IncludeInDatasets {
+			hasDraftChanges = true
+		}
 	}
 	if req.Theme != nil {
+		currentThemeJSON, _ := json.Marshal(survey.Theme)
+		incomingThemeJSON, _ := json.Marshal(req.Theme)
+		if string(currentThemeJSON) != string(incomingThemeJSON) {
+			hasDraftChanges = true
+		}
 		survey.Theme = req.Theme
 	}
 	if req.PointsReward != nil {
@@ -333,9 +355,19 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
 			return
 		}
+		if survey.PointsReward != *req.PointsReward {
+			hasDraftChanges = true
+		}
 		survey.PointsReward = *req.PointsReward
 	}
 	if req.ExpiresAt != nil {
+		currentExpiresAt := ""
+		if survey.ExpiresAt != nil {
+			currentExpiresAt = survey.ExpiresAt.Format("2006-01-02")
+		}
+		if currentExpiresAt != *req.ExpiresAt {
+			hasDraftChanges = true
+		}
 		if *req.ExpiresAt == "" {
 			survey.ExpiresAt = nil
 		} else {
@@ -347,6 +379,13 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			expiresAt := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC)
 			survey.ExpiresAt = &expiresAt
 		}
+	}
+
+	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 && hasDraftChanges {
+		survey.HasUnpublishedChanges = true
+	}
+	if len(req.Questions) > 0 && survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
+		survey.HasUnpublishedChanges = true
 	}
 
 	if err := h.repo.Update(survey); err != nil {
@@ -606,6 +645,7 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	survey.PublishedAt = &now
 	survey.CurrentPublishedVersionID = &version.ID
 	survey.CurrentPublishedVersionNumber = &nextVersionNumber
+	survey.HasUnpublishedChanges = false
 
 	if err := h.repo.UpdateTx(tx, survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to publish survey"})
@@ -653,6 +693,20 @@ func (h *SurveyHandler) OpenSurveyResponses(c *gin.Context) {
 
 	if survey.CurrentPublishedVersionID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Survey has not been published yet"})
+		return
+	}
+
+	currentVersion, err := h.repo.GetCurrentPublishedVersion(survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get published survey version"})
+		return
+	}
+	if currentVersion == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Survey has not been published yet"})
+		return
+	}
+	if currentVersion.ExpiresAt != nil && !currentVersion.ExpiresAt.After(time.Now()) {
+		c.JSON(http.StatusConflict, gin.H{"error": publishedVersionExpiredError})
 		return
 	}
 
@@ -886,6 +940,9 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 	survey.ExpiresAt = snapshot.ExpiresAt
 	if snapshot.Visibility == "public" {
 		survey.EverPublic = true
+	}
+	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
+		survey.HasUnpublishedChanges = true
 	}
 
 	tx, err := h.db.Begin()

@@ -215,6 +215,7 @@ export interface Survey {
   includeInDatasets: boolean;
   everPublic?: boolean;
   publishedCount: number;
+  hasUnpublishedChanges: boolean;
   currentPublishedVersionId?: string;
   currentPublishedVersionNumber?: number;
   theme?: SurveyTheme;
