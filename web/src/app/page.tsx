@@ -22,13 +22,13 @@ export default async function Home() {
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-1">
-        <section className="relative isolate w-full overflow-hidden bg-black py-12 text-white md:py-24 lg:py-32 xl:py-48">
+        <section className="relative isolate flex min-h-[62vh] w-full items-center overflow-hidden bg-black py-12 text-white md:min-h-[70vh] md:py-20 lg:min-h-[74vh] lg:py-24">
           <div className="pointer-events-none absolute inset-0 opacity-90">
             <HeroThreeBackground />
           </div>
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/75" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-black/80" />
           <div className="container relative z-10 px-4 md:px-6">
-            <div className="flex flex-col items-center space-y-5 text-center">
+            <div className="flex flex-col items-center space-y-6 text-center">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl leading-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
                   {t("heroTitle")}
@@ -37,89 +37,52 @@ export default async function Home() {
                   {t("heroSubtitle")}
                 </p>
               </div>
-              <div className="space-x-4">
+              <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button asChild className="bg-white text-black hover:bg-gray-200">
                   <Link href={withLocale("/create", locale)}>{t("getStarted")}</Link>
                 </Button>
                 <Button variant="outline" asChild className="border-white bg-transparent text-white hover:bg-white hover:text-black">
                   <Link href={withLocale("/explore", locale)}>{t("browseSurveys")}</Link>
                 </Button>
+                <Button variant="outline" asChild className="border-cyan-300/80 bg-cyan-400/10 text-cyan-100 hover:border-cyan-200 hover:bg-cyan-100 hover:text-black">
+                  <Link href={withLocale("/datasets", locale)}>{t("browseDatasets")}</Link>
+                </Button>
               </div>
             </div>
           </div>
         </section>
-        <section className="w-full py-12 md:py-24 lg:py-32 bg-gray-100 dark:bg-gray-800">
+        <section className="w-full bg-gray-100 py-12 md:py-16 dark:bg-gray-800">
           <div className="container px-4 md:px-6">
-            <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="flex flex-col items-center space-y-4 text-center">
-                <div className="p-4 bg-white rounded-full shadow-lg dark:bg-gray-900">
-                  <svg
-                    className=" h-10 w-10 text-purple-600"
-                    fill="none"
-                    height="24"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
+            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-xl md:p-10 dark:border-gray-700 dark:bg-gray-900">
+              <div className="grid gap-8 lg:grid-cols-[1.05fr_1.95fr] lg:gap-12">
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-purple-600 dark:text-purple-400">
+                    Surtopya
+                  </p>
+                  <h2 className="text-2xl font-bold leading-tight text-gray-900 md:text-3xl dark:text-gray-100">
+                    {t("heroSubtitle")}
+                  </h2>
+                  <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                    {t("featureThreeDescription")}
+                  </p>
                 </div>
-                <h2 className="text-xl font-bold">{t("featureOneTitle")}</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                  {t("featureOneDescription")}
-                </p>
-              </div>
-              <div className="flex flex-col items-center space-y-4 text-center">
-                <div className="p-4 bg-white rounded-full shadow-lg dark:bg-gray-900">
-                  <svg
-                    className=" h-10 w-10 text-pink-600"
-                    fill="none"
-                    height="24"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" x2="22" y1="12" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <article className="rounded-2xl border border-gray-200/80 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <p className="text-xs font-semibold tracking-[0.18em] text-purple-500">01</p>
+                    <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureOneTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureOneDescription")}</p>
+                  </article>
+                  <article className="rounded-2xl border border-gray-200/80 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <p className="text-xs font-semibold tracking-[0.18em] text-pink-500">02</p>
+                    <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureTwoTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureTwoDescription")}</p>
+                  </article>
+                  <article className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:col-span-2 lg:col-span-1 dark:border-gray-700 dark:bg-gray-900">
+                    <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">03</p>
+                    <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureThreeTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureThreeDescription")}</p>
+                  </article>
                 </div>
-                <h2 className="text-xl font-bold">{t("featureTwoTitle")}</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                  {t("featureTwoDescription")}
-                </p>
-              </div>
-              <div className="flex flex-col items-center space-y-4 text-center">
-                <div className="p-4 bg-white rounded-full shadow-lg dark:bg-gray-900">
-                  <svg
-                    className=" h-10 w-10 text-blue-600"
-                    fill="none"
-                    height="24"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                    width="24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-                    <path d="M22 12A10 10 0 0 0 12 2v10z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-bold">{t("featureThreeTitle")}</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                  {t("featureThreeDescription")}
-                </p>
               </div>
             </div>
           </div>

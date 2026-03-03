@@ -86,12 +86,12 @@ export function SurveyCard({
         <CardHeader className="p-5 pb-2">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {tags.length > 0 && tags.map((tag) => (
                   <Badge
                     key={tag}
                     variant="secondary"
-                    className="bg-gray-100 text-xs font-normal text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                    className="max-w-full bg-gray-100 text-xs font-normal text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                   >
                     {tag}
                   </Badge>
@@ -102,8 +102,8 @@ export function SurveyCard({
                       variant="outline"
                       className={
                         isPublished
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 font-bold"
-                          : "bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
+                          ? "max-w-full whitespace-nowrap bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 font-bold"
+                          : "max-w-full whitespace-nowrap bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
                       }
                     >
                       {isPublished ? tDashboard("statusPublished") : tDashboard("statusDraft")}
@@ -112,8 +112,8 @@ export function SurveyCard({
                       variant="outline"
                       className={
                         isResponseOpen
-                          ? "bg-blue-50 text-blue-700 border-blue-200 text-[10px] h-5 px-1.5 font-bold"
-                          : "bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
+                          ? "max-w-full whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 text-[10px] h-5 px-1.5 font-bold"
+                          : "max-w-full whitespace-nowrap bg-gray-100 text-gray-600 border-gray-200 text-[10px] h-5 px-1.5 font-bold"
                       }
                     >
                       {isResponseOpen ? tDashboard("statusResponsesOpen") : tDashboard("statusResponsesClosed")}
@@ -121,7 +121,7 @@ export function SurveyCard({
                   </>
                 ) : null}
                 {shouldShowEditedUnpublished && (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] h-5 px-1.5 font-bold">
+                  <Badge variant="outline" className="max-w-full whitespace-nowrap bg-amber-50 text-amber-600 border-amber-200 text-[10px] h-5 px-1.5 font-bold">
                     {tDashboard("statusEditedUnpublished")}
                   </Badge>
                 )}
