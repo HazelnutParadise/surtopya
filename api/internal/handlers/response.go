@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const surveyResponsesClosedError = "Survey responses are closed"
+
 // ResponseHandler handles survey response-related requests
 type ResponseHandler struct {
 	db           *sql.DB
@@ -46,7 +48,7 @@ func (h *ResponseHandler) StartResponse(c *gin.Context) {
 		return
 	}
 
-	// Check if survey exists and is published
+	// Check if survey exists and currently accepts responses.
 	survey, err := h.surveyRepo.GetByID(surveyID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
@@ -58,13 +60,19 @@ func (h *ResponseHandler) StartResponse(c *gin.Context) {
 		return
 	}
 
-	if !survey.IsPublished {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Survey is not published"})
+	if !survey.IsResponseOpen || survey.CurrentPublishedVersionID == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": surveyResponsesClosedError})
 		return
 	}
 
-	// Check expiration
-	if survey.ExpiresAt != nil && survey.ExpiresAt.Before(time.Now()) {
+	version, err := h.surveyRepo.GetCurrentPublishedVersion(surveyID)
+	if err != nil || version == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get published survey version"})
+		return
+	}
+
+	// Check expiration on the currently published version.
+	if version.ExpiresAt != nil && version.ExpiresAt.Before(time.Now()) {
 		c.JSON(http.StatusGone, gin.H{"error": "Survey has expired"})
 		return
 	}
@@ -91,12 +99,14 @@ func (h *ResponseHandler) StartResponse(c *gin.Context) {
 	}
 
 	response := &models.Response{
-		ID:          uuid.New(),
-		SurveyID:    surveyID,
-		UserID:      userID,
-		AnonymousID: anonymousID,
-		Status:      "in_progress",
-		StartedAt:   time.Now(),
+		ID:                  uuid.New(),
+		SurveyID:            surveyID,
+		SurveyVersionID:     version.ID,
+		SurveyVersionNumber: version.VersionNumber,
+		UserID:              userID,
+		AnonymousID:         anonymousID,
+		Status:              "in_progress",
+		StartedAt:           time.Now(),
 	}
 
 	if err := h.responseRepo.Create(response); err != nil {
@@ -193,12 +203,14 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	defer tx.Rollback()
 
 	var surveyID uuid.UUID
+	var surveyVersionID uuid.UUID
+	var surveyVersionNumber int
 	var userID uuid.NullUUID
 	var status string
 	if err := tx.QueryRow(
-		"SELECT survey_id, user_id, status FROM responses WHERE id = $1 FOR UPDATE",
+		"SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = $1 FOR UPDATE",
 		responseID,
-	).Scan(&surveyID, &userID, &status); err != nil {
+	).Scan(&surveyID, &surveyVersionID, &surveyVersionNumber, &userID, &status); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Response not found"})
 			return
@@ -212,10 +224,24 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		return
 	}
 
-	survey, err := h.surveyRepo.GetByID(surveyID)
-	if err != nil || survey == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+	var versionSnapshot []byte
+	var boostSpend int
+	if err := tx.QueryRow(
+		"SELECT snapshot, points_reward FROM survey_versions WHERE id = $1",
+		surveyVersionID,
+	).Scan(&versionSnapshot, &boostSpend); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey version"})
 		return
+	}
+	var snapshot surveySnapshot
+	if err := json.Unmarshal(versionSnapshot, &snapshot); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode survey version snapshot"})
+		return
+	}
+
+	validQuestions := make(map[uuid.UUID]struct{}, len(snapshot.Questions))
+	for _, q := range snapshot.Questions {
+		validQuestions[q.ID] = struct{}{}
 	}
 
 	// Save all answers (if any)
@@ -226,15 +252,7 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 			return
 		}
 
-		var belongs bool
-		if err := tx.QueryRow(
-			"SELECT EXISTS (SELECT 1 FROM questions WHERE id = $1 AND survey_id = $2)",
-			questionID, surveyID,
-		).Scan(&belongs); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate question"})
-			return
-		}
-		if !belongs {
+		if _, exists := validQuestions[questionID]; !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Question does not belong to survey"})
 			return
 		}
@@ -258,7 +276,6 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	}
 
 	pointsAwarded := 0
-	boostSpend := survey.PointsReward
 	boostReward := 0
 
 	// Only authenticated users earn points.
@@ -310,9 +327,10 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	response, _ := h.responseRepo.GetByID(responseID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "Survey completed successfully",
-		"response":      response,
-		"pointsAwarded": pointsAwarded,
+		"message":             "Survey completed successfully",
+		"response":            response,
+		"pointsAwarded":       pointsAwarded,
+		"surveyVersionNumber": surveyVersionNumber,
 	})
 }
 

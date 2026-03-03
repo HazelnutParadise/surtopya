@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,23 +35,25 @@ type SurveyTheme struct {
 
 // Survey represents a survey
 type Survey struct {
-	ID                uuid.UUID    `json:"id" db:"id"`
-	UserID            uuid.UUID    `json:"userId" db:"user_id"`
-	Title             string       `json:"title" db:"title"`
-	Description       string       `json:"description" db:"description"`
-	Visibility        string       `json:"visibility" db:"visibility"`
-	IsPublished       bool         `json:"isPublished" db:"is_published"`
-	IncludeInDatasets bool         `json:"includeInDatasets" db:"include_in_datasets"`
-	EverPublic        bool         `json:"everPublic" db:"ever_public"`
-	PublishedCount    int          `json:"publishedCount" db:"published_count"`
-	Theme             *SurveyTheme `json:"theme,omitempty" db:"theme"`
-	PointsReward      int          `json:"pointsReward" db:"points_reward"`
-	ExpiresAt         *time.Time   `json:"expiresAt,omitempty" db:"expires_at"`
-	ResponseCount     int          `json:"responseCount" db:"response_count"`
-	CreatedAt         time.Time    `json:"createdAt" db:"created_at"`
-	UpdatedAt         time.Time    `json:"updatedAt" db:"updated_at"`
-	PublishedAt       *time.Time   `json:"publishedAt,omitempty" db:"published_at"`
-	Questions         []Question   `json:"questions,omitempty"`
+	ID                            uuid.UUID    `json:"id" db:"id"`
+	UserID                        uuid.UUID    `json:"userId" db:"user_id"`
+	Title                         string       `json:"title" db:"title"`
+	Description                   string       `json:"description" db:"description"`
+	Visibility                    string       `json:"visibility" db:"visibility"`
+	IsResponseOpen                bool         `json:"isResponseOpen" db:"is_response_open"`
+	IncludeInDatasets             bool         `json:"includeInDatasets" db:"include_in_datasets"`
+	EverPublic                    bool         `json:"everPublic" db:"ever_public"`
+	PublishedCount                int          `json:"publishedCount" db:"published_count"`
+	CurrentPublishedVersionID     *uuid.UUID   `json:"currentPublishedVersionId,omitempty" db:"current_published_version_id"`
+	CurrentPublishedVersionNumber *int         `json:"currentPublishedVersionNumber,omitempty" db:"current_published_version_number"`
+	Theme                         *SurveyTheme `json:"theme,omitempty" db:"theme"`
+	PointsReward                  int          `json:"pointsReward" db:"points_reward"`
+	ExpiresAt                     *time.Time   `json:"expiresAt,omitempty" db:"expires_at"`
+	ResponseCount                 int          `json:"responseCount" db:"response_count"`
+	CreatedAt                     time.Time    `json:"createdAt" db:"created_at"`
+	UpdatedAt                     time.Time    `json:"updatedAt" db:"updated_at"`
+	PublishedAt                   *time.Time   `json:"publishedAt,omitempty" db:"published_at"`
+	Questions                     []Question   `json:"questions,omitempty"`
 }
 
 // LogicRule represents conditional logic for a question
@@ -77,16 +80,31 @@ type Question struct {
 
 // Response represents a survey response
 type Response struct {
-	ID            uuid.UUID  `json:"id" db:"id"`
-	SurveyID      uuid.UUID  `json:"surveyId" db:"survey_id"`
-	UserID        *uuid.UUID `json:"userId,omitempty" db:"user_id"`
-	AnonymousID   *string    `json:"anonymousId,omitempty" db:"anonymous_id"`
-	Status        string     `json:"status" db:"status"`
-	PointsAwarded int        `json:"pointsAwarded" db:"points_awarded"`
-	StartedAt     time.Time  `json:"startedAt" db:"started_at"`
-	CompletedAt   *time.Time `json:"completedAt,omitempty" db:"completed_at"`
-	CreatedAt     time.Time  `json:"createdAt" db:"created_at"`
-	Answers       []Answer   `json:"answers,omitempty"`
+	ID                  uuid.UUID  `json:"id" db:"id"`
+	SurveyID            uuid.UUID  `json:"surveyId" db:"survey_id"`
+	SurveyVersionID     uuid.UUID  `json:"surveyVersionId" db:"survey_version_id"`
+	SurveyVersionNumber int        `json:"surveyVersionNumber" db:"survey_version_number"`
+	UserID              *uuid.UUID `json:"userId,omitempty" db:"user_id"`
+	AnonymousID         *string    `json:"anonymousId,omitempty" db:"anonymous_id"`
+	Status              string     `json:"status" db:"status"`
+	PointsAwarded       int        `json:"pointsAwarded" db:"points_awarded"`
+	StartedAt           time.Time  `json:"startedAt" db:"started_at"`
+	CompletedAt         *time.Time `json:"completedAt,omitempty" db:"completed_at"`
+	CreatedAt           time.Time  `json:"createdAt" db:"created_at"`
+	Answers             []Answer   `json:"answers,omitempty"`
+}
+
+// SurveyVersion represents an immutable published survey version.
+type SurveyVersion struct {
+	ID            uuid.UUID       `json:"id" db:"id"`
+	SurveyID      uuid.UUID       `json:"surveyId" db:"survey_id"`
+	VersionNumber int             `json:"versionNumber" db:"version_number"`
+	Snapshot      json.RawMessage `json:"snapshot" db:"snapshot"`
+	PointsReward  int             `json:"pointsReward" db:"points_reward"`
+	ExpiresAt     *time.Time      `json:"expiresAt,omitempty" db:"expires_at"`
+	PublishedAt   time.Time       `json:"publishedAt" db:"published_at"`
+	PublishedBy   *uuid.UUID      `json:"publishedBy,omitempty" db:"published_by"`
+	CreatedAt     time.Time       `json:"createdAt" db:"created_at"`
 }
 
 // AnswerValue is a flexible container for different answer types

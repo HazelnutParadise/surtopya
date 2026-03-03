@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,6 +25,7 @@ type SurveyHandler struct {
 }
 
 const activeSurveyLimitReachedError = "Active survey limit reached"
+const noChangesToPublishError = "No changes to publish"
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
@@ -45,7 +47,7 @@ func (h *SurveyHandler) canPublishUnderPlanLimit(ctx context.Context, userID uui
 		return true, nil
 	}
 
-	activeCount, err := h.repo.CountActivePublishedByUser(userID, &surveyID)
+	activeCount, err := h.repo.CountActiveResponseOpenByUser(userID, &surveyID)
 	if err != nil {
 		return false, err
 	}
@@ -116,7 +118,7 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		Title:             req.Title,
 		Description:       req.Description,
 		Visibility:        req.Visibility,
-		IsPublished:       false,
+		IsResponseOpen:    false,
 		IncludeInDatasets: req.IncludeInDatasets,
 		EverPublic:        false,
 		PublishedCount:    0,
@@ -183,7 +185,8 @@ func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 
 	// Check access permission
 	userID, exists := c.Get("userID")
-	if survey.Visibility == "non-public" && !survey.IsPublished {
+	isPublished := survey.CurrentPublishedVersionID != nil
+	if survey.Visibility == "non-public" && !isPublished {
 		if !exists || survey.UserID != userID.(uuid.UUID) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 			return
@@ -330,10 +333,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
 			return
 		}
-		if survey.PublishedCount > 0 && survey.IsPublished && *req.PointsReward > survey.PointsReward {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Unpublish and publish again to increase boost points"})
-			return
-		}
 		survey.PointsReward = *req.PointsReward
 	}
 	if req.ExpiresAt != nil {
@@ -392,6 +391,59 @@ type PublishSurveyRequest struct {
 	Visibility        string `json:"visibility"`
 	IncludeInDatasets bool   `json:"includeInDatasets"`
 	PointsReward      int    `json:"pointsReward"`
+}
+
+type surveySnapshotQuestion struct {
+	ID          uuid.UUID          `json:"id"`
+	Type        string             `json:"type"`
+	Title       string             `json:"title"`
+	Description *string            `json:"description,omitempty"`
+	Options     []string           `json:"options,omitempty"`
+	Required    bool               `json:"required"`
+	MaxRating   int                `json:"maxRating,omitempty"`
+	Logic       []models.LogicRule `json:"logic,omitempty"`
+	SortOrder   int                `json:"sortOrder"`
+}
+
+type surveySnapshot struct {
+	Title             string                   `json:"title"`
+	Description       string                   `json:"description"`
+	Visibility        string                   `json:"visibility"`
+	IncludeInDatasets bool                     `json:"includeInDatasets"`
+	Theme             *models.SurveyTheme      `json:"theme,omitempty"`
+	PointsReward      int                      `json:"pointsReward"`
+	ExpiresAt         *time.Time               `json:"expiresAt,omitempty"`
+	Questions         []surveySnapshotQuestion `json:"questions"`
+}
+
+func buildSurveySnapshot(survey *models.Survey) ([]byte, error) {
+	questions := make([]surveySnapshotQuestion, len(survey.Questions))
+	for i, q := range survey.Questions {
+		questions[i] = surveySnapshotQuestion{
+			ID:          q.ID,
+			Type:        q.Type,
+			Title:       q.Title,
+			Description: q.Description,
+			Options:     q.Options,
+			Required:    q.Required,
+			MaxRating:   q.MaxRating,
+			Logic:       q.Logic,
+			SortOrder:   q.SortOrder,
+		}
+	}
+
+	snapshot := surveySnapshot{
+		Title:             survey.Title,
+		Description:       survey.Description,
+		Visibility:        survey.Visibility,
+		IncludeInDatasets: survey.IncludeInDatasets,
+		Theme:             survey.Theme,
+		PointsReward:      survey.PointsReward,
+		ExpiresAt:         survey.ExpiresAt,
+		Questions:         questions,
+	}
+
+	return json.Marshal(snapshot)
 }
 
 // PublishSurvey handles POST /api/v1/surveys/:id/publish
@@ -510,11 +562,50 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		}
 	}
 
-	survey.IsPublished = true
-	survey.PublishedCount++
 	survey.PointsReward = desiredPointsReward
+	snapshotJSON, err := buildSurveySnapshot(survey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to build publish snapshot"})
+		return
+	}
+	isSameSnapshot, err := h.repo.IsCurrentVersionSnapshotEqual(survey.ID, snapshotJSON)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compare publish snapshot"})
+		return
+	}
+	if isSameSnapshot {
+		c.JSON(http.StatusConflict, gin.H{"error": noChangesToPublishError})
+		return
+	}
+
+	nextVersionNumber, err := h.repo.GetNextVersionNumberTx(tx, survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to determine next survey version"})
+		return
+	}
+
 	now := time.Now()
+	publisherID := userID.(uuid.UUID)
+	version := &models.SurveyVersion{
+		ID:            uuid.New(),
+		SurveyID:      survey.ID,
+		VersionNumber: nextVersionNumber,
+		Snapshot:      snapshotJSON,
+		PointsReward:  survey.PointsReward,
+		ExpiresAt:     survey.ExpiresAt,
+		PublishedAt:   now,
+		PublishedBy:   &publisherID,
+	}
+	if err := h.repo.CreateVersionTx(tx, version); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to persist survey version"})
+		return
+	}
+
+	survey.IsResponseOpen = true
+	survey.PublishedCount = nextVersionNumber
 	survey.PublishedAt = &now
+	survey.CurrentPublishedVersionID = &version.ID
+	survey.CurrentPublishedVersionNumber = &nextVersionNumber
 
 	if err := h.repo.UpdateTx(tx, survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to publish survey"})
@@ -529,8 +620,8 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, survey)
 }
 
-// UnpublishSurvey handles POST /api/v1/surveys/:id/unpublish
-func (h *SurveyHandler) UnpublishSurvey(c *gin.Context) {
+// OpenSurveyResponses handles POST /api/v1/surveys/:id/responses/open
+func (h *SurveyHandler) OpenSurveyResponses(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -560,14 +651,269 @@ func (h *SurveyHandler) UnpublishSurvey(c *gin.Context) {
 		return
 	}
 
-	survey.IsPublished = false
+	if survey.CurrentPublishedVersionID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Survey has not been published yet"})
+		return
+	}
+
+	if survey.IsResponseOpen {
+		c.JSON(http.StatusOK, survey)
+		return
+	}
+
+	canPublish, err := h.canPublishUnderPlanLimit(c.Request.Context(), survey.UserID, survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate active survey limit"})
+		return
+	}
+	if !canPublish {
+		c.JSON(http.StatusForbidden, gin.H{"error": activeSurveyLimitReachedError})
+		return
+	}
+
+	survey.IsResponseOpen = true
 
 	if err := h.repo.Update(survey); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unpublish survey"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open survey responses"})
 		return
 	}
 
 	c.JSON(http.StatusOK, survey)
+}
+
+// CloseSurveyResponses handles POST /api/v1/surveys/:id/responses/close
+func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	survey, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return
+	}
+
+	if survey.UserID != userID.(uuid.UUID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	if !survey.IsResponseOpen {
+		c.JSON(http.StatusOK, survey)
+		return
+	}
+
+	survey.IsResponseOpen = false
+
+	if err := h.repo.Update(survey); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to close survey responses"})
+		return
+	}
+
+	c.JSON(http.StatusOK, survey)
+}
+
+// ListSurveyVersions handles GET /api/v1/surveys/:id/versions
+func (h *SurveyHandler) ListSurveyVersions(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return
+	}
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	survey, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return
+	}
+	if survey.UserID != userID.(uuid.UUID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	versions, err := h.repo.ListVersionsBySurvey(survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list survey versions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"versions": versions})
+}
+
+// GetSurveyVersion handles GET /api/v1/surveys/:id/versions/:versionNumber
+func (h *SurveyHandler) GetSurveyVersion(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return
+	}
+	versionNumber, err := strconv.Atoi(c.Param("versionNumber"))
+	if err != nil || versionNumber < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid version number"})
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	survey, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return
+	}
+	if survey.UserID != userID.(uuid.UUID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	version, err := h.repo.GetVersionByNumber(id, versionNumber)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey version"})
+		return
+	}
+	if version == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey version not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, version)
+}
+
+// RestoreSurveyVersionDraft handles POST /api/v1/surveys/:id/versions/:versionNumber/restore-draft
+func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return
+	}
+	versionNumber, err := strconv.Atoi(c.Param("versionNumber"))
+	if err != nil || versionNumber < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid version number"})
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	survey, err := h.repo.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return
+	}
+	if survey.UserID != userID.(uuid.UUID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		return
+	}
+
+	version, err := h.repo.GetVersionByNumber(id, versionNumber)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey version"})
+		return
+	}
+	if version == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey version not found"})
+		return
+	}
+
+	var snapshot surveySnapshot
+	if err := json.Unmarshal(version.Snapshot, &snapshot); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode survey version snapshot"})
+		return
+	}
+
+	restoredQuestions := make([]models.Question, len(snapshot.Questions))
+	for i, q := range snapshot.Questions {
+		restoredQuestions[i] = models.Question{
+			ID:          q.ID,
+			SurveyID:    survey.ID,
+			Type:        q.Type,
+			Title:       q.Title,
+			Description: q.Description,
+			Options:     q.Options,
+			Required:    q.Required,
+			MaxRating:   q.MaxRating,
+			Logic:       q.Logic,
+			SortOrder:   i,
+		}
+	}
+
+	survey.Title = snapshot.Title
+	survey.Description = snapshot.Description
+	survey.Visibility = snapshot.Visibility
+	survey.IncludeInDatasets = snapshot.IncludeInDatasets
+	survey.Theme = snapshot.Theme
+	survey.PointsReward = snapshot.PointsReward
+	survey.ExpiresAt = snapshot.ExpiresAt
+	if snapshot.Visibility == "public" {
+		survey.EverPublic = true
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	if err := h.repo.UpdateTx(tx, survey); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore survey draft"})
+		return
+	}
+	if err := h.repo.SaveQuestionsTx(tx, survey.ID, restoredQuestions); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore survey questions"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize draft restore"})
+		return
+	}
+
+	updated, err := h.repo.GetByID(survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load restored survey"})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
 }
 
 // DeleteSurvey handles DELETE /api/v1/surveys/:id

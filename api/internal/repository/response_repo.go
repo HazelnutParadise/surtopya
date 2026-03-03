@@ -24,15 +24,16 @@ func NewResponseRepository(db *sql.DB) *ResponseRepository {
 func (r *ResponseRepository) Create(response *models.Response) error {
 	query := `
 		INSERT INTO responses (
-			id, survey_id, user_id, anonymous_id, status, points_awarded, started_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+			id, survey_id, survey_version_id, survey_version_number,
+			user_id, anonymous_id, status, points_awarded, started_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, created_at
 	`
 
 	err := r.db.QueryRow(
 		query,
-		response.ID, response.SurveyID, response.UserID, response.AnonymousID,
-		response.Status, response.PointsAwarded, response.StartedAt,
+		response.ID, response.SurveyID, response.SurveyVersionID, response.SurveyVersionNumber,
+		response.UserID, response.AnonymousID, response.Status, response.PointsAwarded, response.StartedAt,
 	).Scan(&response.ID, &response.CreatedAt)
 
 	if err != nil {
@@ -47,13 +48,14 @@ func (r *ResponseRepository) GetByID(id uuid.UUID) (*models.Response, error) {
 	response := &models.Response{}
 
 	query := `
-		SELECT id, survey_id, user_id, anonymous_id, status, points_awarded,
+		SELECT id, survey_id, survey_version_id, survey_version_number, user_id, anonymous_id, status, points_awarded,
 			started_at, completed_at, created_at
 		FROM responses WHERE id = $1
 	`
 
 	err := r.db.QueryRow(query, id).Scan(
-		&response.ID, &response.SurveyID, &response.UserID, &response.AnonymousID,
+		&response.ID, &response.SurveyID, &response.SurveyVersionID, &response.SurveyVersionNumber,
+		&response.UserID, &response.AnonymousID,
 		&response.Status, &response.PointsAwarded, &response.StartedAt,
 		&response.CompletedAt, &response.CreatedAt,
 	)
@@ -78,7 +80,7 @@ func (r *ResponseRepository) GetByID(id uuid.UUID) (*models.Response, error) {
 // GetBySurveyID retrieves all responses for a survey
 func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Response, error) {
 	query := `
-		SELECT id, survey_id, user_id, anonymous_id, status, points_awarded,
+		SELECT id, survey_id, survey_version_id, survey_version_number, user_id, anonymous_id, status, points_awarded,
 			started_at, completed_at, created_at
 		FROM responses WHERE survey_id = $1
 		ORDER BY created_at DESC
@@ -94,7 +96,8 @@ func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Respons
 	for rows.Next() {
 		var response models.Response
 		err := rows.Scan(
-			&response.ID, &response.SurveyID, &response.UserID, &response.AnonymousID,
+			&response.ID, &response.SurveyID, &response.SurveyVersionID, &response.SurveyVersionNumber,
+			&response.UserID, &response.AnonymousID,
 			&response.Status, &response.PointsAwarded, &response.StartedAt,
 			&response.CompletedAt, &response.CreatedAt,
 		)

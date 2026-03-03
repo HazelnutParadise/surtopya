@@ -76,6 +76,7 @@ export default function SurveyManagementPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
@@ -240,18 +241,35 @@ export default function SurveyManagementPage() {
   };
 
   const handleViewSurvey = () => {
-    router.push(withLocalePath(`/survey/${surveyId}`));
+    window.open(withLocalePath(`/survey/${surveyId}`), "_blank", "noopener,noreferrer");
+  };
+
+  const mapPublishStatusError = (rawError?: string) => {
+    if (!rawError) return tCommon("error");
+    if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached");
+    if (rawError === "No changes to publish") return tBuilder("noChangesToPublish");
+    if (rawError === "Survey responses are closed") return tBuilder("responsesClosed");
+    return rawError;
   };
 
   const handleTogglePublish = async (status: boolean) => {
     if (!survey) return;
     setPublishing(true);
+    setPublishError(null);
     try {
-      const endpoint = status ? "publish" : "unpublish";
+      const hasPublishedVersion = Boolean(
+        survey.settings.currentPublishedVersionNumber &&
+          survey.settings.currentPublishedVersionNumber > 0
+      )
+      const endpoint = status
+        ? hasPublishedVersion
+          ? "responses/open"
+          : "publish"
+        : "responses/close"
       const response = await fetch(`/api/surveys/${surveyId}/${endpoint}`, {
         method: "POST",
-        headers: status ? { "Content-Type": "application/json" } : undefined,
-        body: status
+        headers: status && !hasPublishedVersion ? { "Content-Type": "application/json" } : undefined,
+        body: status && !hasPublishedVersion
           ? JSON.stringify({
               visibility: survey.settings.visibility,
               includeInDatasets: survey.settings.isDatasetActive,
@@ -261,11 +279,12 @@ export default function SurveyManagementPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload?.error || "Failed to update publish status");
+        throw new Error(mapPublishStatusError(payload?.error));
       }
       setSurvey(mapApiSurveyToUi(payload));
     } catch (error) {
       console.error("Failed to update publish status:", error);
+      setPublishError(error instanceof Error ? error.message : tCommon("error"));
     } finally {
       setPublishing(false);
     }
@@ -374,6 +393,10 @@ export default function SurveyManagementPage() {
     formState.expiresAt !== (survey.settings.expiresAt?.split("T")[0] || "");
 
   const publishedCount = survey.settings.publishedCount ?? 0
+  const hasPublishedVersion = Boolean(
+    survey.settings.currentPublishedVersionNumber &&
+      survey.settings.currentPublishedVersionNumber > 0
+  )
   const canSwitchToPublic = publishedCount === 0 || survey.settings.visibility === "public";
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isDatasetSharingLocked = isSurveyDatasetSharingLocked({
@@ -396,48 +419,55 @@ export default function SurveyManagementPage() {
                 <p className="text-sm text-gray-500">{t("createdOn", { date: formatDateTime(survey.createdAt) || "" })}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge
-                className={
-                  survey.settings.isPublished
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                    : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                }
-              >
-                {survey.settings.isPublished ? tDashboard("published") : tDashboard("draft")}
-              </Badge>
-              <Button variant="outline" onClick={handlePreview}>
-                <Eye className="mr-2 h-4 w-4" />
-                {tCommon("preview")}
-              </Button>
-              <Button variant="outline" onClick={handleViewSurvey}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                {t("viewSurvey")}
-              </Button>
-              {survey.settings.isPublished ? (
-                <Button
-                  variant="outline"
-                  className="text-amber-600 border-amber-200 hover:bg-amber-50"
-                  onClick={() => handleTogglePublish(false)}
-                  disabled={publishing}
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
+                <Badge
+                  className={
+                    hasPublishedVersion
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+                  }
                 >
-                  <Lock className="mr-2 h-4 w-4" />
-                  {tCommon("unpublish")}
+                  {hasPublishedVersion ? tDashboard("published") : tDashboard("draft")}
+                </Badge>
+                <Button variant="outline" onClick={handlePreview}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  {tCommon("preview")}
                 </Button>
-              ) : (
-                <Button
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => handleTogglePublish(true)}
-                  disabled={publishing}
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  {tCommon("publish")}
+                <Button variant="outline" onClick={handleViewSurvey}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t("viewSurvey")}
                 </Button>
-              )}
-              <Button onClick={handleEdit} variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
-                <Pencil className="mr-2 h-4 w-4" />
-                {tCommon("edit")}
-              </Button>
+                {hasPublishedVersion ? (
+                  <Button
+                    variant="outline"
+                    className={
+                      survey.settings.isResponseOpen
+                        ? "text-amber-600 border-amber-200 hover:bg-amber-50"
+                        : "text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    }
+                    onClick={() => handleTogglePublish(!survey.settings.isResponseOpen)}
+                    disabled={publishing}
+                  >
+                    <Lock className="mr-2 h-4 w-4" />
+                    {survey.settings.isResponseOpen ? tCommon("closeResponses") : tCommon("openResponses")}
+                  </Button>
+                ) : (
+                  <Button
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleTogglePublish(true)}
+                    disabled={publishing}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {tCommon("publish")}
+                  </Button>
+                )}
+                <Button onClick={handleEdit} variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {tCommon("edit")}
+                </Button>
+              </div>
+              {publishError ? <p className="text-sm text-red-600">{publishError}</p> : null}
             </div>
           </div>
         </div>
@@ -526,7 +556,7 @@ export default function SurveyManagementPage() {
                         </Button>
                         <Button
                           variant="outline"
-                          onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}
+                          onClick={handleViewSurvey}
                         >
                           <ExternalLink className="mr-2 h-4 w-4" />
                           {t("viewSurvey")}
@@ -873,7 +903,7 @@ export default function SurveyManagementPage() {
                   <Pencil className="mr-2 h-4 w-4" />
                   {t("editSurvey")}
                 </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => router.push(withLocalePath(`/survey/${surveyId}`))}>
+                <Button variant="outline" className="w-full justify-start" onClick={handleViewSurvey}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   {t("openSurveyPage")}
                 </Button>

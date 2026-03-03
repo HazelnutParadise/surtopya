@@ -21,7 +21,9 @@
     "duplicate": "複製",
     "preview": "プレビュー",
     "settings": "設定",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "openResponses": "回答受付を開く",
+    "closeResponses": "回答受付を閉じる"
   },
   "Navigation": {
     "dashboard": "ダッシュボード",
@@ -166,7 +168,19 @@
     "deleteQuestionTitle": "質問を削除",
     "deletePageDescription": "このページと内部の質問を削除しますか？この操作は元に戻せません。",
     "deleteQuestionDescription": "この質問を削除しますか？この操作は元に戻せません。",
-    "saveSuccess": "下書きを保存しました。"
+    "saveSuccess": "下書きを保存しました。",
+    "noChangesToPublish": "公開できる変更がありません。",
+    "responsesClosed": "アンケートの回答受付は終了しています。",
+    "restoredToDraft": "下書きに復元しました。公開すると反映されます。",
+    "versionHistory": "バージョン履歴",
+    "versionEmpty": "公開済みバージョンはまだありません。",
+    "versionLabel": "v{version}",
+    "viewVersion": "表示",
+    "restoreToDraft": "下書きへ復元",
+    "versionPreviewTitle": "バージョン {version} のスナップショット",
+    "versionPreviewDescription": "これは公開時点の内容スナップショットです。",
+    "versionLoadFailed": "バージョン履歴の読み込みに失敗しました。",
+    "versionRestoreFailed": "このバージョンを下書きに復元できませんでした。"
   },
   "QuestionTypes": {
     "single": "単一選択",
@@ -665,6 +679,18 @@
     "noPolicyWriters": "No policy writers found",
     "policyWriterToggleLabel": "Can write policies",
     "capabilityLabel": "Capability",
-    "policyWriterCount": "{count} policy writers"
+    "policyWriterCount": "{count} policy writers",
+    "responseStatus": "回答受付状態",
+    "responseStatusHint": "公開は新バージョン作成です。回答受付の開閉は別操作です。",
+    "publishNewVersion": "新バージョンを公開",
+    "notPublishedYet": "未公開",
+    "publishedVersion": "公開 v{version}",
+    "surveyVersionsTitle": "バージョン履歴",
+    "surveyVersionsEmpty": "公開済みバージョンはまだありません。",
+    "versionLabel": "v{version}",
+    "viewVersion": "表示",
+    "restoreToDraft": "下書きへ復元",
+    "versionPreviewTitle": "バージョン {version} のスナップショット",
+    "versionPreviewDescription": "これは公開時点の内容スナップショットです。"
   }
 }

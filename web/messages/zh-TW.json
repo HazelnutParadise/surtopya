@@ -21,7 +21,9 @@
     "duplicate": "複製",
     "preview": "預覽",
     "settings": "設定",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "openResponses": "開啟回應",
+    "closeResponses": "關閉回應"
   },
   "Navigation": {
     "dashboard": "儀表板",
@@ -166,7 +168,19 @@
     "deleteQuestionTitle": "刪除題目？",
     "deletePageDescription": "確定要刪除此頁及其內所有題目嗎？此操作無法復原。",
     "deleteQuestionDescription": "確定要刪除此題目嗎？此操作無法復原。",
-    "saveSuccess": "草稿已儲存。"
+    "saveSuccess": "草稿已儲存。",
+    "noChangesToPublish": "沒有變更可發布。",
+    "responsesClosed": "問卷回應已關閉。",
+    "restoredToDraft": "已回復到草稿，需重新發布才會上線。",
+    "versionHistory": "版本紀錄",
+    "versionEmpty": "目前還沒有已發布版本。",
+    "versionLabel": "v{version}",
+    "viewVersion": "查看",
+    "restoreToDraft": "回復到草稿",
+    "versionPreviewTitle": "版本 {version} 快照",
+    "versionPreviewDescription": "這是該版本發布時的內容快照。",
+    "versionLoadFailed": "載入版本紀錄失敗。",
+    "versionRestoreFailed": "回復此版本到草稿失敗。"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -665,6 +679,18 @@
     "noPolicyWriters": "No policy writers found",
     "policyWriterToggleLabel": "Can write policies",
     "capabilityLabel": "Capability",
-    "policyWriterCount": "{count} policy writers"
+    "policyWriterCount": "{count} policy writers",
+    "responseStatus": "回應狀態",
+    "responseStatusHint": "發布會建立新版本；開啟/關閉回應是獨立操作。",
+    "publishNewVersion": "發布新版",
+    "notPublishedYet": "尚未發布",
+    "publishedVersion": "已發布 v{version}",
+    "surveyVersionsTitle": "版本紀錄",
+    "surveyVersionsEmpty": "目前還沒有已發布版本。",
+    "versionLabel": "v{version}",
+    "viewVersion": "查看",
+    "restoreToDraft": "回復到草稿",
+    "versionPreviewTitle": "版本 {version} 快照",
+    "versionPreviewDescription": "這是該版本發布時的內容快照。"
   }
 }

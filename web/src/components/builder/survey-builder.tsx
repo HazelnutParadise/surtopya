@@ -20,6 +20,7 @@ import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
+import type { SurveyVersion } from "@/lib/api";
 import {
   Tooltip,
   TooltipContent,
@@ -110,10 +111,17 @@ export function SurveyBuilder() {
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
+  const [versions, setVersions] = useState<SurveyVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null);
+  const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null);
+  const [versionError, setVersionError] = useState<string | null>(null);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const normalizeNonNegativePoints = (value: string) => Math.max(0, Number.parseInt(value || "0", 10) || 0)
   const mapPublishError = (rawError?: string) => {
     if (!rawError) return tBuilder("publishErrorGeneric")
     if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached")
+    if (rawError === "No changes to publish") return tBuilder("noChangesToPublish")
     if (rawError === "Insufficient points for boost top-up") return tBuilder("publishErrorInsufficientBoostPoints")
     if (rawError === "Boost points can only increase after first publish") return tBuilder("publishErrorBoostIncreaseOnly")
     if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")
@@ -178,38 +186,12 @@ export function SurveyBuilder() {
         }
         const payload = await response.json();
         const mapped = mapApiSurveyToUi(payload);
-        const defaultSection: Question = {
-          id: generateId(),
-          type: 'section',
-          title: defaultPageTitle,
-          required: false,
-        };
-
-        const safeQuestions: Question[] =
-          mapped.questions.length > 0 && mapped.questions[0].type === "section"
-            ? mapped.questions
-            : [defaultSection, ...mapped.questions];
 
         if (!isActive) return;
-
-        setSurveyId(mapped.id);
-        setTitle(mapped.title);
-        setDescription(mapped.description);
-        setQuestions(safeQuestions);
-        setTheme(
-          mapped.theme || {
-            primaryColor: "#9333ea",
-            backgroundColor: "#f9fafb",
-            fontFamily: "inter",
-          }
-        );
-        setPointsReward(mapped.settings.pointsReward);
-        setIsPublic(mapped.settings.visibility === "public");
-        setIncludeInDatasets(mapped.settings.isDatasetActive);
-        setIsPublished(mapped.settings.isPublished);
-        setPublishedCount(mapped.settings.publishedCount || 0);
-        setHasUnpublishedChanges(!mapped.settings.isPublished);
+        applyMappedSurvey(mapped)
+        setHasUnpublishedChanges(!(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0));
         setIsDirty(false);
+        await loadSurveyVersions(mapped.id)
       } catch (error) {
         console.error("Failed to load survey:", error);
       } finally {
@@ -622,6 +604,82 @@ export function SurveyBuilder() {
       }));
   };
 
+  const applyMappedSurvey = (mapped: ReturnType<typeof mapApiSurveyToUi>) => {
+    const defaultSection: Question = {
+      id: generateId(),
+      type: "section",
+      title: defaultPageTitle,
+      required: false,
+    }
+
+    const safeQuestions: Question[] =
+      mapped.questions.length > 0 && mapped.questions[0].type === "section"
+        ? mapped.questions
+        : [defaultSection, ...mapped.questions]
+
+    setSurveyId(mapped.id)
+    setTitle(mapped.title)
+    setDescription(mapped.description)
+    setQuestions(safeQuestions)
+    setTheme(
+      mapped.theme || {
+        primaryColor: "#9333ea",
+        backgroundColor: "#f9fafb",
+        fontFamily: "inter",
+      }
+    )
+    setPointsReward(mapped.settings.pointsReward)
+    setIsPublic(mapped.settings.visibility === "public")
+    setIncludeInDatasets(mapped.settings.isDatasetActive)
+    setIsPublished(Boolean(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0))
+    setPublishedCount(mapped.settings.publishedCount || 0)
+  }
+
+  const loadSurveyVersions = async (id: string) => {
+    setVersionsLoading(true)
+    setVersionError(null)
+    try {
+      const response = await fetch(`/api/surveys/${id}/versions`, { cache: "no-store" })
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new Error(errorPayload?.error || "Failed to load survey versions")
+      }
+      const payload = await response.json()
+      setVersions(payload.versions || [])
+    } catch {
+      setVersions([])
+      setVersionError(tBuilder("versionLoadFailed"))
+    } finally {
+      setVersionsLoading(false)
+    }
+  }
+
+  const restoreVersionToDraft = async (versionNumber: number) => {
+    if (!surveyId) return
+    setRestoringVersionNumber(versionNumber)
+    setVersionError(null)
+    setRestoreNotice(null)
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
+        method: "POST",
+      })
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        throw new Error(errorPayload?.error || "Failed to restore survey version")
+      }
+      const payload = await response.json()
+      const mapped = mapApiSurveyToUi(payload)
+      applyMappedSurvey(mapped)
+      setHasUnpublishedChanges(true)
+      setIsDirty(true)
+      setRestoreNotice(tBuilder("restoredToDraft"))
+    } catch {
+      setVersionError(tBuilder("versionRestoreFailed"))
+    } finally {
+      setRestoringVersionNumber(null)
+    }
+  }
+
   const saveSurvey = async () => {
     setSavingSurvey(true);
     try {
@@ -655,12 +713,8 @@ export function SurveyBuilder() {
       const data = await response.json();
       const mapped = mapApiSurveyToUi(data);
 
-      setSurveyId(mapped.id);
-      setIsPublic(mapped.settings.visibility === "public");
-      setIncludeInDatasets(mapped.settings.isDatasetActive);
-      setIsPublished(mapped.settings.isPublished);
-      setPublishedCount(mapped.settings.publishedCount || 0);
-      setHasUnpublishedChanges((prev) => prev || !mapped.settings.isPublished);
+      applyMappedSurvey(mapped)
+      setHasUnpublishedChanges((prev) => prev || !(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0));
       setIsDirty(false);
 
       return mapped;
@@ -706,11 +760,8 @@ export function SurveyBuilder() {
       const data = await response.json();
       const mapped = mapApiSurveyToUi(data);
 
-      setSurveyId(mapped.id);
-      setIsPublic(mapped.settings.visibility === "public");
-      setIncludeInDatasets(mapped.settings.isDatasetActive);
-      setIsPublished(mapped.settings.isPublished);
-      setPublishedCount(mapped.settings.publishedCount || 0);
+      applyMappedSurvey(mapped)
+      await loadSurveyVersions(mapped.id)
       setHasUnpublishedChanges(false);
       setIsDirty(false);
       setPublishSettingsOpen(false);
@@ -1164,6 +1215,45 @@ export function SurveyBuilder() {
                             </p>
                         </div>
                     )}
+                    {surveyId ? (
+                      <div className="mt-4 p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40 space-y-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          <HistoryIcon className="h-3.5 w-3.5" />
+                          {tBuilder("versionHistory")}
+                        </div>
+                        {versionsLoading ? (
+                          <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                        ) : versions.length === 0 ? (
+                          <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                        ) : (
+                          <div className="space-y-2 max-h-56 overflow-y-auto">
+                            {versions.map((version) => (
+                              <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
+                                <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                                  {tBuilder("versionLabel", { version: version.versionNumber })}
+                                </div>
+                                <div className="mt-1 flex items-center gap-1">
+                                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                                    {tBuilder("viewVersion")}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-[11px]"
+                                    onClick={() => restoreVersionToDraft(version.versionNumber)}
+                                    disabled={restoringVersionNumber === version.versionNumber}
+                                  >
+                                    {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
+                        {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                      </div>
+                    ) : null}
                   </aside>
 
                   {/* Canvas */}
@@ -1436,6 +1526,27 @@ export function SurveyBuilder() {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!selectedVersion} onOpenChange={(open) => !open && setSelectedVersion(null)}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    {selectedVersion
+                      ? tBuilder("versionPreviewTitle", { version: selectedVersion.versionNumber })
+                      : tBuilder("versionPreviewTitle", { version: 0 })}
+                  </DialogTitle>
+                  <DialogDescription>{tBuilder("versionPreviewDescription")}</DialogDescription>
+                </DialogHeader>
+                <pre className="max-h-[60vh] overflow-auto rounded-md bg-gray-50 dark:bg-gray-900 p-3 text-xs">
+                  {selectedVersion ? JSON.stringify(selectedVersion.snapshot, null, 2) : ""}
+                </pre>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setSelectedVersion(null)}>
+                    {tCommon("cancel")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
             </Dialog>
                   </DndContext>
         )}

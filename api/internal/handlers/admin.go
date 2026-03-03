@@ -46,7 +46,7 @@ func (h *AdminHandler) canPublishUnderPlanLimit(ctx context.Context, userID uuid
 		return true, nil
 	}
 
-	activeCount, err := h.surveys.CountActivePublishedByUser(userID, &surveyID)
+	activeCount, err := h.surveys.CountActiveResponseOpenByUser(userID, &surveyID)
 	if err != nil {
 		return false, err
 	}
@@ -58,7 +58,6 @@ type AdminSurveyUpdateRequest struct {
 	Description       *string `json:"description"`
 	Visibility        *string `json:"visibility"`
 	IncludeInDatasets *bool   `json:"includeInDatasets"`
-	IsPublished       *bool   `json:"isPublished"`
 	PointsReward      *int    `json:"pointsReward"`
 }
 
@@ -268,37 +267,90 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		}
 		survey.PointsReward = *req.PointsReward
 	}
-	if req.IsPublished != nil {
-		if *req.IsPublished && !survey.IsPublished {
-			canPublish, err := h.canPublishUnderPlanLimit(c.Request.Context(), survey.UserID, survey.ID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate active survey limit"})
-				return
-			}
-			if !canPublish {
-				c.JSON(http.StatusForbidden, gin.H{"error": activeSurveyLimitReachedError})
-				return
-			}
-
-			survey.IsPublished = true
-			survey.PublishedCount++
-			now := time.Now()
-			survey.PublishedAt = &now
-			if survey.Visibility == "public" {
-				survey.EverPublic = true
-			}
-		}
-		if !*req.IsPublished && survey.IsPublished {
-			survey.IsPublished = false
-			survey.PublishedAt = nil
-		}
-	}
 	if err := h.surveys.Update(survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})
 		return
 	}
 
 	c.JSON(http.StatusOK, survey)
+}
+
+func (h *AdminHandler) loadSurveyByParamID(c *gin.Context) (*models.Survey, bool) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return nil, false
+	}
+	survey, err := h.surveys.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return nil, false
+	}
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return nil, false
+	}
+	return survey, true
+}
+
+// PublishSurveyVersion handles POST /api/v1/admin/surveys/:id/publish.
+func (h *AdminHandler) PublishSurveyVersion(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().PublishSurvey(c)
+}
+
+// OpenSurveyResponses handles POST /api/v1/admin/surveys/:id/responses/open.
+func (h *AdminHandler) OpenSurveyResponses(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().OpenSurveyResponses(c)
+}
+
+// CloseSurveyResponses handles POST /api/v1/admin/surveys/:id/responses/close.
+func (h *AdminHandler) CloseSurveyResponses(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().CloseSurveyResponses(c)
+}
+
+// ListSurveyVersions handles GET /api/v1/admin/surveys/:id/versions.
+func (h *AdminHandler) ListSurveyVersions(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().ListSurveyVersions(c)
+}
+
+// GetSurveyVersion handles GET /api/v1/admin/surveys/:id/versions/:versionNumber.
+func (h *AdminHandler) GetSurveyVersion(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().GetSurveyVersion(c)
+}
+
+// RestoreSurveyVersionDraft handles POST /api/v1/admin/surveys/:id/versions/:versionNumber/restore-draft.
+func (h *AdminHandler) RestoreSurveyVersionDraft(c *gin.Context) {
+	survey, ok := h.loadSurveyByParamID(c)
+	if !ok {
+		return
+	}
+	c.Set("userID", survey.UserID)
+	NewSurveyHandler().RestoreSurveyVersionDraft(c)
 }
 
 // DeleteSurvey handles DELETE /api/v1/admin/surveys/:id

@@ -36,7 +36,11 @@ func SetupRouter() *gin.Engine {
 			surveys.PUT("/:id", middleware.RequireAuth(), surveyHandler.UpdateSurvey)
 			surveys.DELETE("/:id", middleware.RequireAuth(), surveyHandler.DeleteSurvey)
 			surveys.POST("/:id/publish", middleware.RequireAuth(), surveyHandler.PublishSurvey)
-			surveys.POST("/:id/unpublish", middleware.RequireAuth(), surveyHandler.UnpublishSurvey)
+			surveys.POST("/:id/responses/open", middleware.RequireAuth(), surveyHandler.OpenSurveyResponses)
+			surveys.POST("/:id/responses/close", middleware.RequireAuth(), surveyHandler.CloseSurveyResponses)
+			surveys.GET("/:id/versions", middleware.RequireAuth(), surveyHandler.ListSurveyVersions)
+			surveys.GET("/:id/versions/:versionNumber", middleware.RequireAuth(), surveyHandler.GetSurveyVersion)
+			surveys.POST("/:id/versions/:versionNumber/restore-draft", middleware.RequireAuth(), surveyHandler.RestoreSurveyVersionDraft)
 		}
 
 		// Response routes
@@ -84,6 +88,12 @@ func SetupRouter() *gin.Engine {
 		{
 			admin.GET("/surveys", adminHandler.GetSurveys)
 			admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
+			admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
+			admin.POST("/surveys/:id/responses/open", adminHandler.OpenSurveyResponses)
+			admin.POST("/surveys/:id/responses/close", adminHandler.CloseSurveyResponses)
+			admin.GET("/surveys/:id/versions", adminHandler.ListSurveyVersions)
+			admin.GET("/surveys/:id/versions/:versionNumber", adminHandler.GetSurveyVersion)
+			admin.POST("/surveys/:id/versions/:versionNumber/restore-draft", adminHandler.RestoreSurveyVersionDraft)
 			admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
 			admin.GET("/datasets", adminHandler.GetDatasets)
 			admin.POST("/datasets", adminHandler.CreateDataset)

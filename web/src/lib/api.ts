@@ -84,10 +84,30 @@ class ApiClient {
     });
   }
 
-  async unpublishSurvey(id: string) {
-    return this.request<Survey>(`/surveys/${id}/unpublish`, {
+  async openSurveyResponses(id: string) {
+    return this.request<Survey>(`/surveys/${id}/responses/open`, {
       method: 'POST',
     });
+  }
+
+  async closeSurveyResponses(id: string) {
+    return this.request<Survey>(`/surveys/${id}/responses/close`, {
+      method: 'POST',
+    });
+  }
+
+  async listSurveyVersions(id: string) {
+    return this.request<{ versions: SurveyVersion[] }>(`/surveys/${id}/versions`)
+  }
+
+  async getSurveyVersion(id: string, versionNumber: number) {
+    return this.request<SurveyVersion>(`/surveys/${id}/versions/${versionNumber}`)
+  }
+
+  async restoreSurveyVersionDraft(id: string, versionNumber: number) {
+    return this.request<Survey>(`/surveys/${id}/versions/${versionNumber}/restore-draft`, {
+      method: 'POST',
+    })
   }
 
   // Response endpoints
@@ -191,10 +211,12 @@ export interface Survey {
   title: string;
   description: string;
   visibility: 'public' | 'non-public';
-  isPublished: boolean;
+  isResponseOpen: boolean;
   includeInDatasets: boolean;
   everPublic?: boolean;
   publishedCount: number;
+  currentPublishedVersionId?: string;
+  currentPublishedVersionNumber?: number;
   theme?: SurveyTheme;
   pointsReward: number;
   expiresAt?: string;
@@ -203,6 +225,27 @@ export interface Survey {
   updatedAt: string;
   publishedAt?: string;
   questions?: Question[];
+}
+
+export interface SurveyVersion {
+  id: string
+  surveyId: string
+  versionNumber: number
+  snapshot: {
+    title: string
+    description: string
+    visibility: 'public' | 'non-public'
+    includeInDatasets: boolean
+    theme?: SurveyTheme
+    pointsReward: number
+    expiresAt?: string
+    questions: Question[]
+  }
+  pointsReward: number
+  expiresAt?: string
+  publishedAt: string
+  publishedBy?: string
+  createdAt: string
 }
 
 export interface CreateSurveyRequest {
@@ -254,6 +297,8 @@ export interface SubmitAnswerRequest {
 export interface SurveyResponse {
   id: string;
   surveyId: string;
+  surveyVersionId: string;
+  surveyVersionNumber: number;
   userId?: string;
   anonymousId?: string;
   status: 'in_progress' | 'completed' | 'abandoned';

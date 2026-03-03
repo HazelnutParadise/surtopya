@@ -79,7 +79,14 @@ export default function DashboardPage() {
     [surveys]
   );
   const activeSurveys = useMemo(
-    () => surveys.filter((survey) => survey.isPublished).length,
+    () =>
+      surveys.filter((survey) => {
+        if (!survey.isResponseOpen) return false
+        if (!survey.currentPublishedVersionNumber || survey.currentPublishedVersionNumber < 1) return false
+        if (!survey.expiresAt) return true
+        const expiresAt = new Date(survey.expiresAt)
+        return !Number.isNaN(expiresAt.getTime()) && expiresAt > new Date()
+      }).length,
     [surveys]
   );
 

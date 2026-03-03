@@ -32,14 +32,23 @@ func newSurveyHandlerForPublishTest(t *testing.T) (*SurveyHandler, sqlmock.Sqlmo
 	return h, mock, cleanup
 }
 
-func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string, includeInDatasets bool, pointsReward int, publishedCount int, isPublished bool) (*sqlmock.Rows, *sqlmock.Rows) {
+func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string, includeInDatasets bool, pointsReward int, publishedCount int, isResponseOpen bool, currentVersionID *uuid.UUID, currentVersionNumber *int) (*sqlmock.Rows, *sqlmock.Rows) {
 	now := time.Now().UTC()
 	everPublic := visibility == "public" || publishedCount > 0
+	var currentVersionIDValue interface{}
+	if currentVersionID != nil {
+		currentVersionIDValue = *currentVersionID
+	}
+	var currentVersionNumberValue interface{}
+	if currentVersionNumber != nil {
+		currentVersionNumberValue = *currentVersionNumber
+	}
 
 	surveyCols := []string{
-		"id", "user_id", "title", "description", "visibility", "is_published",
+		"id", "user_id", "title", "description", "visibility", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
+		"current_published_version_id", "current_published_version_number",
 	}
 	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
 		id,
@@ -47,7 +56,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		"Publish Test",
 		"Desc",
 		visibility,
-		isPublished,
+		isResponseOpen,
 		includeInDatasets,
 		everPublic,
 		publishedCount,
@@ -58,6 +67,8 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		now,
 		now,
 		nil,
+		currentVersionIDValue,
+		currentVersionNumberValue,
 	)
 
 	questionCols := []string{
@@ -77,7 +88,7 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	surveyID := uuid.New()
 	publisherID := uuid.New()
 
-	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false)
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
@@ -104,6 +115,14 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -9, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
+		WithArgs(surveyID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(1))
+	mock.ExpectQuery("INSERT INTO survey_versions").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
 	mock.ExpectExec("UPDATE surveys SET").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -127,7 +146,7 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), `"isPublished":true`)
+	require.Contains(t, w.Body.String(), `"isResponseOpen":true`)
 	require.Contains(t, w.Body.String(), `"pointsReward":9`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -141,7 +160,9 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_BoostCanOnlyIncrease(t *t
 	surveyID := uuid.New()
 	publisherID := uuid.New()
 
-	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false)
+	currentVersionID := uuid.New()
+	currentVersionNumber := 1
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false, &currentVersionID, &currentVersionNumber)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
@@ -190,7 +211,9 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	surveyID := uuid.New()
 	publisherID := uuid.New()
 
-	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false)
+	currentVersionID := uuid.New()
+	currentVersionNumber := 1
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false, &currentVersionID, &currentVersionNumber)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
@@ -217,6 +240,14 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -3, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
+		WithArgs(surveyID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(2))
+	mock.ExpectQuery("INSERT INTO survey_versions").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
 	mock.ExpectExec("UPDATE surveys SET").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -253,7 +284,7 @@ func TestSurveyHandler_PublishSurvey_NegativeBoostRejected(t *testing.T) {
 	surveyID := uuid.New()
 	publisherID := uuid.New()
 
-	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false)
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
@@ -296,7 +327,7 @@ func TestSurveyHandler_PublishSurvey_RejectsWhenActiveSurveyLimitReached(t *test
 	surveyID := uuid.New()
 	publisherID := uuid.New()
 
-	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false)
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
@@ -312,7 +343,7 @@ func TestSurveyHandler_PublishSurvey_RejectsWhenActiveSurveyLimitReached(t *test
 	mock.ExpectQuery("SELECT mt.max_active_surveys").
 		WithArgs(publisherID).
 		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(3))
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\)\\s+FROM surveys").
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\)\\s+FROM surveys s").
 		WithArgs(publisherID, surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 

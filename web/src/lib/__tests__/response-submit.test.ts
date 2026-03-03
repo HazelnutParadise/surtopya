@@ -12,12 +12,13 @@ describe("buildSubmitAnswers", () => {
       responseCount: 0,
       settings: {
         isPublic: true,
-        isPublished: true,
+        isResponseOpen: true,
         visibility: "public",
         isDatasetActive: true,
         everPublic: false,
         pointsReward: 1,
         publishedCount: 0,
+        currentPublishedVersionNumber: 1,
       },
       questions: [
         { id: "q1", type: "single", title: "q1", required: false, options: ["a"] },

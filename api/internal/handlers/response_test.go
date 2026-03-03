@@ -30,12 +30,13 @@ func newResponseHandlerForTest(t *testing.T) (*ResponseHandler, sqlmock.Sqlmock,
 	return h, mock, cleanup
 }
 
-func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, isPublished bool) (*sqlmock.Rows, *sqlmock.Rows) {
+func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, isResponseOpen bool, currentVersionID uuid.UUID, currentVersionNumber int) (*sqlmock.Rows, *sqlmock.Rows) {
 	now := time.Now().UTC()
 	surveyCols := []string{
-		"id", "user_id", "title", "description", "visibility", "is_published",
+		"id", "user_id", "title", "description", "visibility", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
+		"current_published_version_id", "current_published_version_number",
 	}
 	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
 		id,
@@ -43,7 +44,7 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		"Test Survey",
 		"Desc",
 		"public",
-		isPublished,
+		isResponseOpen,
 		true,
 		true,
 		1,
@@ -54,6 +55,8 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		now,
 		now,
 		now,
+		currentVersionID,
+		currentVersionNumber,
 	)
 
 	questionCols := []string{
@@ -72,19 +75,26 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 
 	surveyID := uuid.New()
 	publisherID := uuid.New()
+	versionID := uuid.New()
+	now := time.Now().UTC()
 
-	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true)
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true, versionID, 1)
 	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(surveyRows)
 	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(versionID, surveyID, 1, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
 
 	createdResponseID := uuid.New()
-	now := time.Now().UTC()
 	mock.ExpectQuery("INSERT INTO responses").
-		WithArgs(sqlmock.AnyArg(), surveyID, nil, sqlmock.AnyArg(), "in_progress", 0, sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), surveyID, versionID, 1, nil, sqlmock.AnyArg(), "in_progress", 0, sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(createdResponseID, now))
 
 	r := gin.New()
@@ -109,21 +119,16 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 
 	responseID := uuid.New()
 	surveyID := uuid.New()
+	versionID := uuid.New()
 	respondentID := uuid.New()
-	publisherID := uuid.New()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT survey_id, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
 		WithArgs(responseID).
-		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "user_id", "status"}).AddRow(surveyID, respondentID, "in_progress"))
-
-	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(surveyRows)
-	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(questionRows)
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 1, respondentID, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
@@ -149,9 +154,9 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 	mock.ExpectQuery("FROM responses WHERE id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "survey_id", "user_id", "anonymous_id", "status", "points_awarded",
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
 			"started_at", "completed_at", "created_at",
-		}).AddRow(responseID, surveyID, respondentID, nil, "completed", 6, time.Now(), time.Now(), time.Now()))
+		}).AddRow(responseID, surveyID, versionID, 1, respondentID, nil, "completed", 6, time.Now(), time.Now(), time.Now()))
 	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
@@ -180,20 +185,15 @@ func TestResponseHandler_SubmitAllAnswers_Anonymous_AwardsZeroPoints(t *testing.
 
 	responseID := uuid.New()
 	surveyID := uuid.New()
-	publisherID := uuid.New()
+	versionID := uuid.New()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT survey_id, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
 		WithArgs(responseID).
-		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "user_id", "status"}).AddRow(surveyID, nil, "in_progress"))
-
-	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(surveyRows)
-	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(questionRows)
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 1, nil, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
 
 	mock.ExpectExec("UPDATE responses SET status = 'completed'").
 		WithArgs(responseID, sqlmock.AnyArg(), 0).
@@ -208,9 +208,9 @@ func TestResponseHandler_SubmitAllAnswers_Anonymous_AwardsZeroPoints(t *testing.
 	mock.ExpectQuery("FROM responses WHERE id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "survey_id", "user_id", "anonymous_id", "status", "points_awarded",
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
 			"started_at", "completed_at", "created_at",
-		}).AddRow(responseID, surveyID, nil, "anon", "completed", 0, time.Now(), time.Now(), time.Now()))
+		}).AddRow(responseID, surveyID, versionID, 1, nil, "anon", "completed", 0, time.Now(), time.Now(), time.Now()))
 	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
@@ -239,22 +239,16 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 
 	responseID := uuid.New()
 	surveyID := uuid.New()
+	versionID := uuid.New()
 	respondentID := uuid.New()
-	publisherID := uuid.New()
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT survey_id, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
 		WithArgs(responseID).
-		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "user_id", "status"}).AddRow(surveyID, respondentID, "in_progress"))
-
-	// points_reward=9 => boostReward=3, so total=9 when publisher has enough points.
-	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 9, true)
-	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(surveyRows)
-	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
-		WithArgs(surveyID).
-		WillReturnRows(questionRows)
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 1, respondentID, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 9))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
@@ -280,9 +274,9 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	mock.ExpectQuery("FROM responses WHERE id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "survey_id", "user_id", "anonymous_id", "status", "points_awarded",
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
 			"started_at", "completed_at", "created_at",
-		}).AddRow(responseID, surveyID, respondentID, nil, "completed", 9, time.Now(), time.Now(), time.Now()))
+		}).AddRow(responseID, surveyID, versionID, 1, respondentID, nil, "completed", 9, time.Now(), time.Now(), time.Now()))
 	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
 		WithArgs(responseID).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))

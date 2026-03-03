@@ -18,6 +18,7 @@ import type {
   PolicyMatrixEntry,
   PolicyWriter,
   Survey,
+  SurveyVersion,
   UserProfile,
 } from "@/lib/api"
 
@@ -82,7 +83,7 @@ export default function AdminPage() {
     description: "",
     visibility: "non-public",
     includeInDatasets: false,
-    isPublished: false,
+    isResponseOpen: false,
     pointsReward: 0,
   })
   const [datasetForm, setDatasetForm] = useState({
@@ -108,6 +109,12 @@ export default function AdminPage() {
   const [uploadingDataset, setUploadingDataset] = useState(false)
   const [savingSurvey, setSavingSurvey] = useState(false)
   const [savingDataset, setSavingDataset] = useState(false)
+  const [surveyVersions, setSurveyVersions] = useState<SurveyVersion[]>([])
+  const [surveyVersionsLoading, setSurveyVersionsLoading] = useState(false)
+  const [publishingSurveyVersion, setPublishingSurveyVersion] = useState(false)
+  const [togglingSurveyResponses, setTogglingSurveyResponses] = useState(false)
+  const [restoringSurveyVersion, setRestoringSurveyVersion] = useState<number | null>(null)
+  const [selectedSurveyVersion, setSelectedSurveyVersion] = useState<SurveyVersion | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -338,16 +345,41 @@ export default function AdminPage() {
     })
   }, [tiers])
 
-  const openSurveyEditor = (survey: Survey) => {
+  const applySurveyToEditor = (survey: Survey) => {
     setEditingSurvey(survey)
     setSurveyForm({
       title: survey.title,
       description: survey.description || "",
       visibility: survey.visibility,
       includeInDatasets: survey.includeInDatasets,
-      isPublished: survey.isPublished,
+      isResponseOpen: survey.isResponseOpen,
       pointsReward: survey.pointsReward,
     })
+  }
+
+  const loadSurveyVersions = async (surveyId: string) => {
+    setSurveyVersionsLoading(true)
+    try {
+      const response = await fetch(`/api/admin/surveys/${surveyId}/versions`, { cache: "no-store" })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to load survey versions")
+      }
+      const payload = await response.json()
+      setSurveyVersions(payload.versions || [])
+    } catch {
+      setSurveyVersions([])
+      setError(tAdmin("loadError"))
+    } finally {
+      setSurveyVersionsLoading(false)
+    }
+  }
+
+  const openSurveyEditor = (survey: Survey) => {
+    applySurveyToEditor(survey)
+    setSurveyVersions([])
+    setSelectedSurveyVersion(null)
+    void loadSurveyVersions(survey.id)
   }
 
   const openDatasetEditor = (dataset: Dataset) => {
@@ -376,7 +408,6 @@ export default function AdminPage() {
           description: surveyForm.description,
           visibility: surveyForm.visibility,
           includeInDatasets: surveyForm.includeInDatasets,
-          isPublished: surveyForm.isPublished,
           pointsReward: surveyForm.pointsReward,
         }),
       })
@@ -386,11 +417,86 @@ export default function AdminPage() {
       }
       const payload = await response.json()
       setSurveys((prev) => prev.map((survey) => (survey.id === payload.id ? payload : survey)))
-      setEditingSurvey(null)
+      applySurveyToEditor(payload)
     } catch (err) {
       setError(tAdmin("updateError"))
     } finally {
       setSavingSurvey(false)
+    }
+  }
+
+  const publishSurveyVersion = async () => {
+    if (!editingSurvey) return
+    setPublishingSurveyVersion(true)
+    setError(null)
+    try {
+      const response = await fetch(`/api/admin/surveys/${editingSurvey.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visibility: surveyForm.visibility,
+          includeInDatasets: surveyForm.includeInDatasets,
+          pointsReward: surveyForm.pointsReward,
+        }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to publish survey")
+      }
+      const payload = await response.json()
+      setSurveys((prev) => prev.map((survey) => (survey.id === payload.id ? payload : survey)))
+      applySurveyToEditor(payload)
+      await loadSurveyVersions(payload.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"))
+    } finally {
+      setPublishingSurveyVersion(false)
+    }
+  }
+
+  const toggleSurveyResponses = async (open: boolean) => {
+    if (!editingSurvey) return
+    setTogglingSurveyResponses(true)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/admin/surveys/${editingSurvey.id}/responses/${open ? "open" : "close"}`,
+        { method: "POST" }
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to toggle survey responses")
+      }
+      const payload = await response.json()
+      setSurveys((prev) => prev.map((survey) => (survey.id === payload.id ? payload : survey)))
+      applySurveyToEditor(payload)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"))
+    } finally {
+      setTogglingSurveyResponses(false)
+    }
+  }
+
+  const restoreSurveyDraft = async (versionNumber: number) => {
+    if (!editingSurvey) return
+    setRestoringSurveyVersion(versionNumber)
+    setError(null)
+    try {
+      const response = await fetch(
+        `/api/admin/surveys/${editingSurvey.id}/versions/${versionNumber}/restore-draft`,
+        { method: "POST" }
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Failed to restore survey version")
+      }
+      const payload = await response.json()
+      setSurveys((prev) => prev.map((survey) => (survey.id === payload.id ? payload : survey)))
+      applySurveyToEditor(payload)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"))
+    } finally {
+      setRestoringSurveyVersion(null)
     }
   }
 
@@ -919,8 +1025,11 @@ export default function AdminPage() {
                             <div className="flex items-center gap-2">
                               <h3 className="text-base font-semibold text-gray-900 dark:text-white">{survey.title}</h3>
                               <Badge variant="secondary">{visibilityLabel}</Badge>
-                              <Badge className={survey.isPublished ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}>
-                                {survey.isPublished ? tAdmin("published") : tAdmin("draft")}
+                              <Badge className={survey.currentPublishedVersionNumber ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}>
+                                {survey.currentPublishedVersionNumber ? tAdmin("published") : tAdmin("draft")}
+                              </Badge>
+                              <Badge className={survey.isResponseOpen ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
+                                {survey.isResponseOpen ? tCommon("openResponses") : tCommon("closeResponses")}
                               </Badge>
                             </div>
                             <p className="text-sm text-gray-500 line-clamp-2">{survey.description}</p>
@@ -1744,7 +1853,16 @@ export default function AdminPage() {
         </Tabs>
       </div>
 
-      <Dialog open={!!editingSurvey} onOpenChange={(open) => !open && setEditingSurvey(null)}>
+      <Dialog
+        open={!!editingSurvey}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSurvey(null)
+            setSurveyVersions([])
+            setSelectedSurveyVersion(null)
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{tAdmin("editSurvey")}</DialogTitle>
@@ -1780,15 +1898,75 @@ export default function AdminPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2">
+            <div className="space-y-2 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-3">
               <div className="space-y-1">
-                <p className="text-sm font-medium">{tAdmin("publishStatus")}</p>
-                <p className="text-xs text-gray-500">{tAdmin("publishStatusHint")}</p>
+                <p className="text-sm font-medium">{tAdmin("responseStatus")}</p>
+                <p className="text-xs text-gray-500">{tAdmin("responseStatusHint")}</p>
               </div>
-              <Switch
-                checked={surveyForm.isPublished}
-                onCheckedChange={(checked) => setSurveyForm((prev) => ({ ...prev, isPublished: checked }))}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className={editingSurvey?.currentPublishedVersionNumber ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}>
+                  {editingSurvey?.currentPublishedVersionNumber
+                    ? tAdmin("publishedVersion", { version: editingSurvey.currentPublishedVersionNumber })
+                    : tAdmin("notPublishedYet")}
+                </Badge>
+                <Badge className={editingSurvey?.isResponseOpen ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
+                  {editingSurvey?.isResponseOpen ? tCommon("openResponses") : tCommon("closeResponses")}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={publishSurveyVersion}
+                  disabled={publishingSurveyVersion || savingSurvey}
+                >
+                  {publishingSurveyVersion ? tCommon("saving") : tAdmin("publishNewVersion")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => toggleSurveyResponses(!(editingSurvey?.isResponseOpen ?? false))}
+                  disabled={togglingSurveyResponses || !(editingSurvey?.currentPublishedVersionNumber)}
+                >
+                  {togglingSurveyResponses
+                    ? tCommon("saving")
+                    : editingSurvey?.isResponseOpen
+                      ? tCommon("closeResponses")
+                      : tCommon("openResponses")}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-3">
+              <div className="text-sm font-medium">{tAdmin("surveyVersionsTitle")}</div>
+              {surveyVersionsLoading ? (
+                <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+              ) : surveyVersions.length === 0 ? (
+                <p className="text-xs text-gray-500">{tAdmin("surveyVersionsEmpty")}</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {surveyVersions.map((version) => (
+                    <div key={version.id} className="flex items-center justify-between rounded-md border border-gray-100 dark:border-gray-800 px-2 py-1.5">
+                      <div className="text-xs text-gray-600 dark:text-gray-300">
+                        {tAdmin("versionLabel", { version: version.versionNumber })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedSurveyVersion(version)}>
+                          {tAdmin("viewVersion")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => restoreSurveyDraft(version.versionNumber)}
+                          disabled={restoringSurveyVersion === version.versionNumber}
+                        >
+                          {restoringSurveyVersion === version.versionNumber
+                            ? tCommon("saving")
+                            : tAdmin("restoreToDraft")}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2">
               <div className="space-y-1">
@@ -1876,6 +2054,27 @@ export default function AdminPage() {
             </Button>
             <Button onClick={saveDataset} disabled={savingDataset}>
               {savingDataset ? tCommon("saving") : tCommon("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedSurveyVersion} onOpenChange={(open) => !open && setSelectedSurveyVersion(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedSurveyVersion
+                ? tAdmin("versionPreviewTitle", { version: selectedSurveyVersion.versionNumber })
+                : tAdmin("versionPreviewTitle", { version: 0 })}
+            </DialogTitle>
+            <DialogDescription>{tAdmin("versionPreviewDescription")}</DialogDescription>
+          </DialogHeader>
+          <pre className="max-h-[60vh] overflow-auto rounded-md bg-gray-50 dark:bg-gray-900 p-3 text-xs">
+            {selectedSurveyVersion ? JSON.stringify(selectedSurveyVersion.snapshot, null, 2) : ""}
+          </pre>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedSurveyVersion(null)}>
+              {tCommon("cancel")}
             </Button>
           </DialogFooter>
         </DialogContent>

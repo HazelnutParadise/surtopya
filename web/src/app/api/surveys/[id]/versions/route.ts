@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
 
-export async function POST(
+export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -11,11 +11,11 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}/unpublish`, {
-    method: "POST",
+  const response = await fetch(`${API_BASE_URL}/surveys/${id}/versions`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    cache: "no-store",
   })
 
   const payload = await response.json().catch(() => ({}))
