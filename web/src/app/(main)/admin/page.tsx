@@ -72,6 +72,7 @@ export default function AdminPage() {
     billingInterval: "month",
     allowRenewalForExisting: false,
     monthlyPointsGrant: 0,
+    maxActiveSurveys: null as number | null,
   })
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null)
@@ -646,6 +647,7 @@ export default function AdminPage() {
           billingInterval: plan.billingInterval || "month",
           allowRenewalForExisting: plan.allowRenewalForExisting,
           monthlyPointsGrant: plan.monthlyPointsGrant ?? 0,
+          maxActiveSurveys: plan.maxActiveSurveys ?? null,
         }),
       })
       if (!response.ok) {
@@ -686,6 +688,7 @@ export default function AdminPage() {
         billingInterval: "month",
         allowRenewalForExisting: false,
         monthlyPointsGrant: 0,
+        maxActiveSurveys: null,
       })
     } catch {
       setError(tAdmin("updateError"))
@@ -1410,6 +1413,47 @@ export default function AdminPage() {
                               disabled={!canWritePolicies}
                             />
                           </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Max active surveys</Label>
+                            <Input
+                              className="w-40"
+                              type="number"
+                              min={0}
+                              value={tier.maxActiveSurveys ?? ""}
+                              onChange={(event) =>
+                                setTiers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === tier.id
+                                      ? {
+                                          ...item,
+                                          maxActiveSurveys: Math.max(0, Number(event.target.value) || 0),
+                                        }
+                                      : item
+                                  )
+                                )
+                              }
+                              disabled={!canWritePolicies || tier.maxActiveSurveys == null}
+                            />
+                          </div>
+                          <Label className="text-xs">Unlimited active surveys</Label>
+                          <Switch
+                            checked={tier.maxActiveSurveys == null}
+                            onCheckedChange={(checked) =>
+                              setTiers((prev) =>
+                                prev.map((item) =>
+                                  item.id === tier.id
+                                    ? {
+                                        ...item,
+                                        maxActiveSurveys: checked
+                                          ? null
+                                          : Math.max(0, item.maxActiveSurveys ?? 0),
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            disabled={!canWritePolicies}
+                          />
                           <Label className="text-xs">Show on pricing</Label>
                           <Switch
                             checked={tier.showOnPricing ?? false}
@@ -1512,7 +1556,7 @@ export default function AdminPage() {
 
                   <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
                     <div className="text-sm font-medium">New Plan</div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">Plan Code</Label>
                         <Input
@@ -1542,9 +1586,38 @@ export default function AdminPage() {
                           disabled={!canWritePolicies}
                         />
                       </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Max active surveys</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={newPlan.maxActiveSurveys ?? ""}
+                          onChange={(event) =>
+                            setNewPlan((prev) => ({
+                              ...prev,
+                              maxActiveSurveys: Math.max(0, Number(event.target.value) || 0),
+                            }))
+                          }
+                          placeholder="active surveys limit"
+                          disabled={!canWritePolicies || newPlan.maxActiveSurveys == null}
+                        />
+                      </div>
                       <Button className="md:self-end" onClick={createPlan} disabled={!canWritePolicies || creatingPlan}>
                         {creatingPlan ? tCommon("saving") : "Create Plan"}
                       </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Label className="text-xs">Unlimited active surveys</Label>
+                      <Switch
+                        checked={newPlan.maxActiveSurveys == null}
+                        onCheckedChange={(checked) =>
+                          setNewPlan((prev) => ({
+                            ...prev,
+                            maxActiveSurveys: checked ? null : Math.max(0, prev.maxActiveSurveys ?? 0),
+                          }))
+                        }
+                        disabled={!canWritePolicies}
+                      />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div className="space-y-1">

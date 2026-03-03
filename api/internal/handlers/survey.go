@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -22,6 +23,8 @@ type SurveyHandler struct {
 	pointsRepo *repository.PointsRepository
 }
 
+const activeSurveyLimitReachedError = "Active survey limit reached"
+
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
 	db := database.GetDB()
@@ -31,6 +34,22 @@ func NewSurveyHandler() *SurveyHandler {
 		policies:   policy.NewService(db),
 		pointsRepo: repository.NewPointsRepository(db),
 	}
+}
+
+func (h *SurveyHandler) canPublishUnderPlanLimit(ctx context.Context, userID uuid.UUID, surveyID uuid.UUID) (bool, error) {
+	maxActiveSurveys, err := h.policies.ResolveMaxActiveSurveys(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if maxActiveSurveys == nil {
+		return true, nil
+	}
+
+	activeCount, err := h.repo.CountActivePublishedByUser(userID, &surveyID)
+	if err != nil {
+		return false, err
+	}
+	return activeCount < *maxActiveSurveys, nil
 }
 
 // CreateSurveyRequest represents the request body for creating a survey
@@ -421,6 +440,16 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	desiredPointsReward := req.PointsReward
 	if desiredPointsReward < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+		return
+	}
+
+	canPublish, err := h.canPublishUnderPlanLimit(c.Request.Context(), survey.UserID, survey.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate active survey limit"})
+		return
+	}
+	if !canPublish {
+		c.JSON(http.StatusForbidden, gin.H{"error": activeSurveyLimitReachedError})
 		return
 	}
 

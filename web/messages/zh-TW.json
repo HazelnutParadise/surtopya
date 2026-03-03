@@ -109,6 +109,7 @@
     "pointsReward": "加碼消耗點數（整份問卷）",
     "pointsRewardDescription": "系統提供基礎點數。你可為整份問卷額外消耗 N 點（僅扣一次），每位受訪者可多獲得 N/3 點。首次發布後，此值僅可調高（加碼）。",
     "publishErrorGeneric": "發布問卷失敗。",
+    "publishErrorActiveSurveyLimitReached": "你已達到目前方案的進行中問卷上限。",
     "publishErrorInsufficientBoostPoints": "點數不足，無法補扣加碼點數。",
     "publishErrorBoostIncreaseOnly": "首次發布後，加碼點數只能調高。",
     "publishErrorUnpublishBeforeIncrease": "請先取消發布，再重新發布以提高加碼點數。",

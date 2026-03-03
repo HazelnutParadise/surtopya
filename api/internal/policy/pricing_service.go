@@ -22,6 +22,7 @@ type PricingPlan struct {
 	Description        string           `json:"description"`
 	PriceCentsUSD      int              `json:"priceCentsUsd"`
 	MonthlyPointsGrant int              `json:"monthlyPointsGrant"`
+	MaxActiveSurveys   *int             `json:"maxActiveSurveys"`
 	Currency           string           `json:"currency"`
 	BillingInterval    string           `json:"billingInterval"`
 	IsPurchasable      bool             `json:"isPurchasable"`
@@ -62,9 +63,36 @@ func monthlyPointsBenefit(locale string, points int) PricingBenefit {
 	}
 }
 
+func activeSurveysBenefit(locale string, maxActiveSurveys *int) PricingBenefit {
+	var name string
+	if maxActiveSurveys == nil {
+		name = "Unlimited active surveys"
+		switch locale {
+		case "zh-TW":
+			name = "無限制進行中問卷"
+		case "ja":
+			name = "進行中アンケート無制限"
+		}
+	} else {
+		name = fmt.Sprintf("%d active surveys", *maxActiveSurveys)
+		switch locale {
+		case "zh-TW":
+			name = fmt.Sprintf("%d 份進行中問卷", *maxActiveSurveys)
+		case "ja":
+			name = fmt.Sprintf("進行中アンケート %d 件", *maxActiveSurveys)
+		}
+	}
+
+	return PricingBenefit{
+		Key:         "surveys.active_limit",
+		Name:        name,
+		Description: "",
+	}
+}
+
 func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]PricingPlan, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, code, name, name_i18n, description_i18n, price_cents_usd, monthly_points_grant, billing_interval, is_purchasable
+		SELECT id, code, name, name_i18n, description_i18n, price_cents_usd, monthly_points_grant, max_active_surveys, billing_interval, is_purchasable
 		FROM membership_tiers
 		WHERE is_active = TRUE
 		  AND show_on_pricing = TRUE
@@ -85,15 +113,21 @@ func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]Pricin
 		var descriptionI18nRaw []byte
 		var price int
 		var monthlyPointsGrant int
+		var maxActiveSurveys sql.NullInt64
 		var billingInterval string
 		var isPurchasable bool
-		if err := rows.Scan(&tierID, &code, &fallbackName, &nameI18nRaw, &descriptionI18nRaw, &price, &monthlyPointsGrant, &billingInterval, &isPurchasable); err != nil {
+		if err := rows.Scan(&tierID, &code, &fallbackName, &nameI18nRaw, &descriptionI18nRaw, &price, &monthlyPointsGrant, &maxActiveSurveys, &billingInterval, &isPurchasable); err != nil {
 			return nil, fmt.Errorf("failed to scan pricing plan: %w", err)
 		}
 		nameI18n := map[string]string{}
 		descriptionI18n := map[string]string{}
 		_ = json.Unmarshal(nameI18nRaw, &nameI18n)
 		_ = json.Unmarshal(descriptionI18nRaw, &descriptionI18n)
+		var maxActiveSurveysValue *int
+		if maxActiveSurveys.Valid {
+			value := int(maxActiveSurveys.Int64)
+			maxActiveSurveysValue = &value
+		}
 		planIndex[tierID] = len(plans)
 		plans = append(plans, PricingPlan{
 			Code:               code,
@@ -101,10 +135,14 @@ func (s *Service) ListPricingPlans(ctx context.Context, locale string) ([]Pricin
 			Description:        localizedFromI18n(descriptionI18n, locale, ""),
 			PriceCentsUSD:      price,
 			MonthlyPointsGrant: monthlyPointsGrant,
+			MaxActiveSurveys:   maxActiveSurveysValue,
 			Currency:           "USD",
 			BillingInterval:    billingInterval,
 			IsPurchasable:      isPurchasable,
-			Benefits:           []PricingBenefit{monthlyPointsBenefit(locale, monthlyPointsGrant)},
+			Benefits: []PricingBenefit{
+				monthlyPointsBenefit(locale, monthlyPointsGrant),
+				activeSurveysBenefit(locale, maxActiveSurveysValue),
+			},
 		})
 	}
 	if err := rows.Err(); err != nil {

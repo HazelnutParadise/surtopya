@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +35,22 @@ func NewAdminHandler() *AdminHandler {
 		datasets: repository.NewDatasetRepository(db),
 		policies: policy.NewService(db),
 	}
+}
+
+func (h *AdminHandler) canPublishUnderPlanLimit(ctx context.Context, userID uuid.UUID, surveyID uuid.UUID) (bool, error) {
+	maxActiveSurveys, err := h.policies.ResolveMaxActiveSurveys(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	if maxActiveSurveys == nil {
+		return true, nil
+	}
+
+	activeCount, err := h.surveys.CountActivePublishedByUser(userID, &surveyID)
+	if err != nil {
+		return false, err
+	}
+	return activeCount < *maxActiveSurveys, nil
 }
 
 type AdminSurveyUpdateRequest struct {
@@ -91,17 +109,39 @@ type AdminSubscriptionPlanCreateRequest struct {
 	BillingInterval         string            `json:"billingInterval"`
 	AllowRenewalForExisting bool              `json:"allowRenewalForExisting"`
 	MonthlyPointsGrant      int               `json:"monthlyPointsGrant"`
+	MaxActiveSurveys        *int              `json:"maxActiveSurveys"`
+}
+
+type OptionalNullableInt struct {
+	Set   bool
+	Value *int
+}
+
+func (v *OptionalNullableInt) UnmarshalJSON(data []byte) error {
+	v.Set = true
+	if string(data) == "null" {
+		v.Value = nil
+		return nil
+	}
+
+	var parsed int
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+	v.Value = &parsed
+	return nil
 }
 
 type AdminSubscriptionPlanPatchRequest struct {
-	NameI18n                *map[string]string `json:"nameI18n"`
-	DescriptionI18n         *map[string]string `json:"descriptionI18n"`
-	IsPurchasable           *bool              `json:"isPurchasable"`
-	ShowOnPricing           *bool              `json:"showOnPricing"`
-	PriceCentsUSD           *int               `json:"priceCentsUsd"`
-	BillingInterval         *string            `json:"billingInterval"`
-	AllowRenewalForExisting *bool              `json:"allowRenewalForExisting"`
-	MonthlyPointsGrant      *int               `json:"monthlyPointsGrant"`
+	NameI18n                *map[string]string  `json:"nameI18n"`
+	DescriptionI18n         *map[string]string  `json:"descriptionI18n"`
+	IsPurchasable           *bool               `json:"isPurchasable"`
+	ShowOnPricing           *bool               `json:"showOnPricing"`
+	PriceCentsUSD           *int                `json:"priceCentsUsd"`
+	BillingInterval         *string             `json:"billingInterval"`
+	AllowRenewalForExisting *bool               `json:"allowRenewalForExisting"`
+	MonthlyPointsGrant      *int                `json:"monthlyPointsGrant"`
+	MaxActiveSurveys        OptionalNullableInt `json:"maxActiveSurveys"`
 }
 
 type AdminSubscriptionPlanDeactivateRequest struct {
@@ -230,6 +270,16 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 	}
 	if req.IsPublished != nil {
 		if *req.IsPublished && !survey.IsPublished {
+			canPublish, err := h.canPublishUnderPlanLimit(c.Request.Context(), survey.UserID, survey.ID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate active survey limit"})
+				return
+			}
+			if !canPublish {
+				c.JSON(http.StatusForbidden, gin.H{"error": activeSurveyLimitReachedError})
+				return
+			}
+
 			survey.IsPublished = true
 			survey.PublishedCount++
 			now := time.Now()
@@ -851,6 +901,7 @@ func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
 		BillingInterval:         req.BillingInterval,
 		AllowRenewalForExisting: req.AllowRenewalForExisting,
 		MonthlyPointsGrant:      req.MonthlyPointsGrant,
+		MaxActiveSurveys:        req.MaxActiveSurveys,
 	})
 	if err != nil {
 		if err == policy.ErrInvalidMembershipGrant || err == policy.ErrPlanCodeExists {
@@ -903,6 +954,8 @@ func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 		BillingInterval:         req.BillingInterval,
 		AllowRenewalForExisting: req.AllowRenewalForExisting,
 		MonthlyPointsGrant:      req.MonthlyPointsGrant,
+		MaxActiveSurveys:        req.MaxActiveSurveys.Value,
+		MaxActiveSurveysSet:     req.MaxActiveSurveys.Set,
 	})
 	if err != nil {
 		if err == policy.ErrTierNotFound {

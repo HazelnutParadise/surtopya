@@ -109,6 +109,7 @@
     "pointsReward": "ブースト消費（アンケートごと）",
     "pointsRewardDescription": "システムが基本ポイントを付与します。アンケートごとに N ポイントを1回だけ消費し、回答者は1人あたり +N/3 ポイントを追加で獲得します。初回公開後はこの値を増やすことのみ可能です。",
     "publishErrorGeneric": "アンケートの公開に失敗しました。",
+    "publishErrorActiveSurveyLimitReached": "このプランで公開中アンケートの上限に達しています。",
     "publishErrorInsufficientBoostPoints": "ポイント不足のため、ブーストポイントを追加できません。",
     "publishErrorBoostIncreaseOnly": "初回公開後は、ブーストポイントは増加のみ可能です。",
     "publishErrorUnpublishBeforeIncrease": "ブーストポイントを増やすには、一度非公開にして再公開してください。",

@@ -117,6 +117,31 @@ func (s *Service) ResolveMembershipTier(ctx context.Context, userID uuid.UUID) (
 	return tierCode, nil
 }
 
+func (s *Service) ResolveMaxActiveSurveys(ctx context.Context, userID uuid.UUID) (*int, error) {
+	if err := s.EnsureUserMembership(ctx, userID); err != nil {
+		return nil, err
+	}
+
+	var maxActiveSurveys sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT mt.max_active_surveys
+		FROM user_memberships um
+		JOIN membership_tiers mt ON mt.id = um.tier_id
+		WHERE um.user_id = $1
+	`, userID).Scan(&maxActiveSurveys)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve max active surveys: %w", err)
+	}
+	if !maxActiveSurveys.Valid {
+		return nil, nil
+	}
+	value := int(maxActiveSurveys.Int64)
+	return &value, nil
+}
+
 func (s *Service) ResolveCapabilities(ctx context.Context, userID uuid.UUID) (map[string]bool, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT

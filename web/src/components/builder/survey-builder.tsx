@@ -113,6 +113,7 @@ export function SurveyBuilder() {
   const normalizeNonNegativePoints = (value: string) => Math.max(0, Number.parseInt(value || "0", 10) || 0)
   const mapPublishError = (rawError?: string) => {
     if (!rawError) return tBuilder("publishErrorGeneric")
+    if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached")
     if (rawError === "Insufficient points for boost top-up") return tBuilder("publishErrorInsufficientBoostPoints")
     if (rawError === "Boost points can only increase after first publish") return tBuilder("publishErrorBoostIncreaseOnly")
     if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")

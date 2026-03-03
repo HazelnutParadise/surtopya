@@ -327,6 +327,7 @@ export interface MembershipTier {
   billingInterval?: string;
   allowRenewalForExisting?: boolean;
   monthlyPointsGrant?: number;
+  maxActiveSurveys?: number | null;
   replacementTierCode?: string;
 }
 
@@ -368,6 +369,7 @@ export interface PricingPlan {
   description: string;
   priceCentsUsd: number;
   monthlyPointsGrant: number;
+  maxActiveSurveys?: number | null;
   currency: "USD";
   billingInterval: "month";
   isPurchasable: boolean;

@@ -109,6 +109,7 @@
     "pointsReward": "Boost spend (per survey)",
     "pointsRewardDescription": "The system grants base points. You can spend N points once per survey; each respondent earns +N/3 extra points. After the first publish, this value can only be increased.",
     "publishErrorGeneric": "Failed to publish survey.",
+    "publishErrorActiveSurveyLimitReached": "You have reached your active survey limit for this plan.",
     "publishErrorInsufficientBoostPoints": "Not enough points to top up boost points.",
     "publishErrorBoostIncreaseOnly": "After first publish, boost points can only be increased.",
     "publishErrorUnpublishBeforeIncrease": "Unpublish and publish again to increase boost points.",

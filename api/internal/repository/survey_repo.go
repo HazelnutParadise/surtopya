@@ -135,6 +135,29 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 	return surveys, nil
 }
 
+// CountActivePublishedByUser counts published, not-yet-expired surveys for a user.
+// The current survey can be excluded to support republish checks.
+func (r *SurveyRepository) CountActivePublishedByUser(userID uuid.UUID, excludeSurveyID *uuid.UUID) (int, error) {
+	query := `
+		SELECT COUNT(*)
+		FROM surveys
+		WHERE user_id = $1
+		  AND is_published = TRUE
+		  AND (expires_at IS NULL OR expires_at > NOW())
+	`
+	args := []interface{}{userID}
+	if excludeSurveyID != nil {
+		query += " AND id <> $2"
+		args = append(args, *excludeSurveyID)
+	}
+
+	var count int
+	if err := r.db.QueryRow(query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count active surveys: %w", err)
+	}
+	return count, nil
+}
+
 // GetAllAdmin retrieves all surveys with optional filters for admin usage
 func (r *SurveyRepository) GetAllAdmin(search string, visibility string, published *bool, limit, offset int) ([]models.Survey, error) {
 	query := `

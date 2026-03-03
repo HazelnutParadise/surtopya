@@ -89,6 +89,28 @@ func TestService_SetUserMembershipGrant_RejectsInvalidPayload(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidMembershipGrant)
 }
 
+func TestService_ResolveMaxActiveSurveys_Unlimited(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	svc := NewService(db)
+	userID := uuid.New()
+
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(userID, DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
+
+	limit, err := svc.ResolveMaxActiveSurveys(context.Background(), userID)
+	require.NoError(t, err)
+	require.Nil(t, limit)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestService_ExpireMembershipIfNeeded_DowngradesExpiredGrant(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)

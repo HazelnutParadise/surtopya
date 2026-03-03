@@ -87,6 +87,12 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
@@ -145,6 +151,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_BoostCanOnlyIncrease(t *t
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
 
 	r := gin.New()
 	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
@@ -188,6 +200,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
@@ -266,5 +284,57 @@ func TestSurveyHandler_PublishSurvey_NegativeBoostRejected(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Contains(t, w.Body.String(), "Boost points cannot be negative")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_PublishSurvey_RejectsWhenActiveSurveyLimitReached(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false)
+	mock.ExpectQuery("FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(3))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\)\\s+FROM surveys").
+		WithArgs(publisherID, surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.PublishSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      0,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Contains(t, w.Body.String(), activeSurveyLimitReachedError)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
