@@ -1,5 +1,6 @@
 services:
   web:
+    image: surtopya-web:latest
     build:
       context: ./web
       dockerfile: Dockerfile
@@ -22,6 +23,7 @@ services:
     restart: always
 
   api:
+    image: surtopya-api:latest
     build:
       context: ./api
       dockerfile: Dockerfile
