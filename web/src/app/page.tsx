@@ -2,27 +2,38 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 import { Navbar } from "@/components/navbar";
-import { cookies } from "next/headers";
-import { withLocale } from "@/lib/locale";
+import { HeroThreeBackground } from "@/components/marketing/hero-three-background";
+import { cookies, headers } from "next/headers";
+import { locales, withLocale } from "@/lib/locale";
 import { getServerTranslator } from "@/lib/i18n-server";
 
 export default async function Home() {
+  const headerStore = await headers();
+  const headerLocale = headerStore.get("x-locale");
   const localeCookieStore = await cookies();
-  const locale = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
+  const localeFromCookie = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
+  const locale =
+    headerLocale && locales.includes(headerLocale as (typeof locales)[number])
+      ? headerLocale
+      : localeFromCookie;
   const t = await getServerTranslator("Home");
   const currentYear = new Date().getFullYear();
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
       <main className="flex-1">
-        <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48 bg-black text-white">
-          <div className="container px-4 md:px-6">
-            <div className="flex flex-col items-center space-y-4 text-center">
+        <section className="relative isolate w-full overflow-hidden bg-black py-12 text-white md:py-24 lg:py-32 xl:py-48">
+          <div className="pointer-events-none absolute inset-0 opacity-90">
+            <HeroThreeBackground />
+          </div>
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/50 to-black/75" />
+          <div className="container relative z-10 px-4 md:px-6">
+            <div className="flex flex-col items-center space-y-5 text-center">
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl leading-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
                   {t("heroTitle")}
                 </h1>
-                <p className="mx-auto max-w-[700px] text-gray-400 md:text-xl">
+                <p className="mx-auto max-w-[700px] text-gray-300 md:text-xl">
                   {t("heroSubtitle")}
                 </p>
               </div>
@@ -119,10 +130,10 @@ export default async function Home() {
           {t("footerCopyright", { year: currentYear })}
         </p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
-          <Link className="text-xs hover:underline underline-offset-4" href="#">
+          <Link className="text-xs hover:underline underline-offset-4" href={withLocale("/terms", locale)}>
             {t("footerTerms")}
           </Link>
-          <Link className="text-xs hover:underline underline-offset-4" href="#">
+          <Link className="text-xs hover:underline underline-offset-4" href={withLocale("/privacy", locale)}>
             {t("footerPrivacy")}
           </Link>
         </nav>

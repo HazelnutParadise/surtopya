@@ -39,5 +39,6 @@ export interface Survey {
         publishedCount?: number; // Task 6
         currentPublishedVersionNumber?: number;
         hasUnpublishedChanges?: boolean;
+        isPublished?: boolean;
     };
 }

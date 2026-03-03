@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test"
 
 test("pricing page renders plans from API", async ({ page }) => {
-  await page.route("**/api/me", async (route) => {
+  await page.route("**/api/me*", async (route) => {
     await route.fulfill({
       status: 401,
       contentType: "application/json",

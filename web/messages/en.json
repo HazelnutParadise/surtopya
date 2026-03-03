@@ -39,7 +39,9 @@
     "datasets": "Datasets",
     "getStarted": "Get Started",
     "settings": "Settings",
-    "admin": "Admin"
+    "admin": "Admin",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "Auth": {
     "loginTitle": "Welcome Back",
@@ -195,7 +197,9 @@
     "deleteQuestionTitle": "Delete Question?",
     "deletePageDescription": "Are you sure you want to delete this page and all questions inside it? This action cannot be undone.",
     "deleteQuestionDescription": "Are you sure you want to delete this question? This action cannot be undone.",
-    "saveSuccess": "Draft saved."
+    "saveSuccess": "Draft saved.",
+    "saveErrorGeneric": "Failed to save draft. Please try again.",
+    "saveErrorUnauthorized": "Please sign in before saving this draft."
   },
   "QuestionTypes": {
     "single": "Single Choice",
@@ -244,7 +248,7 @@
   },
   "Datasets": {
     "title": "Dataset Marketplace",
-    "description": "Explore and access high-quality de-identified datasets to power your research and development.",
+    "description": "Explore available de-identified datasets to speed up research and product validation.",
     "searchPlaceholder": "Search datasets...",
     "allCategories": "All Categories",
     "sortBy": "Sort by",
@@ -268,7 +272,7 @@
     "updated": "Updated",
     "heroTitle": "Explore",
     "heroTitleHighlight": "Data Marketplace",
-    "heroDescription": "Discover high-quality de-identified datasets curated by the community.",
+    "heroDescription": "Find analysis-ready datasets while keeping respondent privacy at the center.",
     "browseDatasets": "Browse Datasets",
     "searchTitle": "Search",
     "categoryTitle": "Categories",
@@ -315,7 +319,7 @@
   },
   "Explore": {
     "title": "Explore",
-    "description": "Discover paid surveys, share your opinions, and earn points. Join thousands of respondents.",
+    "description": "Explore surveys on the platform, share your perspective, and earn points for completed responses.",
     "noSurveys": "No surveys matched your filters.",
     "checkBackLater": "Check back later for new surveys",
     "earnPoints": "Earn {points} points",
@@ -334,8 +338,8 @@
     "loadMore": "Load More Surveys"
   },
   "Pricing": {
-    "title": "Simple, Transparent",
-    "description": "Choose the plan that fits your research needs. No hidden fees.",
+    "title": "Clear and Predictable",
+    "description": "Choose a plan based on research scale and collaboration needs, with explicit limits and feature access.",
     "free": "Free",
     "pro": "Pro",
     "enterprise": "Enterprise",
@@ -344,7 +348,7 @@
     "getStarted": "Get Started",
     "contactUs": "Contact Us",
     "currentPlan": "Current Plan",
-    "titleHighlight": "Pricing",
+    "titleHighlight": "Plans",
     "freeDescription": "For students and hobbyists",
     "proDescription": "For researchers and pros",
     "enterpriseDescription": "For large organizations",
@@ -362,12 +366,13 @@
     "proFeatureFive": "Priority Support",
     "enterpriseFeatureOne": "Unlimited Everything",
     "enterpriseFeatureTwo": "Dedicated Account Manager",
-    "enterpriseFeatureThree": "SSO & Advanced Security"
+    "enterpriseFeatureThree": "SSO & Advanced Security",
+    "noPlans": "No plans available"
   },
   "About": {
     "title": "About",
     "mission": "Our Mission",
-    "missionText": "Surtopya is a privacy-preserving survey platform that connects researchers with quality data while protecting user privacy.",
+    "missionText": "We provide a privacy-conscious survey platform that helps teams gather responses more consistently and use de-identified data responsibly.",
     "howItWorks": "How It Works",
     "forResearchers": "For Researchers",
     "forResearchersText": "Create surveys, collect responses, and access de-identified datasets from our marketplace.",
@@ -375,15 +380,15 @@
     "forParticipantsText": "Share your opinions, earn points, and know your data is protected.",
     "privacyFirst": "Privacy First",
     "privacyFirstText": "All data is automatically de-identified before being shared or stored.",
-    "subtitle": "Bridging the gap between researchers and respondents through a fair, transparent, and rewarding marketplace.",
-    "intro": "Surtopya was born from a simple observation: getting high-quality survey responses is hard, and filling out surveys often feels unrewarding. We set out to change that.",
+    "subtitle": "We focus on privacy protection, data quality, and fair incentives so researchers and respondents both benefit over time.",
+    "intro": "Surtopya started from a simple need: researchers need trustworthy survey data, and respondents deserve clear, fair rewards.",
     "whyChooseUs": "Why Choose Us?",
     "whyQualityTitle": "Quality First:",
-    "whyQualityText": "Our verification systems ensure you get real answers from real people.",
+    "whyQualityText": "Our workflows and data structure improve response usability and downstream analysis speed.",
     "whyRewardsTitle": "Fair Rewards:",
-    "whyRewardsText": "We pass on the majority of fees directly to the respondents.",
+    "whyRewardsText": "Transparent rules for points and benefits help participants understand effort and reward.",
     "whyAssetsTitle": "Data Assets:",
-    "whyAssetsText": "Your data isn't just a one-time report; it's an asset that grows in value."
+    "whyAssetsText": "Survey output can evolve into maintainable data assets, not just one-off reports."
   },
   "Errors": {
     "notFound": "Page Not Found",
@@ -398,16 +403,16 @@
     "tryAgain": "Try Again"
   },
   "Home": {
-    "heroTitle": "Unlock Insights with Surtopya",
-    "heroSubtitle": "The premium marketplace for high-quality survey data. Create, distribute, and analyze with ease.",
+    "heroTitle": "Turn Survey Feedback Into Actionable Insight",
+    "heroSubtitle": "Surtopya helps you create surveys, collect responses, and work with de-identified data under clear privacy rules.",
     "getStarted": "Get Started",
     "browseSurveys": "Browse Surveys",
-    "featureOneTitle": "Easy Creation",
-    "featureOneDescription": "Drag-and-drop builder with advanced logic and premium templates.",
-    "featureTwoTitle": "Global Reach",
-    "featureTwoDescription": "Access a worldwide pool of verified respondents instantly.",
-    "featureThreeTitle": "Data Insights",
-    "featureThreeDescription": "Real-time analytics and exportable reports for deep analysis.",
+    "featureOneTitle": "Fast Authoring",
+    "featureOneDescription": "Build production-ready surveys quickly with drag-and-drop editing and logic controls.",
+    "featureTwoTitle": "Reliable Responses",
+    "featureTwoDescription": "Collect higher quality responses through consistent platform workflows and clear participation incentives.",
+    "featureThreeTitle": "Reusable Data",
+    "featureThreeDescription": "Turn de-identified responses into reusable data assets for future analysis and decision support.",
     "footerCopyright": "© {year} Surtopya. All rights reserved.",
     "footerTerms": "Terms of Service",
     "footerPrivacy": "Privacy"
@@ -708,5 +713,37 @@
     "uploadError": "Upload failed. Please try again.",
     "publishStatus": "Response status",
     "publishStatusHint": "Publishing creates versions. Open/close responses is a separate switch."
+  },
+  "LegalTerms": {
+    "title": "Terms of Service Summary",
+    "intro": "This page is a readable summary of Surtopya terms and the core usage expectations.",
+    "useTitle": "Service Usage",
+    "useBody": "You may use Surtopya to create surveys, submit responses, and access eligible datasets. Do not upload unlawful or abusive content.",
+    "contentTitle": "Content Responsibility",
+    "contentBody": "Survey creators are responsible for what they publish and should ensure compliance with local laws and platform rules.",
+    "availabilityTitle": "Service Availability",
+    "availabilityBody": "We continuously improve reliability and security, but uninterrupted availability is not guaranteed at all times.",
+    "contactTitle": "Contact and Updates",
+    "contactBody": "If you have questions about terms, contact us through platform channels. Updates will be announced in-product.",
+    "summaryNote": "Note: this is a plain-language summary and not legal advice."
+  },
+  "LegalPrivacy": {
+    "title": "Privacy Summary",
+    "intro": "This page explains how Surtopya handles account data, survey responses, and de-identified data workflows.",
+    "collectTitle": "Data We Process",
+    "collectBody": "We process basic account data, survey content, and operational logs required to provide the service securely.",
+    "deidentifyTitle": "De-identification",
+    "deidentifyBody": "Before data enters the marketplace, responses are de-identified and sanitized to reduce direct identification risk.",
+    "controlTitle": "Your Controls",
+    "controlBody": "Plan and product settings define what can be shared publicly; some settings become locked after first publish.",
+    "contactTitle": "Contact Us",
+    "contactBody": "For privacy-related requests, contact us through platform channels and we will process requests through standard procedures.",
+    "summaryNote": "Note: this is a plain-language summary. Formal legal documents may provide additional details."
+  },
+  "ApiDocs": {
+    "title": "API Reference",
+    "subtitle": "Common endpoints and base URL for quick integration and testing.",
+    "baseUrlTitle": "Base URL",
+    "commonEndpoints": "Common Endpoints"
   }
 }

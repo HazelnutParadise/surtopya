@@ -21,7 +21,7 @@
     "duplicate": "複製",
     "preview": "プレビュー",
     "settings": "設定",
-    "saving": "Saving...",
+    "saving": "保存中...",
     "openResponses": "回答受付を開く",
     "closeResponses": "回答受付を閉じる"
   },
@@ -39,7 +39,9 @@
     "datasets": "データセット",
     "getStarted": "はじめる",
     "settings": "設定",
-    "admin": "Admin"
+    "admin": "管理",
+    "openMenu": "メニューを開く",
+    "closeMenu": "メニューを閉じる"
   },
   "Auth": {
     "loginTitle": "おかえりなさい",
@@ -195,7 +197,9 @@
     "versionDiffRemoved": "削除",
     "restoreDraftConfirmTitle": "このバージョンを下書きに復元しますか？",
     "restoreDraftConfirmDescription": "現在の下書きを上書きします。公開中バージョンと回答受付状態は変わりません。",
-    "restoreDraftConfirmAction": "復元する"
+    "restoreDraftConfirmAction": "復元する",
+    "saveErrorGeneric": "下書きの保存に失敗しました。しばらくして再試行してください。",
+    "saveErrorUnauthorized": "下書きを保存する前にログインしてください。"
   },
   "QuestionTypes": {
     "single": "単一選択",
@@ -362,7 +366,8 @@
     "proFeatureFive": "優先サポート",
     "enterpriseFeatureOne": "すべて無制限",
     "enterpriseFeatureTwo": "専任アカウントマネージャー",
-    "enterpriseFeatureThree": "シングルサインオンと高度なセキュリティ"
+    "enterpriseFeatureThree": "シングルサインオンと高度なセキュリティ",
+    "noPlans": "利用可能なプランはありません"
   },
   "About": {
     "title": "概要",
@@ -558,9 +563,9 @@
     "twoFactorTitle": "二要素認証",
     "twoFactorDescription": "現在無効です。追加の安全性のため有効にできます。",
     "enable": "有効化",
-    "signInTitle": "Sign in required",
-    "signInDescription": "Sign in to manage your profile.",
-    "signInAction": "Sign in",
+    "signInTitle": "ログインが必要です",
+    "signInDescription": "プロフィールを管理するにはログインしてください。",
+    "signInAction": "ログイン",
     "saveError": "Failed to save changes. Please try again."
   },
   "SurveyManagement": {
@@ -687,13 +692,13 @@
     "surveyIdPlaceholder": "任意。アンケートと紐付ける場合のみ",
     "datasetFileRequired": "データセットファイルを選択してください。",
     "uploadError": "アップロードに失敗しました。再試行してください。",
-    "policiesTab": "Policies",
-    "policiesTitle": "Policy Management",
-    "membershipTierLabel": "Membership tier",
-    "noPolicies": "No policy data found",
+    "policiesTab": "ポリシー",
+    "policiesTitle": "ポリシー管理",
+    "membershipTierLabel": "メンバーシップ階層",
+    "noPolicies": "ポリシーデータが見つかりません",
     "policyWritersTitle": "Policy Writers",
     "noPolicyWriters": "No policy writers found",
-    "policyWriterToggleLabel": "Can write policies",
+    "policyWriterToggleLabel": "ポリシー編集権限",
     "capabilityLabel": "Capability",
     "policyWriterCount": "{count} policy writers",
     "responseStatus": "回答受付状態",
@@ -708,5 +713,37 @@
     "restoreToDraft": "下書きへ復元",
     "versionPreviewTitle": "バージョン {version} のスナップショット",
     "versionPreviewDescription": "これは公開時点の内容スナップショットです。"
+  },
+  "LegalTerms": {
+    "title": "利用規約サマリー",
+    "intro": "このページは、Surtopya の利用規約と主要な利用ルールを読みやすくまとめた要約です。",
+    "useTitle": "サービス利用",
+    "useBody": "Surtopya ではアンケートの作成、回答の送信、条件を満たすデータセットへのアクセスが可能です。違法または不適切なコンテンツの投稿は禁止されています。",
+    "contentTitle": "コンテンツ責任",
+    "contentBody": "アンケート作成者は公開する内容に責任を持ち、各地域の法令とプラットフォーム規約を遵守する必要があります。",
+    "availabilityTitle": "サービス提供",
+    "availabilityBody": "私たちは信頼性と安全性の向上に継続的に取り組みますが、常時無停止の提供を保証するものではありません。",
+    "contactTitle": "お問い合わせと更新",
+    "contactBody": "規約に関するご質問はプラットフォーム経由でお問い合わせください。更新はプロダクト内でお知らせします。",
+    "summaryNote": "注記: これは平易な要約であり、法的助言ではありません。"
+  },
+  "LegalPrivacy": {
+    "title": "プライバシーサマリー",
+    "intro": "このページでは、Surtopya がアカウント情報、アンケート回答、匿名化データの運用をどのように扱うかを説明します。",
+    "collectTitle": "取り扱うデータ",
+    "collectBody": "サービスを安全に提供するために、基本的なアカウント情報、アンケート内容、運用ログを処理します。",
+    "deidentifyTitle": "匿名化",
+    "deidentifyBody": "データがマーケットに入る前に、回答は匿名化・整形され、直接識別のリスクを低減します。",
+    "controlTitle": "ユーザーのコントロール",
+    "controlBody": "プランとプロダクト設定により公開共有の範囲が決まり、一部設定は初回公開後にロックされます。",
+    "contactTitle": "お問い合わせ",
+    "contactBody": "プライバシーに関するご要望はプラットフォーム経由でご連絡ください。標準手順に沿って対応します。",
+    "summaryNote": "注記: これは平易な要約です。正式な法的文書には追加の詳細が記載される場合があります。"
+  },
+  "ApiDocs": {
+    "title": "API リファレンス",
+    "subtitle": "主要エンドポイントとベース URL をまとめ、素早い連携とテストを支援します。",
+    "baseUrlTitle": "ベース URL",
+    "commonEndpoints": "主要エンドポイント"
   }
 }

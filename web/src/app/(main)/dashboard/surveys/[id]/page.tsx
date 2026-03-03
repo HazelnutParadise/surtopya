@@ -277,7 +277,7 @@ export default function SurveyManagementPage() {
       };
       sessionStorage.setItem("preview_survey", JSON.stringify(surveyData));
       sessionStorage.setItem("preview_theme", JSON.stringify(survey.theme || {}));
-      window.open(withLocalePath("/survey/preview"), "_blank");
+      window.open(withLocalePath("/create/preview"), "_blank");
     }
   };
 

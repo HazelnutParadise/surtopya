@@ -21,7 +21,7 @@
     "duplicate": "複製",
     "preview": "預覽",
     "settings": "設定",
-    "saving": "Saving...",
+    "saving": "儲存中...",
     "openResponses": "開啟回應",
     "closeResponses": "關閉回應"
   },
@@ -39,7 +39,9 @@
     "datasets": "資料集",
     "getStarted": "開始使用",
     "settings": "設定",
-    "admin": "管理後台"
+    "admin": "管理後台",
+    "openMenu": "開啟選單",
+    "closeMenu": "關閉選單"
   },
   "Auth": {
     "loginTitle": "歡迎回來",
@@ -195,7 +197,9 @@
     "versionDiffRemoved": "移除",
     "restoreDraftConfirmTitle": "確定要回復此版本到草稿？",
     "restoreDraftConfirmDescription": "此操作會覆蓋目前草稿，不會影響目前已發布版本與回應開關。",
-    "restoreDraftConfirmAction": "確認回復"
+    "restoreDraftConfirmAction": "確認回復",
+    "saveErrorGeneric": "儲存草稿失敗，請稍後再試。",
+    "saveErrorUnauthorized": "請先登入再儲存草稿。"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -362,7 +366,8 @@
     "proFeatureFive": "優先支援",
     "enterpriseFeatureOne": "全功能無上限",
     "enterpriseFeatureTwo": "專屬客戶經理",
-    "enterpriseFeatureThree": "單一登入與進階安全性"
+    "enterpriseFeatureThree": "單一登入與進階安全性",
+    "noPlans": "目前沒有可用方案"
   },
   "About": {
     "title": "關於",
@@ -558,9 +563,9 @@
     "twoFactorTitle": "雙重驗證",
     "twoFactorDescription": "目前已停用。啟用以增加安全性。",
     "enable": "啟用",
-    "signInTitle": "Sign in required",
-    "signInDescription": "Sign in to manage your profile.",
-    "signInAction": "Sign in",
+    "signInTitle": "需要登入",
+    "signInDescription": "請先登入以管理你的個人檔案。",
+    "signInAction": "登入",
     "saveError": "Failed to save changes. Please try again."
   },
   "SurveyManagement": {
@@ -687,13 +692,13 @@
     "surveyIdPlaceholder": "可不填，綁定問卷才需要",
     "datasetFileRequired": "請選擇資料集檔案。",
     "uploadError": "上傳失敗，請稍後再試。",
-    "policiesTab": "Policies",
-    "policiesTitle": "Policy Management",
-    "membershipTierLabel": "Membership tier",
-    "noPolicies": "No policy data found",
+    "policiesTab": "政策",
+    "policiesTitle": "政策管理",
+    "membershipTierLabel": "會員等級",
+    "noPolicies": "找不到政策資料",
     "policyWritersTitle": "Policy Writers",
     "noPolicyWriters": "No policy writers found",
-    "policyWriterToggleLabel": "Can write policies",
+    "policyWriterToggleLabel": "可編輯政策",
     "capabilityLabel": "Capability",
     "policyWriterCount": "{count} policy writers",
     "responseStatus": "回應狀態",
@@ -708,5 +713,37 @@
     "restoreToDraft": "回復到草稿",
     "versionPreviewTitle": "版本 {version} 快照",
     "versionPreviewDescription": "這是該版本發布時的內容快照。"
+  },
+  "LegalTerms": {
+    "title": "服務條款摘要",
+    "intro": "此頁為 Surtopya 服務條款與核心使用規範的易讀摘要。",
+    "useTitle": "服務使用",
+    "useBody": "你可以使用 Surtopya 建立問卷、提交回應，並存取符合資格的資料集。請勿上傳違法或濫用內容。",
+    "contentTitle": "內容責任",
+    "contentBody": "問卷建立者需對其發布內容負責，並確保符合當地法規與平台規範。",
+    "availabilityTitle": "服務可用性",
+    "availabilityBody": "我們會持續提升可靠性與安全性，但無法保證服務在所有時間都不中斷。",
+    "contactTitle": "聯絡與更新",
+    "contactBody": "若對條款有疑問，請透過平台管道聯絡我們。條款更新將於產品內公告。",
+    "summaryNote": "注意：此為白話摘要，非法律意見。"
+  },
+  "LegalPrivacy": {
+    "title": "隱私摘要",
+    "intro": "此頁說明 Surtopya 如何處理帳戶資料、問卷回應與去識別化資料流程。",
+    "collectTitle": "我們處理的資料",
+    "collectBody": "我們會處理提供服務所需的基本帳戶資料、問卷內容與營運紀錄，以維持安全與穩定。",
+    "deidentifyTitle": "去識別化",
+    "deidentifyBody": "資料進入市場前，回應會先經過去識別化與清理，以降低直接識別風險。",
+    "controlTitle": "你的控制權",
+    "controlBody": "方案與產品設定會決定可公開分享的範圍；部分設定在首次發布後會被鎖定。",
+    "contactTitle": "聯絡我們",
+    "contactBody": "若有隱私相關需求，請透過平台管道聯絡，我們會依標準流程處理。",
+    "summaryNote": "注意：此為白話摘要，正式法律文件可能提供更多細節。"
+  },
+  "ApiDocs": {
+    "title": "API 參考",
+    "subtitle": "提供常用端點與基礎 URL，方便快速整合與測試。",
+    "baseUrlTitle": "基礎 URL",
+    "commonEndpoints": "常用端點"
   }
 }

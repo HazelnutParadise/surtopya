@@ -17,6 +17,7 @@ export default function PricingPage() {
   const [plans, setPlans] = useState<PricingPlan[]>([])
   const [loading, setLoading] = useState(true)
   const t = useTranslations("Pricing")
+  const tCommon = useTranslations("Common")
   const locale = useLocale()
 
   useEffect(() => {
@@ -82,9 +83,9 @@ export default function PricingPage() {
         </div>
 
         {loading ? (
-          <div className="text-center text-sm text-gray-500">Loading...</div>
+          <div className="text-center text-sm text-gray-500">{tCommon("loading")}</div>
         ) : sortedPlans.length === 0 ? (
-          <div className="text-center text-sm text-gray-500">No plans available</div>
+          <div className="text-center text-sm text-gray-500">{t("noPlans")}</div>
         ) : (
           <div className="flex flex-wrap justify-center gap-8">
             {sortedPlans.map((plan) => {

@@ -30,10 +30,15 @@ const normalizeCategory = (category: string) => {
   return category.toLowerCase().replace(/\s+/g, "-");
 };
 
-function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
+function formatDate(value: string, locale: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date)
 }
 
 function DatasetsContent() {
@@ -53,6 +58,7 @@ function DatasetsContent() {
     (searchParams.get("sort") as "newest" | "downloads" | "samples") || "newest"
   );
   const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -76,6 +82,7 @@ function DatasetsContent() {
 
   useEffect(() => {
     setOffset(0);
+    setTotalCount(0);
   }, [searchTerm, activeCategory, sortBy]);
 
   useEffect(() => {
@@ -107,6 +114,9 @@ function DatasetsContent() {
         }
         const payload = await response.json();
         const items = payload.datasets || [];
+        const nextHasMore = items.length === PAGE_SIZE;
+        const rawTotal = Number(payload?.meta?.total);
+        const hasMetaTotal = Number.isFinite(rawTotal) && rawTotal >= 0;
 
         if (isMounted) {
           if (offset === 0) {
@@ -114,13 +124,21 @@ function DatasetsContent() {
           } else {
             setDatasets((prev) => [...prev, ...items]);
           }
-          setHasMore(items.length === PAGE_SIZE);
+          setHasMore(nextHasMore);
+
+          if (hasMetaTotal) {
+            setTotalCount(Math.floor(rawTotal));
+          } else {
+            const fallbackTotal = offset + items.length + (nextHasMore ? 1 : 0);
+            setTotalCount((prev) => Math.max(prev, fallbackTotal));
+          }
         }
       } catch (error) {
         if (isMounted) {
           console.error("Failed to load datasets:", error);
           if (offset === 0) {
             setDatasets([]);
+            setTotalCount(0);
           }
           setHasMore(false);
         }
@@ -175,8 +193,9 @@ function DatasetsContent() {
               <Button
                 variant="outline"
                 className="border-white/20 bg-white/5 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm shadow-xl transition-all"
+                asChild
               >
-                {tDatasets("apiDocs")}
+                <Link href={withLocalePath("/docs/api")}>{tDatasets("apiDocs")}</Link>
               </Button>
             </div>
           </div>
@@ -245,7 +264,7 @@ function DatasetsContent() {
           <div className="flex-1 space-y-6">
             <div className="flex items-center justify-between pb-4">
               <div className="text-sm text-gray-500">
-                {tDatasets("showingResults", { shown: displayDatasets.length, total: displayDatasets.length })}
+                {tDatasets("showingResults", { shown: displayDatasets.length, total: totalCount })}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 uppercase font-medium">{tDatasets("sortLabel")}</span>
@@ -313,7 +332,7 @@ function DatasetsContent() {
                             </span>
                           </div>
                           <div className="md:ml-auto">
-                            {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt) })}
+                            {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt, locale) })}
                           </div>
                         </div>
                       </CardContent>

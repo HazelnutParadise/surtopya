@@ -5,7 +5,7 @@ test("dashboard survey detail renders responses list (mocked)", async ({
 }) => {
   const surveyId = "11111111-1111-1111-1111-111111111111"
 
-  await page.route("**/api/me", async (route) => {
+  await page.route("**/api/me*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

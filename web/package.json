@@ -39,7 +39,8 @@
     "next-intl": "^4.6.1",
     "react": "latest",
     "react-dom": "latest",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.1",
@@ -49,6 +50,7 @@
     "@types/node": "^20",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^5.1.2",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",

@@ -23,6 +23,13 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
   const questions = (survey.questions || []).map(mapQuestion)
   const questionCount = questions.filter(q => q.type !== "section").length
   const estimatedMinutes = questionCount > 0 ? Math.max(1, Math.ceil(questionCount * 0.5)) : undefined
+  const publishedCount = Number.isFinite(Number(survey.publishedCount))
+    ? Math.max(0, Math.floor(Number(survey.publishedCount)))
+    : 0
+  const currentPublishedVersionNumber = Number.isFinite(Number(survey.currentPublishedVersionNumber))
+    ? Math.max(0, Math.floor(Number(survey.currentPublishedVersionNumber)))
+    : undefined
+  const isPublished = publishedCount > 0 || Boolean(currentPublishedVersionNumber && currentPublishedVersionNumber > 0)
 
   return {
     id: survey.id,
@@ -38,9 +45,10 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
       everPublic: survey.everPublic,
       pointsReward: survey.pointsReward,
       expiresAt: survey.expiresAt || undefined,
-      publishedCount: survey.publishedCount,
-      currentPublishedVersionNumber: survey.currentPublishedVersionNumber,
+      publishedCount,
+      currentPublishedVersionNumber,
       hasUnpublishedChanges: survey.hasUnpublishedChanges,
+      isPublished,
     },
     responseCount: survey.responseCount,
     estimatedMinutes,

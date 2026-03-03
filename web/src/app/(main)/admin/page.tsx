@@ -270,56 +270,49 @@ export default function AdminPage() {
       setPolicyLoading(true)
       setSystemSettingsLoading(true)
       setError(null)
-      try {
-        const [policiesRes, writersRes, settingsRes] = await Promise.all([
-          fetch("/api/admin/policies", { cache: "no-store" }),
-          fetch("/api/admin/policy-writers", { cache: "no-store" }),
-          fetch("/api/admin/system-settings", { cache: "no-store" }),
-        ])
+      const [policiesResult, writersResult, settingsResult] = await Promise.allSettled([
+        fetch("/api/admin/policies", { cache: "no-store" }),
+        fetch("/api/admin/policy-writers", { cache: "no-store" }),
+        fetch("/api/admin/system-settings", { cache: "no-store" }),
+      ])
 
-        if (!policiesRes.ok) {
-          const payload = await policiesRes.json().catch(() => ({}))
-          throw new Error(payload?.error || "Failed to load policies")
-        }
-        if (!writersRes.ok) {
-          const payload = await writersRes.json().catch(() => ({}))
-          throw new Error(payload?.error || "Failed to load policy writers")
-        }
-        if (!settingsRes.ok) {
-          const payload = await settingsRes.json().catch(() => ({}))
-          throw new Error(payload?.error || "Failed to load system settings")
-        }
+      if (!isMounted) return
 
-        const policiesPayload = await policiesRes.json()
-        const writersPayload = await writersRes.json()
-        const settingsPayload = await settingsRes.json()
+      let hasAnyLoadError = false
 
-        if (isMounted) {
-          setTiers(policiesPayload.tiers || [])
-          setCapabilities(policiesPayload.capabilities || [])
-          setMatrix(policiesPayload.matrix || [])
-          setPolicyWriters(writersPayload.users || [])
-          setSurveyBasePointsDraft(
-            Number.isFinite(Number(settingsPayload?.surveyBasePoints))
-              ? Math.max(0, Math.floor(Number(settingsPayload.surveyBasePoints)))
-              : 1
-          )
-        }
-      } catch {
-        if (isMounted) {
-          setError(tAdmin("loadError"))
-          setTiers([])
-          setCapabilities([])
-          setMatrix([])
-          setPolicyWriters([])
-          setSurveyBasePointsDraft(1)
-        }
-      } finally {
-        if (isMounted) {
-          setPolicyLoading(false)
-          setSystemSettingsLoading(false)
-        }
+      if (policiesResult.status === "fulfilled" && policiesResult.value.ok) {
+        const policiesPayload = await policiesResult.value.json().catch(() => ({}))
+        setTiers(policiesPayload.tiers || [])
+        setCapabilities(policiesPayload.capabilities || [])
+        setMatrix(policiesPayload.matrix || [])
+      } else {
+        hasAnyLoadError = true
       }
+
+      if (writersResult.status === "fulfilled" && writersResult.value.ok) {
+        const writersPayload = await writersResult.value.json().catch(() => ({}))
+        setPolicyWriters(writersPayload.users || [])
+      } else {
+        hasAnyLoadError = true
+      }
+
+      if (settingsResult.status === "fulfilled" && settingsResult.value.ok) {
+        const settingsPayload = await settingsResult.value.json().catch(() => ({}))
+        setSurveyBasePointsDraft(
+          Number.isFinite(Number(settingsPayload?.surveyBasePoints))
+            ? Math.max(0, Math.floor(Number(settingsPayload.surveyBasePoints)))
+            : 1
+        )
+      } else {
+        hasAnyLoadError = true
+      }
+
+      if (hasAnyLoadError) {
+        setError(tAdmin("loadError"))
+      }
+
+      setPolicyLoading(false)
+      setSystemSettingsLoading(false)
     }
 
     loadPolicies()
@@ -344,6 +337,23 @@ export default function AdminPage() {
       return next
     })
   }, [tiers])
+
+  const membershipTierOptions = useMemo(() => {
+    if (tiers.length > 0) return tiers
+
+    const fromUsers = users
+      .map((user) => user.membershipTier)
+      .filter((tierCode): tierCode is string => Boolean(tierCode))
+    const defaults = ["free", "pro"]
+    const unique = Array.from(new Set([...defaults, ...fromUsers]))
+
+    return unique.map((code) => ({
+      id: `fallback-${code}`,
+      code,
+      name: code,
+      isActive: true,
+    })) as MembershipTier[]
+  }, [tiers, users])
 
   const applySurveyToEditor = (survey: Survey) => {
     setEditingSurvey(survey)
@@ -1175,7 +1185,7 @@ export default function AdminPage() {
                               <div className="flex items-center gap-3">
                                 <span className="text-xs text-gray-500">{tAdmin("membershipTierLabel")}</span>
                                 <div className="flex flex-wrap bg-gray-100 dark:bg-gray-800 rounded-md p-1 gap-1">
-                                  {tiers.map((tier) => {
+                                  {membershipTierOptions.map((tier) => {
                                     const draft = membershipDrafts[user.id]
                                     const selectedTier = draft?.membershipTier || user.membershipTier
                                     if (tier.isActive === false && selectedTier !== tier.code) {

@@ -4,6 +4,7 @@ import { SurveyClientPage } from "./survey-client-page";
 import { API_BASE_URL } from "@/lib/api-server";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import type { Survey as ApiSurvey } from "@/lib/api";
+import { redirect } from "next/navigation";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -61,6 +62,15 @@ const fetchSurveyBasePoints = async (): Promise<number> => {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
+  const normalizedId = normalizeSurveyId(id);
+
+  if (normalizedId === "preview") {
+    return {
+      title: "Survey Preview | Surtopya",
+      description: "Preview your survey draft before publishing.",
+    };
+  }
+
   const survey = await fetchSurvey(id);
 
   if (!survey) {
@@ -92,7 +102,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params, searchParams }: Props) {
   const { id } = await params;
   const { mode } = await searchParams;
-  const isPreview = id === "preview" || mode === "preview";
+  const normalizedId = normalizeSurveyId(id);
+  if (normalizedId === "preview") {
+    redirect("/create/preview");
+  }
+
+  const isPreview = mode === "preview";
   const survey = await fetchSurvey(id);
   const surveyBasePoints = await fetchSurveyBasePoints()
 
@@ -126,7 +141,7 @@ export default async function Page({ params, searchParams }: Props) {
       >
         <SurveyClientPage
           initialSurvey={survey || undefined}
-          surveyId={normalizeSurveyId(id)}
+          surveyId={normalizedId}
           isPreview={isPreview}
           surveyBasePoints={surveyBasePoints}
         />

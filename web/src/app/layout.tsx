@@ -24,6 +24,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Surtopya - Privacy-Preserving Survey Platform",
   description: "Create surveys and share de-identified datasets securely.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 };
 
 type Messages = Record<string, unknown>

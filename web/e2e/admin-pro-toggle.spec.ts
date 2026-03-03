@@ -6,7 +6,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
   let patchCalls = 0
   let lastPatchBody: Record<string, unknown> | null = null
 
-  await page.route("**/api/me", async (route) => {
+  await page.route("**/api/me*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -97,6 +97,15 @@ test("admin can switch membership tier to pro (mocked API)", async ({
       body: JSON.stringify({
         users: [],
       }),
+    })
+  })
+
+  // Keep this endpoint failing to verify partial-fallback behavior.
+  await page.route("**/api/admin/system-settings", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "mock settings failure" }),
     })
   })
 

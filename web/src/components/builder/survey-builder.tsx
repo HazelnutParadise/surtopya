@@ -66,6 +66,7 @@ export function SurveyBuilder() {
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tBuilder = useTranslations("SurveyBuilder");
   const tCommon = useTranslations("Common");
+  const tNavigation = useTranslations("Navigation");
   const tConsent = useTranslations("ConsentModal");
   const tDashboard = useTranslations("Dashboard");
   const tSurveyPage = useTranslations("SurveyPage");
@@ -101,6 +102,8 @@ export function SurveyBuilder() {
   const [savingSurvey, setSavingSurvey] = useState(false);
   const [publishingSurvey, setPublishingSurvey] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorRequiresAuth, setSaveErrorRequiresAuth] = useState(false);
 
   // Consent Modal State
   const [consentGiven, setConsentGiven] = useState(false);
@@ -679,7 +682,7 @@ export function SurveyBuilder() {
     setPointsReward(mapped.settings.pointsReward)
     setIsPublic(mapped.settings.visibility === "public")
     setIncludeInDatasets(mapped.settings.isDatasetActive)
-    setIsPublished(Boolean(mapped.settings.currentPublishedVersionNumber && mapped.settings.currentPublishedVersionNumber > 0))
+    setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
   }
@@ -743,6 +746,8 @@ export function SurveyBuilder() {
 
   const saveSurvey = async () => {
     setSavingSurvey(true);
+    setSaveError(null);
+    setSaveErrorRequiresAuth(false);
     try {
       const payload = {
         title,
@@ -768,6 +773,9 @@ export function SurveyBuilder() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          throw new Error(tBuilder("saveErrorUnauthorized"));
+        }
         throw new Error(errorPayload?.error || "Failed to save survey");
       }
 
@@ -778,6 +786,12 @@ export function SurveyBuilder() {
       setIsDirty(false);
 
       return mapped;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : tBuilder("saveErrorGeneric")
+      const needsAuth = message === tBuilder("saveErrorUnauthorized")
+      setSaveError(message === "Failed to save survey" ? tBuilder("saveErrorGeneric") : message)
+      setSaveErrorRequiresAuth(needsAuth)
+      throw error
     } finally {
       setSavingSurvey(false);
     }
@@ -850,7 +864,7 @@ export function SurveyBuilder() {
     sessionStorage.setItem('preview_theme', JSON.stringify(theme));
     
     // Open preview in new tab
-    window.open(withLocalePath('/survey/preview'), '_blank');
+    window.open(withLocalePath('/create/preview'), '_blank');
   };
 
   if (!mounted) return null;
@@ -1010,6 +1024,18 @@ export function SurveyBuilder() {
                </Button>
            </div>
       </div>
+      {saveError ? (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+            <span>{saveError}</span>
+            {saveErrorRequiresAuth ? (
+              <Button size="sm" variant="outline" onClick={() => window.location.assign("/api/logto/sign-in")}>
+                {tNavigation("login")}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden flex flex-col">

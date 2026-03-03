@@ -5,7 +5,7 @@ test("survey settings lock visibility + dataset sharing after first publish", as
 }) => {
   const surveyId = "44444444-4444-4444-4444-444444444444"
 
-  await page.route("**/api/me", async (route) => {
+  await page.route("**/api/me*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
