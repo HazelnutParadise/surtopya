@@ -561,7 +561,7 @@ export default function SurveyManagementPage() {
                   <Button
                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={() => handleTogglePublish(true)}
-                    disabled={publishing}
+                    disabled={publishing || isDirty}
                   >
                     <Send className="mr-2 h-4 w-4" />
                     {tCommon("publish")}

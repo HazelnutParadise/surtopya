@@ -33,8 +33,14 @@ export default function PricingPage() {
         const plansPayload = await plansRes.json().catch(() => ({ plans: [] }))
 
         if (isMounted) {
-          setIsAuthenticated(meRes.ok)
-          setCurrentProfile(meRes.ok ? mePayload : null)
+          const hasProfile =
+            meRes.ok &&
+            mePayload != null &&
+            typeof mePayload === "object" &&
+            Object.keys(mePayload as Record<string, unknown>).length > 0
+
+          setIsAuthenticated(hasProfile)
+          setCurrentProfile(hasProfile ? (mePayload as UserProfile) : null)
           setPlans(plansRes.ok ? plansPayload.plans || [] : [])
         }
       } catch {
@@ -119,13 +125,24 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    variant={isCurrent ? "outline" : "default"}
-                    className={isCurrent ? "w-full" : "w-full bg-purple-600 hover:bg-purple-700 text-white"}
-                    disabled={loading || !plan.isPurchasable || isCurrent}
-                  >
-                    {planButtonLabel}
-                  </Button>
+                  {!isAuthenticated && plan.isPurchasable && !isCurrent ? (
+                    <Button
+                      variant="default"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                      disabled={loading}
+                      onClick={() => window.location.assign("/api/logto/sign-in")}
+                    >
+                      {planButtonLabel}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant={isCurrent ? "outline" : "default"}
+                      className={isCurrent ? "w-full" : "w-full bg-purple-600 hover:bg-purple-700 text-white"}
+                      disabled={loading || !plan.isPurchasable || isCurrent}
+                    >
+                      {planButtonLabel}
+                    </Button>
+                  )}
                 </div>
               )
             })}

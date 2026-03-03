@@ -154,6 +154,10 @@ export function SurveyBuilder() {
       settingsDraft.isPublic !== isPublic ||
       settingsDraft.includeInDatasets !== includeInDatasets
   ) : false;
+  const hasSavedDraft = Boolean(surveyId)
+  const hasPublishableChanges = !isPublished || hasUnpublishedChanges
+  const canOpenPublishDialog =
+    hasSavedDraft && hasPublishableChanges && !isDirty && !publishingSurvey && !loadingSurvey
 
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isBuilderDatasetSharingLocked = isSurveyDatasetSharingLocked({
@@ -983,8 +987,8 @@ export function SurveyBuilder() {
                         setPublishError(null)
                         setPublishSettingsOpen(true)
                       }} 
-                      className={`h-8 ${hasUnpublishedChanges ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                      disabled={!hasUnpublishedChanges || publishingSurvey || loadingSurvey}
+                      className={`h-8 ${canOpenPublishDialog ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                      disabled={!canOpenPublishDialog}
                   >
                       <Send className="mr-2 h-3 w-3" />
                       {isPublished ? tBuilder("republish") : tCommon("publish")}
@@ -1609,7 +1613,7 @@ export function SurveyBuilder() {
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
                             onClick={publishSurvey}
-                            disabled={publishingSurvey || loadingSurvey}
+                            disabled={!canOpenPublishDialog}
                         >
                             <Rocket className="mr-2 h-4 w-4" />
                             {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}
