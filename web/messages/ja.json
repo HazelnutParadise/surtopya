@@ -199,7 +199,10 @@
     "restoreDraftConfirmDescription": "現在の下書きを上書きします。公開中バージョンと回答受付状態は変わりません。",
     "restoreDraftConfirmAction": "復元する",
     "saveErrorGeneric": "下書きの保存に失敗しました。しばらくして再試行してください。",
-    "saveErrorUnauthorized": "下書きを保存する前にログインしてください。"
+    "saveErrorUnauthorized": "下書きを保存する前にログインしてください。",
+    "authRequiredTitle": "ログインするとアンケート作成を始められます",
+    "authRequiredDescription": "ログインすると下書き保存、バージョン管理、公開までスムーズに進められます。",
+    "authRequiredAction": "今すぐログイン"
   },
   "QuestionTypes": {
     "single": "単一選択",

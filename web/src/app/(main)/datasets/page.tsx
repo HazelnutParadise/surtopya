@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Database, Download, Search, Globe, Lock } from "lucide-react";
 import Link from "next/link";
@@ -268,16 +269,16 @@ function DatasetsContent() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 uppercase font-medium">{tDatasets("sortLabel")}</span>
-                <select
-                  className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as "newest" | "downloads" | "samples")}
-                  data-testid="datasets-sort"
-                >
-                  <option value="newest">{tDatasets("newest")}</option>
-                  <option value="downloads">{tDatasets("mostDownloads")}</option>
-                  <option value="samples">{tDatasets("mostSamples")}</option>
-                </select>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as "newest" | "downloads" | "samples")}>
+                  <SelectTrigger className="h-8 w-[180px] bg-transparent text-sm font-medium" data-testid="datasets-sort">
+                    <SelectValue placeholder={tDatasets("sortLabel")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">{tDatasets("newest")}</SelectItem>
+                    <SelectItem value="downloads">{tDatasets("mostDownloads")}</SelectItem>
+                    <SelectItem value="samples">{tDatasets("mostSamples")}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

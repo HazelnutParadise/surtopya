@@ -199,7 +199,10 @@
     "deleteQuestionDescription": "Are you sure you want to delete this question? This action cannot be undone.",
     "saveSuccess": "Draft saved.",
     "saveErrorGeneric": "Failed to save draft. Please try again.",
-    "saveErrorUnauthorized": "Please sign in before saving this draft."
+    "saveErrorUnauthorized": "Please sign in before saving this draft.",
+    "authRequiredTitle": "Sign in to start creating your survey",
+    "authRequiredDescription": "Signing in lets you save drafts, manage versions, and publish when you're ready.",
+    "authRequiredAction": "Sign in now"
   },
   "QuestionTypes": {
     "single": "Single Choice",

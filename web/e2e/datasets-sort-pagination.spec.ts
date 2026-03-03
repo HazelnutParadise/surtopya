@@ -73,7 +73,8 @@ test("datasets supports sort and pagination (mocked)", async ({ page }) => {
   await expect(page.getByTestId("datasets-load-more")).toBeVisible()
 
   // Switch sort to downloads. Highest downloads in page0 is "b".
-  await page.getByTestId("datasets-sort").selectOption("downloads")
+  await page.getByTestId("datasets-sort").click()
+  await page.getByRole("option", { name: "Most Downloads" }).click()
   await expect(page.getByTestId("dataset-card-b")).toBeVisible()
 
   // Pagination: load more appends page1 datasets.
@@ -83,4 +84,3 @@ test("datasets supports sort and pagination (mocked)", async ({ page }) => {
   // Verify we did request offset=6 at least once.
   expect(requests.some((q) => q.includes("offset=6"))).toBeTruthy()
 })
-
