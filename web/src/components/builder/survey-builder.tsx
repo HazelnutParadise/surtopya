@@ -68,6 +68,7 @@ export function SurveyBuilder() {
   const tCommon = useTranslations("Common");
   const tConsent = useTranslations("ConsentModal");
   const tDashboard = useTranslations("Dashboard");
+  const tSurveyPage = useTranslations("SurveyPage");
   const editId = searchParams.get("edit");
   const defaultPageTitle = tBuilder("defaultPageTitle");
   const [questions, setQuestions] = useState<Question[]>([
@@ -146,6 +147,7 @@ export function SurveyBuilder() {
       includeInDatasets: boolean;
   } | null>(null);
   const [confirmSettingsExit, setConfirmSettingsExit] = useState(false);
+  const dashboardPath = withLocalePath('/dashboard')
 
   const hasUnsavedSettings = settingsDraft ? (
       settingsDraft.title !== title || 
@@ -274,6 +276,19 @@ export function SurveyBuilder() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
+
+  const requestExitEditor = () => {
+    if (isDirty) {
+      setConfirmSettingsExit(true)
+      return
+    }
+    router.push(dashboardPath)
+  }
+
+  const confirmExitEditor = () => {
+    setConfirmSettingsExit(false)
+    router.push(dashboardPath)
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -899,7 +914,7 @@ export function SurveyBuilder() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm z-10 dark:bg-gray-900 dark:border-gray-800">
            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.push(withLocalePath('/dashboard'))}>
+                <Button variant="ghost" size="icon" onClick={requestExitEditor}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex flex-col">
@@ -1638,6 +1653,23 @@ export function SurveyBuilder() {
                     disabled={confirmRestoreVersionNumber == null || restoringVersionNumber != null}
                   >
                     {tBuilder("restoreDraftConfirmAction")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={confirmSettingsExit} onOpenChange={(open) => !open && setConfirmSettingsExit(false)}>
+              <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+                <DialogHeader>
+                  <DialogTitle>{tSurveyPage("exitSurveyTitle")}</DialogTitle>
+                  <DialogDescription>{tSurveyPage("exitSurveyDescription")}</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setConfirmSettingsExit(false)}>
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button variant="destructive" onClick={confirmExitEditor}>
+                    {tSurveyPage("exitWithoutSaving")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
