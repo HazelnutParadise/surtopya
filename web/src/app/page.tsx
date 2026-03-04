@@ -60,10 +60,10 @@ export default async function Home() {
                     Surtopya
                   </p>
                   <h2 className="text-2xl font-bold leading-tight text-gray-900 md:text-3xl dark:text-gray-100">
-                    {t("heroSubtitle")}
+                    {t("featureSectionTitle")}
                   </h2>
                   <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                    {t("featureThreeDescription")}
+                    {t("featureSectionDescription")}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
