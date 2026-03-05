@@ -10,6 +10,7 @@ import { defaultLocale, locales } from "@/lib/locale"
 import { getLogtoConfig } from "@/lib/logto"
 import { getLogtoContext } from "@logto/next/server-actions"
 import { redirect } from "next/navigation"
+import { SiteEffectsLayer } from "@/components/effects"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -108,8 +109,11 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <I18nProvider locale={locale} messages={messages}>
+          <SiteEffectsLayer />
           <LocaleSync />
-          {children}
+          <div className="relative z-10">
+            {children}
+          </div>
         </I18nProvider>
       </body>
     </html>

@@ -162,7 +162,7 @@ function ExploreContent() {
   }, [searchQuery, sort, surveys, surveyBasePoints]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="effect-readable-page min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="bg-white border-b border-gray-200 dark:bg-gray-900 dark:border-gray-800">
         <div className="container px-4 py-12 md:px-6 md:py-16">
           <div className="max-w-2xl">

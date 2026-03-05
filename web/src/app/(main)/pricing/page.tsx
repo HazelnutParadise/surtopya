@@ -70,7 +70,7 @@ export default function PricingPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-20">
+    <div className="effect-readable-page min-h-screen bg-gray-50 dark:bg-gray-950 py-20">
       <div className="container px-4 md:px-6">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl dark:text-white mb-4">

@@ -193,7 +193,7 @@ function DatasetsContent() {
               </Button>
               <Button
                 variant="outline"
-                className="border-white/20 bg-white/5 text-white hover:bg-white/20 hover:text-white backdrop-blur-sm shadow-xl transition-all"
+                className="border-white/35 bg-white/20 text-white hover:bg-white/30 hover:text-white shadow-xl transition-all"
                 asChild
               >
                 <Link href={withLocalePath("/docs/api")}>{tDatasets("apiDocs")}</Link>
@@ -212,7 +212,7 @@ function DatasetsContent() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder={tDatasets("searchPlaceholder")}
-                  className="pl-10"
+                  className="bg-white pl-10 shadow-sm dark:bg-gray-900 dark:border-gray-700"
                   value={searchTerm}
                   data-testid="datasets-search"
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -229,8 +229,8 @@ function DatasetsContent() {
                     variant={activeCategory === slug ? "secondary" : "ghost"}
                     className={`w-full justify-start ${
                       activeCategory === slug
-                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
-                        : "text-gray-600 dark:text-gray-400 hover:text-purple-600"
+                        ? "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                        : "bg-white text-gray-700 shadow-sm dark:bg-gray-900 dark:text-gray-300 hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-900/60"
                     }`}
                     onClick={() => setActiveCategory(slug)}
                     data-testid={`datasets-category-${slug}`}
@@ -241,7 +241,7 @@ function DatasetsContent() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800">
+            <div className="rounded-xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/80">
               <h4 className="font-bold text-purple-900 dark:text-purple-300 flex items-center gap-2">
                 <Globe className="h-4 w-4" /> {tDatasets("openDatasetNoticeTitle")}
               </h4>
@@ -270,7 +270,7 @@ function DatasetsContent() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-400 uppercase font-medium">{tDatasets("sortLabel")}</span>
                 <Select value={sortBy} onValueChange={(value) => setSortBy(value as "newest" | "downloads" | "samples")}>
-                  <SelectTrigger className="h-8 w-[180px] bg-transparent text-sm font-medium" data-testid="datasets-sort">
+                  <SelectTrigger className="h-8 w-[180px] bg-white text-sm font-medium shadow-sm dark:bg-gray-900 dark:border-gray-700" data-testid="datasets-sort">
                     <SelectValue placeholder={tDatasets("sortLabel")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -290,7 +290,7 @@ function DatasetsContent() {
                 return (
                   <Card
                     key={ds.id}
-                    className="group overflow-hidden border-0 shadow-lg ring-1 ring-gray-200 dark:ring-gray-800 hover:ring-purple-500/50 transition-all duration-300"
+                    className="group overflow-hidden border-0 bg-white shadow-lg ring-1 ring-gray-200 transition-all duration-300 hover:ring-purple-500/50 dark:bg-gray-900 dark:ring-gray-800"
                     data-testid={`dataset-card-${ds.id}`}
                   >
                     <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
@@ -310,10 +310,7 @@ function DatasetsContent() {
                             </CardTitle>
                             <CardDescription className="line-clamp-2 mt-1">{ds.description}</CardDescription>
                           </div>
-                          <Badge
-                            variant="secondary"
-                            className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0"
-                          >
+                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                             {getCategoryLabel(normalizedCategory)}
                           </Badge>
                         </div>
@@ -337,7 +334,7 @@ function DatasetsContent() {
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter className="bg-gray-50 dark:bg-gray-900/50 py-3 border-t dark:border-gray-800">
+                      <CardFooter className="bg-gray-50 py-3 border-t dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
                           <span>{tDatasets("viewDetails")}</span>
                         </div>

@@ -125,4 +125,35 @@
   .container {
     @apply mx-auto max-w-7xl;
   }
+
+  .effect-readable-page {
+    @apply relative isolate;
+  }
+
+  .effect-readable-page::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(10, 10, 24, 0.08) 0%,
+      rgba(16, 12, 26, 0.1) 100%
+    );
+    backdrop-filter: blur(1.5px);
+  }
+
+  .dark .effect-readable-page::before {
+    background: linear-gradient(
+      180deg,
+      rgba(8, 8, 18, 0.28) 0%,
+      rgba(14, 9, 28, 0.32) 100%
+    );
+  }
+
+  .effect-readable-page > * {
+    position: relative;
+    z-index: 1;
+  }
 }

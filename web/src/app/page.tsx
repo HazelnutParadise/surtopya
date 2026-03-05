@@ -19,7 +19,7 @@ export default async function Home() {
   const t = await getServerTranslator("Home");
   const currentYear = new Date().getFullYear();
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="flex-1">
         <section className="relative isolate flex min-h-[62vh] w-full items-center overflow-hidden bg-black py-12 text-white md:min-h-[70vh] md:py-20 lg:min-h-[74vh] lg:py-24">

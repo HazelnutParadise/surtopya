@@ -4,7 +4,7 @@ export default async function TermsPage() {
   const t = await getServerTranslator("LegalTerms")
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="effect-readable-page min-h-screen bg-white dark:bg-gray-950">
       <div className="container px-4 py-16 md:px-6">
         <article className="mx-auto max-w-3xl space-y-8">
           <header className="space-y-3">

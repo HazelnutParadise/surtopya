@@ -3,7 +3,7 @@ import { getServerTranslator } from "@/lib/i18n-server";
 export default async function AboutPage() {
   const t = await getServerTranslator("About");
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="effect-readable-page min-h-screen bg-white dark:bg-gray-950">
       <div className="container px-4 py-20 md:px-6">
         <div className="max-w-3xl mx-auto space-y-8">
           <div className="text-center space-y-4">
