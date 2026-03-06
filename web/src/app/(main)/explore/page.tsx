@@ -11,6 +11,7 @@ import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Survey } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/runtime-config"
+import { MotionReveal, PageMotionShell } from "@/components/motion"
 
 const PAGE_SIZE = 24
 
@@ -162,9 +163,9 @@ function ExploreContent() {
   }, [searchQuery, sort, surveys, surveyBasePoints]);
 
   return (
-    <div className="effect-readable-page min-h-screen bg-gray-50 dark:bg-gray-950">
+    <PageMotionShell className="effect-readable-page min-h-screen bg-transparent">
       <div className="bg-white border-b border-gray-200 dark:bg-gray-900 dark:border-gray-800">
-        <div className="container px-4 py-12 md:px-6 md:py-16">
+        <MotionReveal className="container px-4 py-12 md:px-6 md:py-16" delayMs={40}>
           <div className="max-w-2xl">
             <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-white">
               {t("title")}{" "}
@@ -174,10 +175,10 @@ function ExploreContent() {
             </h1>
             <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">{t("description")}</p>
           </div>
-        </div>
+        </MotionReveal>
       </div>
 
-      <section className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200 dark:bg-gray-900/80 dark:border-gray-800">
+      <section className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 shadow-sm backdrop-blur-md transition-shadow duration-300 dark:border-gray-800 dark:bg-gray-900/80">
         <div className="container px-4 py-4 md:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative flex-1 max-w-lg w-full">
@@ -211,20 +212,21 @@ function ExploreContent() {
         </div>
       </section>
 
-      <div className="container px-4 py-8 md:px-6">
+      <MotionReveal className="container px-4 py-8 md:px-6" delayMs={90}>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {!loading &&
-            filteredSurveys.map((survey) => (
-              <SurveyCard
-                key={survey.id}
-                id={survey.id}
-                title={survey.title}
-                description={survey.description}
-                points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
-                responses={survey.responseCount}
-                visibility={survey.visibility}
-                locale={locale}
-              />
+            filteredSurveys.map((survey, index) => (
+              <MotionReveal key={survey.id} delayMs={index * 40}>
+                <SurveyCard
+                  id={survey.id}
+                  title={survey.title}
+                  description={survey.description}
+                  points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
+                  responses={survey.responseCount}
+                  visibility={survey.visibility}
+                  locale={locale}
+                />
+              </MotionReveal>
             ))}
           {!loading && filteredSurveys.length === 0 && (
             <div className="col-span-full py-12 text-center text-gray-500">{t("noSurveys")}</div>
@@ -240,7 +242,7 @@ function ExploreContent() {
               <Button
                 variant="outline"
                 size="lg"
-                className="min-w-[200px]"
+                className="min-w-[200px] transform-gpu transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
                 onClick={handleLoadMore}
                 disabled={loadingMore}
                 data-testid="explore-load-more"
@@ -250,8 +252,8 @@ function ExploreContent() {
             ) : null}
           </div>
         )}
-      </div>
-    </div>
+      </MotionReveal>
+    </PageMotionShell>
   );
 }
 

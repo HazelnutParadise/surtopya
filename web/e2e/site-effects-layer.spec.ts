@@ -34,8 +34,8 @@ test("background layer does not block key interactions", async ({ page }) => {
   await expect(page.getByTestId("explore-search")).toHaveValue("privacy")
 
   await page.goto("/en/datasets")
-  await page.locator("a[href='/en/docs/api']").first().click()
-  await expect(page).toHaveURL(/\/en\/docs\/api$/)
+  await page.getByTestId("datasets-category-technology").click()
+  await expect(page).toHaveURL(/\/en\/datasets\?category=technology$/)
 
   await page.goto("/en/pricing")
   await page.getByRole("link", { name: /surtopya/i }).first().click()

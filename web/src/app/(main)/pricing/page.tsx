@@ -5,6 +5,7 @@ import { Check } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import type { PricingPlan, UserProfile } from "@/lib/api"
+import { MotionReveal, PageMotionShell } from "@/components/motion"
 
 const formatUsd = (priceCentsUsd: number) => {
   const price = (priceCentsUsd || 0) / 100
@@ -70,9 +71,9 @@ export default function PricingPage() {
   )
 
   return (
-    <div className="effect-readable-page min-h-screen bg-gray-50 dark:bg-gray-950 py-20">
+    <PageMotionShell className="effect-readable-page min-h-screen bg-transparent py-20">
       <div className="container px-4 md:px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <MotionReveal className="text-center max-w-3xl mx-auto mb-16" delayMs={40}>
           <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl dark:text-white mb-4">
             {t("title")}{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
@@ -80,15 +81,15 @@ export default function PricingPage() {
             </span>
           </h1>
           <p className="text-xl text-gray-500 dark:text-gray-400">{t("description")}</p>
-        </div>
+        </MotionReveal>
 
         {loading ? (
           <div className="text-center text-sm text-gray-500">{tCommon("loading")}</div>
         ) : sortedPlans.length === 0 ? (
           <div className="text-center text-sm text-gray-500">{t("noPlans")}</div>
         ) : (
-          <div className="flex flex-wrap justify-center gap-8">
-            {sortedPlans.map((plan) => {
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-8 md:grid-cols-2">
+            {sortedPlans.map((plan, index) => {
               const isCurrent = isAuthenticated && currentTier === plan.code
               const planButtonLabel = isCurrent
                 ? t("currentPlan")
@@ -99,57 +100,62 @@ export default function PricingPage() {
                   : t("contactSales")
 
               return (
-                <div
-                  key={plan.code}
-                  className={`relative flex w-full max-w-md flex-col p-8 bg-white dark:bg-gray-900 rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-xl ${
-                    isCurrent
-                      ? "border-2 border-purple-600"
-                      : "border-gray-200 dark:border-gray-800 hover:border-purple-500/30"
-                  }`}
-                >
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{plan.description}</p>
+                <MotionReveal key={plan.code} delayMs={90 + index * 70} className="w-full">
+                  <div
+                    className={`relative flex h-full w-full transform-gpu flex-col rounded-2xl border bg-white p-8 shadow-sm transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-xl ${
+                      isCurrent
+                        ? "border-2 border-purple-600"
+                        : "border-gray-200 hover:border-purple-500/30 dark:border-gray-800"
+                    } dark:bg-gray-900`}
+                  >
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{plan.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{plan.description}</p>
+                    </div>
+                    <div className="mb-6">
+                      <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                        {formatUsd(plan.priceCentsUsd)}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {plan.billingInterval === "month" ? t("perMonth") : ""}
+                      </span>
+                    </div>
+                    <ul className="mb-8 flex-1 space-y-3">
+                      {plan.benefits.map((benefit) => (
+                        <li key={`${plan.code}-${benefit.key}`} className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                          <Check className="h-4 w-4 text-green-500" /> {benefit.name}
+                        </li>
+                      ))}
+                    </ul>
+                    {!isAuthenticated && plan.isPurchasable && !isCurrent ? (
+                      <Button
+                        variant="default"
+                        className="w-full transform-gpu bg-purple-600 text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-purple-700 active:scale-[0.98]"
+                        disabled={loading}
+                        onClick={() => window.location.assign("/api/logto/sign-in")}
+                      >
+                        {planButtonLabel}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant={isCurrent ? "outline" : "default"}
+                        className={
+                          isCurrent
+                            ? "w-full transform-gpu transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
+                            : "w-full transform-gpu bg-purple-600 text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-purple-700 active:scale-[0.98]"
+                        }
+                        disabled={loading || !plan.isPurchasable || isCurrent}
+                      >
+                        {planButtonLabel}
+                      </Button>
+                    )}
                   </div>
-                  <div className="mb-6">
-                    <span className="text-4xl font-bold text-gray-900 dark:text-white">
-                      {formatUsd(plan.priceCentsUsd)}
-                    </span>
-                    <span className="text-gray-500 dark:text-gray-400">
-                      {plan.billingInterval === "month" ? t("perMonth") : ""}
-                    </span>
-                  </div>
-                  <ul className="space-y-3 mb-8 flex-1">
-                    {plan.benefits.map((benefit) => (
-                      <li key={`${plan.code}-${benefit.key}`} className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-                        <Check className="h-4 w-4 text-green-500" /> {benefit.name}
-                      </li>
-                    ))}
-                  </ul>
-                  {!isAuthenticated && plan.isPurchasable && !isCurrent ? (
-                    <Button
-                      variant="default"
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                      disabled={loading}
-                      onClick={() => window.location.assign("/api/logto/sign-in")}
-                    >
-                      {planButtonLabel}
-                    </Button>
-                  ) : (
-                    <Button
-                      variant={isCurrent ? "outline" : "default"}
-                      className={isCurrent ? "w-full" : "w-full bg-purple-600 hover:bg-purple-700 text-white"}
-                      disabled={loading || !plan.isPurchasable || isCurrent}
-                    >
-                      {planButtonLabel}
-                    </Button>
-                  )}
-                </div>
+                </MotionReveal>
               )
             })}
           </div>
         )}
       </div>
-    </div>
+    </PageMotionShell>
   )
 }

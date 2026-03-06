@@ -12,6 +12,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Dataset } from "@/lib/api";
+import { MotionReveal, PageMotionShell } from "@/components/motion";
 
 const CATEGORY_SLUGS = [
   "all",
@@ -171,9 +172,9 @@ function DatasetsContent() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <PageMotionShell className="effect-readable-page min-h-screen bg-transparent">
       <div className="bg-black text-white py-16 md:py-24">
-        <div className="container px-4 md:px-6">
+        <MotionReveal className="container px-4 md:px-6" delayMs={40}>
           <div className="max-w-3xl space-y-4">
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
               {tDatasets("heroTitle")}{" "}
@@ -184,7 +185,7 @@ function DatasetsContent() {
             <p className="text-xl text-gray-400">{tDatasets("heroDescription")}</p>
             <div className="flex flex-wrap gap-4 pt-4">
               <Button
-                className="bg-white text-black hover:bg-gray-100 font-semibold shadow-xl shadow-white/5 transition-all"
+                className="transform-gpu bg-white text-black hover:bg-gray-100 font-semibold shadow-xl shadow-white/5 transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
                 onClick={() => {
                   document.getElementById("dataset-list")?.scrollIntoView({ behavior: "smooth" });
                 }}
@@ -193,20 +194,21 @@ function DatasetsContent() {
               </Button>
               <Button
                 variant="outline"
-                className="border-white/35 bg-white/20 text-white hover:bg-white/30 hover:text-white shadow-xl transition-all"
+                className="transform-gpu border-white/35 bg-white/20 text-white hover:bg-white/30 hover:text-white shadow-xl transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
                 asChild
               >
                 <Link href={withLocalePath("/docs/api")}>{tDatasets("apiDocs")}</Link>
               </Button>
             </div>
           </div>
-        </div>
+        </MotionReveal>
       </div>
 
-      <div id="dataset-list" className="container px-4 py-12 md:px-6">
+      <MotionReveal id="dataset-list" className="container px-4 py-12 md:px-6" delayMs={90}>
         <div className="flex flex-col md:flex-row gap-8">
           <aside className="w-full md:w-64 space-y-8">
-            <div>
+            <MotionReveal>
+              <div>
               <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">{tDatasets("searchTitle")}</h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -218,9 +220,11 @@ function DatasetsContent() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-            </div>
+              </div>
+            </MotionReveal>
 
-            <div>
+            <MotionReveal delayMs={60}>
+              <div>
               <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">{tDatasets("categoryTitle")}</h3>
               <div className="space-y-2">
                 {CATEGORY_SLUGS.map((slug) => (
@@ -239,26 +243,27 @@ function DatasetsContent() {
                   </Button>
                 ))}
               </div>
-            </div>
+              </div>
+            </MotionReveal>
 
-            <div className="rounded-xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/80">
+            <MotionReveal delayMs={90} className="rounded-xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-800 dark:bg-purple-900/80">
               <h4 className="font-bold text-purple-900 dark:text-purple-300 flex items-center gap-2">
                 <Globe className="h-4 w-4" /> {tDatasets("openDatasetNoticeTitle")}
               </h4>
               <p className="text-xs text-purple-700 dark:text-purple-400 mt-2 leading-relaxed">
                 {tDatasets("openDatasetNoticeText")}
               </p>
-            </div>
+            </MotionReveal>
 
             {datasetsEndpoint && (
-              <div className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+              <MotionReveal delayMs={120} className="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
                 <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-2">
                   {tDatasets("apiDocs")}
                 </h4>
                 <p className="text-xs text-gray-600 dark:text-gray-400 break-all">
                   {tDatasets("endpointLabel", { url: datasetsEndpoint })}
                 </p>
-              </div>
+              </MotionReveal>
             )}
           </aside>
 
@@ -283,64 +288,65 @@ function DatasetsContent() {
             </div>
 
             <div className="grid grid-cols-1 gap-6">
-              {displayDatasets.map((ds) => {
+              {displayDatasets.map((ds, index) => {
                 const normalizedCategory = normalizeCategory(ds.category);
                 const isPaid = ds.accessType === "paid";
 
                 return (
-                  <Card
-                    key={ds.id}
-                    className="group overflow-hidden border-0 bg-white shadow-lg ring-1 ring-gray-200 transition-all duration-300 hover:ring-purple-500/50 dark:bg-gray-900 dark:ring-gray-800"
-                    data-testid={`dataset-card-${ds.id}`}
-                  >
-                    <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <CardTitle className="text-xl group-hover:text-purple-600 transition-colors flex items-center gap-2 cursor-pointer">
-                              {ds.title}
-                              {isPaid && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 gap-1 ml-1 px-1.5 cursor-pointer"
-                                >
-                                  <Lock className="h-2.5 w-2.5" /> {tDatasets("paidBadge")}
-                                </Badge>
-                              )}
-                            </CardTitle>
-                            <CardDescription className="line-clamp-2 mt-1">{ds.description}</CardDescription>
+                  <MotionReveal key={ds.id} delayMs={index * 40}>
+                    <Card
+                      className="group overflow-hidden border-0 bg-white shadow-lg ring-1 ring-gray-200 transition-all duration-300 ease-out hover:-translate-y-1 hover:ring-purple-500/50 dark:bg-gray-900 dark:ring-gray-800"
+                      data-testid={`dataset-card-${ds.id}`}
+                    >
+                      <Link href={withLocalePath(`/datasets/${ds.id}`)} className="block">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-xl group-hover:text-purple-600 transition-colors flex items-center gap-2 cursor-pointer">
+                                {ds.title}
+                                {isPaid && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] h-5 bg-amber-50 text-amber-600 border-amber-200 gap-1 ml-1 px-1.5 cursor-pointer"
+                                  >
+                                    <Lock className="h-2.5 w-2.5" /> {tDatasets("paidBadge")}
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                              <CardDescription className="line-clamp-2 mt-1">{ds.description}</CardDescription>
+                            </div>
+                            <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                              {getCategoryLabel(normalizedCategory)}
+                            </Badge>
                           </div>
-                          <Badge variant="secondary" className="border-0 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                            {getCategoryLabel(normalizedCategory)}
-                          </Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="flex flex-wrap gap-6 text-sm text-gray-500 dark:text-gray-400">
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-purple-500" />
-                            <span className="font-medium text-gray-900 dark:text-gray-100">
-                              {tDatasets("samplesLabel", { count: ds.sampleSize })}
-                            </span>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-6 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-purple-500" />
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {tDatasets("samplesLabel", { count: ds.sampleSize })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Download className="h-4 w-4 text-purple-500" />
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {tDatasets("downloadsLabel", { count: ds.downloadCount })}
+                              </span>
+                            </div>
+                            <div className="md:ml-auto">
+                              {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt, locale) })}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Download className="h-4 w-4 text-purple-500" />
-                            <span className="font-medium text-gray-900 dark:text-gray-100">
-                              {tDatasets("downloadsLabel", { count: ds.downloadCount })}
-                            </span>
+                        </CardContent>
+                        <CardFooter className="border-t bg-gray-50 py-3 dark:border-gray-800 dark:bg-gray-900">
+                          <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
+                            <span>{tDatasets("viewDetails")}</span>
                           </div>
-                          <div className="md:ml-auto">
-                            {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt, locale) })}
-                          </div>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="bg-gray-50 py-3 border-t dark:border-gray-800 dark:bg-gray-900">
-                        <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-purple-600">
-                          <span>{tDatasets("viewDetails")}</span>
-                        </div>
-                      </CardFooter>
-                    </Link>
-                  </Card>
+                        </CardFooter>
+                      </Link>
+                    </Card>
+                  </MotionReveal>
                 );
               })}
             </div>
@@ -349,7 +355,7 @@ function DatasetsContent() {
               <div className="flex justify-center pt-8">
                 <Button
                   variant="ghost"
-                  className="text-gray-500 hover:text-purple-600"
+                  className="text-gray-500 hover:text-purple-600 transform-gpu transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
                   onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
                   data-testid="datasets-load-more"
                 >
@@ -359,8 +365,8 @@ function DatasetsContent() {
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </MotionReveal>
+    </PageMotionShell>
   );
 }
 
