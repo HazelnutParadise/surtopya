@@ -91,6 +91,8 @@
     "statusEditedUnpublished": "已編輯未發布",
     "statusResponsesOpen": "開放回應",
     "statusResponsesClosed": "關閉回應",
+    "createdTab": "我發的問卷",
+    "respondedTab": "我填的問卷",
     "unfinishedDraftsTitle": "未完成問卷",
     "noUnfinishedDrafts": "目前沒有未完成的問卷。",
     "resumeDraft": "繼續填答",
@@ -206,7 +208,9 @@
     "saveErrorUnauthorized": "請先登入再儲存草稿。",
     "authRequiredTitle": "登入後即可開始建立問卷",
     "authRequiredDescription": "登入可儲存草稿、管理版本，並在準備好時一鍵發布。",
-    "authRequiredAction": "立即登入/註冊"
+    "authRequiredAction": "立即登入/註冊",
+    "requireLoginToRespondLabel": "需登入才能填",
+    "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -463,7 +467,17 @@
     "pointsEarned": "獲得點數",
     "message": "感謝你花時間完成問卷。你的回饋對我們很重要。",
     "findMore": "尋找更多問卷",
-    "goDashboard": "回到儀表板"
+    "goDashboard": "回到儀表板",
+    "claimTitle": "登入領取點數",
+    "claimDescription": "在這個頁面登入即可把本次問卷點數加入帳戶，或直接放棄點數。",
+    "claimAction": "登入領點數",
+    "forfeitAction": "放棄點數",
+    "claimLoading": "正在領取點數...",
+    "authChecking": "正在確認登入狀態...",
+    "claimSuccess": "點數已加入你的帳戶。",
+    "forfeitSuccess": "你已放棄這次的點數。",
+    "claimError": "領取點數失敗，請稍後再試。",
+    "forfeitError": "放棄點數失敗，請稍後再試。"
   },
   "SurveyPage": {
     "notFoundTitle": "找不到問卷",
@@ -477,6 +491,8 @@
     "exitWithoutSaving": "不儲存並離開",
     "leaveDialogSavedTitle": "進度已儲存，可安心離開",
     "leaveDialogSavedDescription": "你的最新填答已完成儲存。",
+    "leaveDialogGuestSavedTitle": "進度僅暫存在此瀏覽器",
+    "leaveDialogGuestSavedDescription": "你的最新填答只暫存在此瀏覽器。若關閉分頁或瀏覽器，進度可能消失，建議先登入保留。",
     "leaveDialogFailedTitle": "儲存失敗，離開可能遺失最新進度",
     "leaveDialogFailedDescription": "系統暫時無法儲存最新變更。你可以繼續作答，或承擔風險離開。",
     "leaveContinueButton": "繼續作答",
@@ -517,6 +533,9 @@
     "progressNoticeGuestTitle": "訪客進度只會暫存在此瀏覽器。",
     "progressNoticeGuestDescription": "登入後可跨裝置保留進度，稍後回來可直接續填。",
     "progressNoticeGuestAction": "登入並保留進度",
+    "loginRequiredToRespondTitle": "此問卷需登入才能填答",
+    "loginRequiredToRespondDescription": "這份問卷只接受已登入會員填答。請先登入，再開始作答並保留進度。",
+    "loginRequiredToRespondAction": "登入後填答",
     "progressNoticeMemberTitle": "你已登入。",
     "progressNoticeMemberDescription": "你的作答進度會自動儲存。",
     "takingGuestNotice": "你目前以訪客身分填答，進度只會保留在此瀏覽器。登入即可保留進度。",
@@ -575,7 +594,8 @@
     "responses": "{count} 份",
     "public": "公開",
     "nonPublic": "非公開",
-    "points": "{count} 點"
+    "points": "{count} 點",
+    "loginRequired": "需登入"
   },
   "Profile": {
     "title": "個人檔案",

@@ -16,9 +16,22 @@ type SubmitAnonymousResponseRequest struct {
 	Answers     []SubmitAnswerRequest `json:"answers"`
 }
 
+type ClaimAnonymousPointsRequest struct {
+	ClaimToken string `json:"claimToken" binding:"required"`
+}
+
+type ForfeitAnonymousPointsRequest struct {
+	ClaimToken string `json:"claimToken" binding:"required"`
+}
+
 type SaveDraftAnswersBulkRequest struct {
 	Answers []SubmitAnswerRequest `json:"answers"`
 }
+
+const (
+	loginRequiredToRespondCode = "LOGIN_REQUIRED_TO_RESPOND"
+	anonymousClaimTTL          = 24 * time.Hour
+)
 
 func isAnswerValueEmpty(value models.AnswerValue) bool {
 	if value.Value != nil && *value.Value != "" {
@@ -581,9 +594,16 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		return
 	}
 
-	_, version, code, message := h.ensureSurveyAcceptingResponses(surveyID)
+	survey, version, code, message := h.ensureSurveyAcceptingResponses(surveyID)
 	if code != 0 {
 		c.JSON(code, gin.H{"error": message})
+		return
+	}
+	if survey.RequireLoginToRespond {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Login required to respond to this survey",
+			"code":  loginRequiredToRespondCode,
+		})
 		return
 	}
 
@@ -600,7 +620,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	validQuestions, _, err := h.loadVersionQuestionSet(tx, version.ID)
+	validQuestions, boostSpend, err := h.loadVersionQuestionSet(tx, version.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
@@ -635,17 +655,27 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	}
 
 	now := time.Now()
+	pointsAwarded, err := loadSurveyBasePoints(tx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+		return
+	}
+	if boostSpend > 0 {
+		pointsAwarded += boostSpend / 3
+	}
+
 	responseID := uuid.New()
 	if _, err := tx.Exec(
 		`INSERT INTO responses (
 			id, survey_id, survey_version_id, survey_version_number,
 			user_id, anonymous_id, status, points_awarded, started_at, completed_at
-		) VALUES ($1, $2, $3, $4, NULL, $5, 'completed', 0, $6, $6)`,
+		) VALUES ($1, $2, $3, $4, NULL, $5, 'completed', $6, $7, $7)`,
 		responseID,
 		surveyID,
 		version.ID,
 		version.VersionNumber,
 		anonymousID,
+		pointsAwarded,
 		now,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create response"})
@@ -676,16 +706,210 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		return
 	}
 
+	var claimContext gin.H
+	if pointsAwarded > 0 {
+		claimToken := uuid.New()
+		expiresAt := now.Add(anonymousClaimTTL)
+		if _, err := tx.Exec(
+			`INSERT INTO anonymous_response_point_claims (
+				response_id, survey_id, claim_token, points_awarded, status, expires_at
+			) VALUES ($1, $2, $3, $4, 'pending', $5)`,
+			responseID,
+			surveyID,
+			claimToken,
+			pointsAwarded,
+			expiresAt,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create anonymous claim"})
+			return
+		}
+		claimContext = gin.H{
+			"responseId":    responseID,
+			"claimToken":    claimToken,
+			"pointsAwarded": pointsAwarded,
+			"expiresAt":     expiresAt,
+			"status":        "pending",
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 		return
 	}
 
 	response, _ := h.responseRepo.GetByID(responseID)
-	c.JSON(http.StatusOK, gin.H{
+	payload := gin.H{
 		"message":             "Survey completed successfully",
 		"response":            response,
-		"pointsAwarded":       0,
+		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": version.VersionNumber,
+	}
+	if claimContext != nil {
+		payload["claimContext"] = claimContext
+	}
+
+	c.JSON(http.StatusOK, payload)
+}
+
+// ClaimAnonymousPoints handles POST /api/v1/responses/claim-anonymous-points
+func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req ClaimAnonymousPointsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	claimToken, err := uuid.Parse(req.ClaimToken)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid claim token"})
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	var responseID uuid.UUID
+	var surveyID uuid.UUID
+	var pointsAwarded int
+	var status string
+	var expiresAt time.Time
+	if err := tx.QueryRow(
+		`SELECT response_id, survey_id, points_awarded, status, expires_at
+		 FROM anonymous_response_point_claims
+		 WHERE claim_token = $1
+		 FOR UPDATE`,
+		claimToken,
+	).Scan(&responseID, &surveyID, &pointsAwarded, &status, &expiresAt); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Claim not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load claim"})
+		return
+	}
+
+	if status == "claimed" {
+		c.JSON(http.StatusConflict, gin.H{"error": "Claim already completed"})
+		return
+	}
+	if status == "forfeited" {
+		c.JSON(http.StatusConflict, gin.H{"error": "Claim already forfeited"})
+		return
+	}
+	if expiresAt.Before(time.Now()) {
+		c.JSON(http.StatusGone, gin.H{"error": "Claim has expired"})
+		return
+	}
+
+	if err := h.pointsRepo.AwardSurveyPointsTx(tx, userID.(uuid.UUID), surveyID, pointsAwarded, "Anonymous survey completion reward"); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
+		return
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE anonymous_response_point_claims
+		 SET status = 'claimed', claimed_by_user_id = $1, claimed_at = $2
+		 WHERE claim_token = $3`,
+		userID.(uuid.UUID),
+		time.Now(),
+		claimToken,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update claim"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Anonymous points claimed successfully",
+		"responseId":    responseID,
+		"surveyId":      surveyID,
+		"pointsAwarded": pointsAwarded,
+		"status":        "claimed",
+	})
+}
+
+// ForfeitAnonymousPoints handles POST /api/v1/responses/forfeit-anonymous-points
+func (h *ResponseHandler) ForfeitAnonymousPoints(c *gin.Context) {
+	var req ForfeitAnonymousPointsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	claimToken, err := uuid.Parse(req.ClaimToken)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid claim token"})
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	var responseID uuid.UUID
+	var surveyID uuid.UUID
+	var status string
+	if err := tx.QueryRow(
+		`SELECT response_id, survey_id, status
+		 FROM anonymous_response_point_claims
+		 WHERE claim_token = $1
+		 FOR UPDATE`,
+		claimToken,
+	).Scan(&responseID, &surveyID, &status); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Claim not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load claim"})
+		return
+	}
+
+	if status == "claimed" {
+		c.JSON(http.StatusConflict, gin.H{"error": "Claim already completed"})
+		return
+	}
+	if status == "forfeited" {
+		c.JSON(http.StatusConflict, gin.H{"error": "Claim already forfeited"})
+		return
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE anonymous_response_point_claims
+		 SET status = 'forfeited', forfeited_at = $1
+		 WHERE claim_token = $2`,
+		time.Now(),
+		claimToken,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update claim"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Anonymous points forfeited successfully",
+		"responseId": responseID,
+		"surveyId":   surveyID,
+		"status":     "forfeited",
 	})
 }

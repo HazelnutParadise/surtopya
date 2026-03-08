@@ -35,7 +35,7 @@ func newResponseHandlerForTest(t *testing.T) (*ResponseHandler, sqlmock.Sqlmock,
 func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, isResponseOpen bool, currentVersionID uuid.UUID, currentVersionNumber int) (*sqlmock.Rows, *sqlmock.Rows) {
 	now := time.Now().UTC()
 	surveyCols := []string{
-		"id", "user_id", "title", "description", "visibility", "is_response_open",
+		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
@@ -46,6 +46,7 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		"Test Survey",
 		"Desc",
 		"public",
+		false,
 		isResponseOpen,
 		true,
 		true,

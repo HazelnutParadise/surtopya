@@ -29,18 +29,19 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 	query := `
 		INSERT INTO surveys (
 			id, user_id, title, description, visibility, is_response_open,
+			require_login_to_respond,
 			include_in_datasets, ever_public, published_count,
 			current_published_version_id, current_published_version_number,
 			theme, points_reward, expires_at, has_unpublished_changes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		RETURNING id, created_at, updated_at
 	`
 
 	err = r.db.QueryRow(
 		query,
 		survey.ID, survey.UserID, survey.Title, survey.Description,
-		survey.Visibility, survey.IsResponseOpen, survey.IncludeInDatasets,
-		survey.EverPublic, survey.PublishedCount,
+		survey.Visibility, survey.IsResponseOpen, survey.RequireLoginToRespond,
+		survey.IncludeInDatasets, survey.EverPublic, survey.PublishedCount,
 		survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber,
 		themeJSON, survey.PointsReward, survey.ExpiresAt, survey.HasUnpublishedChanges,
 	).Scan(&survey.ID, &survey.CreatedAt, &survey.UpdatedAt)
@@ -59,6 +60,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 
 	query := `
 		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
@@ -71,7 +73,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 
 	err := r.db.QueryRow(query, id).Scan(
 		&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
-		&survey.Visibility, &survey.IsResponseOpen, &survey.IncludeInDatasets,
+		&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 		&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
@@ -107,6 +109,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error) {
 	query := `
 		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
@@ -131,7 +134,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
-			&survey.Visibility, &survey.IsResponseOpen, &survey.IncludeInDatasets,
+			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
@@ -183,6 +186,7 @@ func (r *SurveyRepository) CountActiveResponseOpenByUser(userID uuid.UUID, exclu
 func (r *SurveyRepository) GetAllAdmin(search string, visibility string, published *bool, limit, offset int) ([]models.Survey, error) {
 	query := `
 		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
@@ -234,7 +238,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
-			&survey.Visibility, &survey.IsResponseOpen, &survey.IncludeInDatasets,
+			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
@@ -260,6 +264,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey, error) {
 	query := `
 		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
@@ -287,7 +292,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 
 		err := rows.Scan(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
-			&survey.Visibility, &survey.IsResponseOpen, &survey.IncludeInDatasets,
+			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
@@ -324,10 +329,11 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 	query := `
 		UPDATE surveys SET
 			title = $2, description = $3, visibility = $4, is_response_open = $5,
-			include_in_datasets = $6, ever_public = $7, published_count = $8, theme = $9,
-			points_reward = $10, expires_at = $11, published_at = $12,
-			current_published_version_id = $13, current_published_version_number = $14,
-			has_unpublished_changes = $15
+			require_login_to_respond = $6, include_in_datasets = $7,
+			ever_public = $8, published_count = $9, theme = $10,
+			points_reward = $11, expires_at = $12, published_at = $13,
+			current_published_version_id = $14, current_published_version_number = $15,
+			has_unpublished_changes = $16
 		WHERE id = $1
 	`
 
@@ -335,7 +341,7 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 		_, err = tx.Exec(
 			query,
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
-			survey.IsResponseOpen, survey.IncludeInDatasets, survey.EverPublic,
+			survey.IsResponseOpen, survey.RequireLoginToRespond, survey.IncludeInDatasets, survey.EverPublic,
 			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
 			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)
@@ -343,7 +349,7 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 		_, err = r.db.Exec(
 			query,
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
-			survey.IsResponseOpen, survey.IncludeInDatasets, survey.EverPublic,
+			survey.IsResponseOpen, survey.RequireLoginToRespond, survey.IncludeInDatasets, survey.EverPublic,
 			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
 			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)

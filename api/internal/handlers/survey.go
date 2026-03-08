@@ -57,13 +57,14 @@ func (h *SurveyHandler) canPublishUnderPlanLimit(ctx context.Context, userID uui
 
 // CreateSurveyRequest represents the request body for creating a survey
 type CreateSurveyRequest struct {
-	Title             string              `json:"title"`
-	Description       string              `json:"description"`
-	Visibility        string              `json:"visibility"`
-	IncludeInDatasets bool                `json:"includeInDatasets"`
-	Theme             *models.SurveyTheme `json:"theme"`
-	PointsReward      int                 `json:"pointsReward"`
-	Questions         []QuestionRequest   `json:"questions"`
+	Title                 string              `json:"title"`
+	Description           string              `json:"description"`
+	Visibility            string              `json:"visibility"`
+	RequireLoginToRespond bool                `json:"requireLoginToRespond"`
+	IncludeInDatasets     bool                `json:"includeInDatasets"`
+	Theme                 *models.SurveyTheme `json:"theme"`
+	PointsReward          int                 `json:"pointsReward"`
+	Questions             []QuestionRequest   `json:"questions"`
 }
 
 // QuestionRequest represents a question in the request
@@ -120,6 +121,7 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		Description:           req.Description,
 		Visibility:            req.Visibility,
 		IsResponseOpen:        false,
+		RequireLoginToRespond: req.RequireLoginToRespond,
 		IncludeInDatasets:     req.IncludeInDatasets,
 		EverPublic:            false,
 		PublishedCount:        0,
@@ -235,14 +237,15 @@ func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 
 // UpdateSurveyRequest represents the request body for updating a survey
 type UpdateSurveyRequest struct {
-	Title             *string             `json:"title"`
-	Description       *string             `json:"description"`
-	Visibility        *string             `json:"visibility"`
-	IncludeInDatasets *bool               `json:"includeInDatasets"`
-	Theme             *models.SurveyTheme `json:"theme"`
-	PointsReward      *int                `json:"pointsReward"`
-	ExpiresAt         *string             `json:"expiresAt"`
-	Questions         []QuestionRequest   `json:"questions"`
+	Title                 *string             `json:"title"`
+	Description           *string             `json:"description"`
+	Visibility            *string             `json:"visibility"`
+	RequireLoginToRespond *bool               `json:"requireLoginToRespond"`
+	IncludeInDatasets     *bool               `json:"includeInDatasets"`
+	Theme                 *models.SurveyTheme `json:"theme"`
+	PointsReward          *int                `json:"pointsReward"`
+	ExpiresAt             *string             `json:"expiresAt"`
+	Questions             []QuestionRequest   `json:"questions"`
 }
 
 // UpdateSurvey handles PUT /api/v1/surveys/:id
@@ -322,6 +325,12 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		if survey.Visibility == "public" && survey.PublishedCount > 0 {
 			survey.EverPublic = true
 		}
+	}
+	if req.RequireLoginToRespond != nil {
+		if survey.RequireLoginToRespond != *req.RequireLoginToRespond {
+			hasDraftChanges = true
+		}
+		survey.RequireLoginToRespond = *req.RequireLoginToRespond
 	}
 	if req.IncludeInDatasets != nil {
 		if survey.PublishedCount > 0 && survey.IncludeInDatasets != *req.IncludeInDatasets {

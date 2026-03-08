@@ -91,6 +91,8 @@
     "responsesDelta": "+20.1% from last month",
     "pointsValue": "~$56.00 value",
     "endingSoon": "2 ending soon",
+    "createdTab": "My Surveys",
+    "respondedTab": "My Drafts",
     "unfinishedDraftsTitle": "Unfinished Surveys",
     "noUnfinishedDrafts": "No unfinished surveys.",
     "resumeDraft": "Resume",
@@ -206,7 +208,9 @@
     "saveErrorUnauthorized": "Please sign in before saving this draft.",
     "authRequiredTitle": "Sign in to start creating your survey",
     "authRequiredDescription": "Signing in lets you save drafts, manage versions, and publish when you're ready.",
-    "authRequiredAction": "Sign in / Register"
+    "authRequiredAction": "Sign in / Register",
+    "requireLoginToRespondLabel": "Require login to respond",
+    "requireLoginToRespondDescription": "Guests must sign in before they can start this survey."
   },
   "QuestionTypes": {
     "single": "Single Choice",
@@ -463,7 +467,17 @@
     "pointsEarned": "Points Earned",
     "message": "Thank you for taking the time to complete this survey. Your feedback is valuable to us.",
     "findMore": "Find More Surveys",
-    "goDashboard": "Go to Dashboard"
+    "goDashboard": "Go to Dashboard",
+    "claimTitle": "Claim your points",
+    "claimDescription": "Sign in on this page to add these points to your account, or forfeit them.",
+    "claimAction": "Sign in to claim points",
+    "forfeitAction": "Forfeit points",
+    "claimLoading": "Claiming your points...",
+    "authChecking": "Checking your sign-in status...",
+    "claimSuccess": "Points were added to your account.",
+    "forfeitSuccess": "You chose not to claim these points.",
+    "claimError": "Failed to claim points. Please try again.",
+    "forfeitError": "Failed to forfeit points. Please try again."
   },
   "SurveyPage": {
     "notFoundTitle": "Survey Not Found",
@@ -477,6 +491,8 @@
     "exitWithoutSaving": "Exit Without Saving",
     "leaveDialogSavedTitle": "Progress saved. You can safely leave.",
     "leaveDialogSavedDescription": "Your latest answers have been stored.",
+    "leaveDialogGuestSavedTitle": "Progress is only stored in this browser",
+    "leaveDialogGuestSavedDescription": "Your latest answers are only cached in this browser. If you close the tab or browser, they may be lost. Sign in if you want to keep them.",
     "leaveDialogFailedTitle": "Save failed. Leaving may lose recent progress.",
     "leaveDialogFailedDescription": "We couldn't save your latest changes just now. You can keep answering or leave with risk.",
     "leaveContinueButton": "Continue answering",
@@ -517,6 +533,9 @@
     "progressNoticeGuestTitle": "Guest progress is only stored in this browser.",
     "progressNoticeGuestDescription": "Sign in to keep your progress across sessions and devices.",
     "progressNoticeGuestAction": "Sign in and keep progress",
+    "loginRequiredToRespondTitle": "Sign in required for this survey",
+    "loginRequiredToRespondDescription": "This survey only accepts signed-in respondents. Sign in to start and keep your progress.",
+    "loginRequiredToRespondAction": "Sign in to respond",
     "progressNoticeMemberTitle": "You are signed in.",
     "progressNoticeMemberDescription": "Your survey progress will be saved automatically.",
     "takingGuestNotice": "As a guest, progress is only kept in this browser. Sign in to keep it.",
@@ -575,7 +594,8 @@
     "responses": "{count}",
     "public": "Public",
     "nonPublic": "Non-public",
-    "points": "{count} PTS"
+    "points": "{count} PTS",
+    "loginRequired": "Login Required"
   },
   "Profile": {
     "title": "Profile",

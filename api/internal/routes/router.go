@@ -50,6 +50,8 @@ func SetupRouter() *gin.Engine {
 			responses.GET("/:id", responseHandler.GetResponse)
 			responses.POST("/:id/answers", responseHandler.SubmitAnswer)
 			responses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
+			responses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
+			responses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
 		}
 
 		// Survey response routes (nested under surveys)

@@ -31,6 +31,7 @@ export interface Survey {
     settings: {
         isPublic: boolean;
         isResponseOpen: boolean;
+        requireLoginToRespond: boolean;
         visibility: 'public' | 'non-public';
         isDatasetActive: boolean;
         everPublic?: boolean;

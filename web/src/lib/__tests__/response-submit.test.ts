@@ -8,11 +8,12 @@ const createSurveyFixture = (): SurveyDisplay => ({
   description: "d",
   theme: undefined,
   responseCount: 0,
-  settings: {
-    isPublic: true,
-    isResponseOpen: true,
-    visibility: "public",
-    isDatasetActive: true,
+    settings: {
+      isPublic: true,
+      isResponseOpen: true,
+      requireLoginToRespond: false,
+      visibility: "public",
+      isDatasetActive: true,
     everPublic: false,
     pointsReward: 1,
     publishedCount: 0,

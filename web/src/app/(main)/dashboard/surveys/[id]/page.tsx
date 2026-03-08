@@ -101,6 +101,7 @@ export default function SurveyManagementPage() {
     title: "",
     description: "",
     visibility: "non-public",
+    requireLoginToRespond: false,
     includeInDatasets: false,
     pointsReward: 0,
     expiresAt: "",
@@ -182,7 +183,7 @@ export default function SurveyManagementPage() {
 
     const fetchCapabilities = async () => {
       try {
-        const response = await fetch("/api/me?optional=1", {
+        const response = await fetch("/api/me", {
           cache: "no-store",
           signal: controller.signal,
         })
@@ -214,6 +215,7 @@ export default function SurveyManagementPage() {
       title: survey.title,
       description: survey.description || "",
       visibility: survey.settings.visibility,
+      requireLoginToRespond: survey.settings.requireLoginToRespond,
       includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
       expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
@@ -377,6 +379,7 @@ export default function SurveyManagementPage() {
       title: formState.title.trim() || survey.title,
       description: formState.description,
       visibility: formState.visibility,
+      requireLoginToRespond: formState.requireLoginToRespond,
       includeInDatasets: getSurveyDatasetSharingEffectiveValue({
         capabilities,
         visibility: formState.visibility,
@@ -411,6 +414,7 @@ export default function SurveyManagementPage() {
       title: survey.title,
       description: survey.description || "",
       visibility: survey.settings.visibility,
+      requireLoginToRespond: survey.settings.requireLoginToRespond,
       includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
       expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
@@ -489,6 +493,7 @@ export default function SurveyManagementPage() {
     formState.title !== survey.title ||
     formState.description !== (survey.description || "") ||
     formState.visibility !== survey.settings.visibility ||
+    formState.requireLoginToRespond !== survey.settings.requireLoginToRespond ||
     formState.includeInDatasets !== survey.settings.isDatasetActive ||
     formState.pointsReward !== survey.settings.pointsReward ||
     formState.expiresAt !== (survey.settings.expiresAt?.split("T")[0] || "");
@@ -912,6 +917,20 @@ export default function SurveyManagementPage() {
                           {t("settingsLockedAfterPublish")}
                         </p>
                       ) : null}
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+                      <div className="space-y-1 pr-4">
+                        <Label className="text-base">{tBuilder("requireLoginToRespondLabel")}</Label>
+                        <p className="text-sm text-gray-500">{tBuilder("requireLoginToRespondDescription")}</p>
+                      </div>
+                      <Switch
+                        checked={formState.requireLoginToRespond}
+                        onCheckedChange={(value) =>
+                          setFormState((prev) => ({ ...prev, requireLoginToRespond: value }))
+                        }
+                        data-testid="survey-settings-require-login"
+                      />
                     </div>
 
                     <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-6">

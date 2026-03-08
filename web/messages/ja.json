@@ -91,6 +91,8 @@
     "statusEditedUnpublished": "編集済み・未公開",
     "statusResponsesOpen": "回答受付中",
     "statusResponsesClosed": "回答受付停止",
+    "createdTab": "作成したアンケート",
+    "respondedTab": "回答中のアンケート",
     "unfinishedDraftsTitle": "未完了のアンケート",
     "noUnfinishedDrafts": "未完了のアンケートはありません。",
     "resumeDraft": "再開する",
@@ -206,7 +208,9 @@
     "saveErrorUnauthorized": "下書きを保存する前にログインしてください。",
     "authRequiredTitle": "ログインするとアンケート作成を始められます",
     "authRequiredDescription": "ログインすると下書き保存、バージョン管理、公開までスムーズに進められます。",
-    "authRequiredAction": "ログイン/新規登録"
+    "authRequiredAction": "ログイン/新規登録",
+    "requireLoginToRespondLabel": "回答にログイン必須",
+    "requireLoginToRespondDescription": "有効にすると、ゲストはログインしないと回答を開始できません。"
   },
   "QuestionTypes": {
     "single": "単一選択",
@@ -463,7 +467,17 @@
     "pointsEarned": "獲得ポイント",
     "message": "ご協力ありがとうございます。いただいた回答は非常に貴重です。",
     "findMore": "他のアンケートを見る",
-    "goDashboard": "ダッシュボードへ"
+    "goDashboard": "ダッシュボードへ",
+    "claimTitle": "ポイントを受け取る",
+    "claimDescription": "このページでログインすると今回のポイントをアカウントに追加できます。受け取らずに放棄することもできます。",
+    "claimAction": "ログインしてポイントを受け取る",
+    "forfeitAction": "ポイントを放棄する",
+    "claimLoading": "ポイントを受け取っています...",
+    "authChecking": "ログイン状態を確認しています...",
+    "claimSuccess": "ポイントがアカウントに追加されました。",
+    "forfeitSuccess": "今回のポイントは放棄されました。",
+    "claimError": "ポイントの受け取りに失敗しました。再試行してください。",
+    "forfeitError": "ポイントの放棄に失敗しました。再試行してください。"
   },
   "SurveyPage": {
     "notFoundTitle": "アンケートが見つかりません",
@@ -477,6 +491,8 @@
     "exitWithoutSaving": "保存せずに終了",
     "leaveDialogSavedTitle": "進捗は保存されました。安心して離脱できます",
     "leaveDialogSavedDescription": "最新の回答内容は保存済みです。",
+    "leaveDialogGuestSavedTitle": "進捗はこのブラウザにのみ一時保存されています",
+    "leaveDialogGuestSavedDescription": "最新の回答はこのブラウザにのみ保存されています。タブやブラウザを閉じると失われる可能性があるため、保持したい場合はログインしてください。",
     "leaveDialogFailedTitle": "保存に失敗しました。離脱すると最新の進捗が失われる可能性があります",
     "leaveDialogFailedDescription": "最新の変更を保存できませんでした。回答を続けるか、リスクを了承して離脱できます。",
     "leaveContinueButton": "回答を続ける",
@@ -517,6 +533,9 @@
     "progressNoticeGuestTitle": "ゲストの進捗はこのブラウザ内にのみ保存されます。",
     "progressNoticeGuestDescription": "ログインすると、後で戻っても進捗を保持できます。",
     "progressNoticeGuestAction": "ログインして進捗を保持",
+    "loginRequiredToRespondTitle": "このアンケートはログイン必須です",
+    "loginRequiredToRespondDescription": "このアンケートはログイン済みのユーザーのみ回答できます。ログインしてから回答を開始してください。",
+    "loginRequiredToRespondAction": "ログインして回答する",
     "progressNoticeMemberTitle": "ログイン済みです。",
     "progressNoticeMemberDescription": "回答進捗は自動で保存されます。",
     "takingGuestNotice": "ゲストの進捗はこのブラウザ内のみです。ログインして保持できます。",
@@ -575,7 +594,8 @@
     "responses": "{count}件",
     "public": "公開",
     "nonPublic": "非公開",
-    "points": "{count}ポイント"
+    "points": "{count}ポイント",
+    "loginRequired": "ログイン必須"
   },
   "Profile": {
     "title": "プロフィール",

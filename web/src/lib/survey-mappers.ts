@@ -40,6 +40,7 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
     settings: {
       isPublic: survey.visibility === "public",
       isResponseOpen: survey.isResponseOpen,
+      requireLoginToRespond: Boolean(survey.requireLoginToRespond),
       visibility: survey.visibility,
       isDatasetActive: survey.includeInDatasets,
       everPublic: survey.everPublic,

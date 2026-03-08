@@ -14,6 +14,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func surveyRowsForAnonymousResponseTest(
+	surveyID uuid.UUID,
+	userID uuid.UUID,
+	versionID uuid.UUID,
+	requireLogin bool,
+	pointsReward int,
+) (*sqlmock.Rows, *sqlmock.Rows) {
+	now := time.Now().UTC()
+	surveyCols := []string{
+		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
+		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+		"expires_at", "response_count", "created_at", "updated_at", "published_at",
+		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
+	}
+	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
+		surveyID,
+		userID,
+		"Anonymous Test",
+		"Desc",
+		"public",
+		requireLogin,
+		true,
+		true,
+		true,
+		1,
+		[]byte("{}"),
+		pointsReward,
+		nil,
+		0,
+		now,
+		now,
+		now,
+		versionID,
+		1,
+		false,
+	)
+
+	questionCols := []string{
+		"id", "survey_id", "type", "title", "description", "options", "required",
+		"max_rating", "logic", "sort_order", "created_at", "updated_at",
+	}
+	return surveyRows, sqlmock.NewRows(questionCols)
+}
+
 func TestResponseHandler_SaveDraftAnswersBulk_SavesLatestNonEmptyAnswers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -199,5 +243,197 @@ func TestResponseHandler_SaveDraftAnswersBulk_FiltersEmptyAnswers(t *testing.T) 
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"saved_count":0`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_SubmitAnonymousResponse_LoginRequiredRejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	versionID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyRowsForAnonymousResponseTest(surveyID, publisherID, versionID, true, 0)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(versionID, surveyID, 1, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/submit-anonymous", h.SubmitAnonymousResponse)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/surveys/"+surveyID.String()+"/responses/submit-anonymous",
+		bytes.NewReader([]byte(`{"answers":[]}`)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	require.Contains(t, w.Body.String(), `"code":"LOGIN_REQUIRED_TO_RESPOND"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	versionID := uuid.New()
+	questionID := uuid.New()
+	responseID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyRowsForAnonymousResponseTest(surveyID, publisherID, versionID, false, 9)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(
+			versionID,
+			surveyID,
+			1,
+			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			9,
+			nil,
+			now,
+			publisherID,
+			now,
+		))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow(
+			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			9,
+		))
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
+	mock.ExpectExec("INSERT INTO responses").
+		WithArgs(sqlmock.AnyArg(), surveyID, versionID, 1, "anon-1", 9, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO answers").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), questionID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET response_count = response_count \\+ 1 WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO anonymous_response_point_claims").
+		WithArgs(sqlmock.AnyArg(), surveyID, sqlmock.AnyArg(), 9, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery("FROM responses WHERE id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 1, nil, "anon-1", "completed", 9, now, now, now))
+	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/submit-anonymous", h.SubmitAnonymousResponse)
+
+	body, err := json.Marshal(map[string]any{
+		"anonymousId": "anon-1",
+		"answers": []map[string]any{
+			{
+				"questionId": questionID.String(),
+				"value": map[string]any{
+					"text": "hello",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/submit-anonymous", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
+	require.Contains(t, w.Body.String(), `"claimContext"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_ClaimAnonymousPoints_AwardsPointsOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	claimToken := uuid.New()
+	userID := uuid.New()
+	surveyID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT response_id, survey_id, points_awarded, status, expires_at FROM anonymous_response_point_claims").
+		WithArgs(claimToken).
+		WillReturnRows(sqlmock.NewRows([]string{"response_id", "survey_id", "points_awarded", "status", "expires_at"}).AddRow(
+			uuid.New(),
+			surveyID,
+			9,
+			"pending",
+			now.Add(1*time.Hour),
+		))
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2 WHERE id = \\$1").
+		WithArgs(userID, 9).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), userID, 9, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE anonymous_response_point_claims SET status = 'claimed'").
+		WithArgs(userID, sqlmock.AnyArg(), claimToken).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.POST("/api/v1/responses/claim-anonymous-points", func(c *gin.Context) {
+		c.Set("userID", userID)
+		h.ClaimAnonymousPoints(c)
+	})
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/responses/claim-anonymous-points",
+		bytes.NewReader([]byte(`{"claimToken":"`+claimToken.String()+`"}`)),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

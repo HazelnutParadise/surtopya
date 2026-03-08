@@ -41,6 +41,11 @@ import {
   toRendererAnswers,
   type MergeSource,
 } from "@/lib/response-submit"
+import {
+  clearAnonymousClaimContext,
+  writeAnonymousClaimContext,
+  type AnonymousClaimContext,
+} from "@/lib/anonymous-claim"
 
 const RichText = ({ content }: { content: string }) => {
   if (!content) return null
@@ -118,6 +123,8 @@ type DraftAnswer = {
     date?: string
   }
 }
+
+const loginRequiredToRespondCode = "LOGIN_REQUIRED_TO_RESPOND"
 
 type MergeConflictState = {
   draftId: string
@@ -234,6 +241,8 @@ export function SurveyClientPage({
 
   const isLoggedIn = Boolean(currentUser)
   const resumeAfterLogin = searchParams.get("resume") === "1"
+  const requiresLoginToRespond = Boolean(survey?.settings.requireLoginToRespond)
+  const canGuestRespond = !requiresLoginToRespond
 
   const rewardEstimate = survey
     ? surveyBasePoints + Math.floor((survey.settings.pointsReward || 0) / 3)
@@ -542,6 +551,10 @@ export function SurveyClientPage({
       setFlowError(t("responsesNotOpen"))
       return
     }
+    if (!isLoggedIn && survey.settings.requireLoginToRespond) {
+      setFlowError(t("loginRequiredToRespondDescription"))
+      return
+    }
 
     setStarting(true)
     try {
@@ -646,6 +659,10 @@ export function SurveyClientPage({
 
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) {
+          if (!isLoggedIn && payload?.code === loginRequiredToRespondCode) {
+            setIsTaking(false)
+            setFlowError(t("loginRequiredToRespondDescription"))
+          }
           throw new Error(payload?.error || "Submit failed")
         }
 
@@ -659,6 +676,33 @@ export function SurveyClientPage({
         const pointsParam = Number.isFinite(pointsAwarded)
           ? Math.max(0, Math.floor(pointsAwarded))
           : 0
+        if (!isLoggedIn) {
+          const claimContext = payload?.claimContext
+          if (
+            claimContext &&
+            typeof claimContext.responseId === "string" &&
+            typeof claimContext.claimToken === "string"
+          ) {
+            writeAnonymousClaimContext({
+              responseId: claimContext.responseId,
+              claimToken: claimContext.claimToken,
+              pointsAwarded:
+                typeof claimContext.pointsAwarded === "number"
+                  ? claimContext.pointsAwarded
+                  : Number(claimContext.pointsAwarded || 0),
+              expiresAt:
+                typeof claimContext.expiresAt === "string"
+                  ? claimContext.expiresAt
+                  : new Date().toISOString(),
+              status:
+                claimContext.status === "claimed" || claimContext.status === "forfeited"
+                  ? claimContext.status
+                  : "pending",
+            } satisfies AnonymousClaimContext)
+          } else if (payload?.response?.id && typeof payload.response.id === "string") {
+            clearAnonymousClaimContext(payload.response.id)
+          }
+        }
         const qs = new URLSearchParams({ points: String(pointsParam) }).toString()
 
         router.push(withLocalePath(`/survey/thank-you?${qs}`))
@@ -738,6 +782,15 @@ export function SurveyClientPage({
     resumeAfterLoginRef.current = true
     void handleStartSurvey()
   }, [authLoading, handleStartSurvey, isLoggedIn, isPreview, isTaking, resumeAfterLogin, survey])
+
+  useEffect(() => {
+    if (isPreview || !survey || !isTaking || authLoading) return
+    if (isLoggedIn) return
+    if (!survey.settings.requireLoginToRespond) return
+
+    setIsTaking(false)
+    setFlowError(t("loginRequiredToRespondDescription"))
+  }, [authLoading, isLoggedIn, isPreview, isTaking, survey, t])
 
   useEffect(() => {
     if (isPreview || isLoggedIn) {
@@ -1050,7 +1103,19 @@ export function SurveyClientPage({
   }
 
   if (isTaking) {
-    const showGuestTakingPrompt = !isPreview && !authLoading && !isLoggedIn
+    const showGuestTakingPrompt = !isPreview && !authLoading && !isLoggedIn && canGuestRespond
+    const leaveDialogTitle =
+      exitDialogMode === "failed"
+        ? t("leaveDialogFailedTitle")
+        : isLoggedIn
+          ? t("leaveDialogSavedTitle")
+          : t("leaveDialogGuestSavedTitle")
+    const leaveDialogDescription =
+      exitDialogMode === "failed"
+        ? t("leaveDialogFailedDescription")
+        : isLoggedIn
+          ? t("leaveDialogSavedDescription")
+          : t("leaveDialogGuestSavedDescription")
 
     return (
       <div className="relative">
@@ -1111,14 +1176,8 @@ export function SurveyClientPage({
         <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
           <DialogContent onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle>
-                {exitDialogMode === "failed" ? t("leaveDialogFailedTitle") : t("leaveDialogSavedTitle")}
-              </DialogTitle>
-              <DialogDescription>
-                {exitDialogMode === "failed"
-                  ? t("leaveDialogFailedDescription")
-                  : t("leaveDialogSavedDescription")}
-              </DialogDescription>
+              <DialogTitle>{leaveDialogTitle}</DialogTitle>
+              <DialogDescription>{leaveDialogDescription}</DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button
@@ -1204,6 +1263,20 @@ export function SurveyClientPage({
                         {t("progressNoticeMemberDescription")}
                       </p>
                     </>
+                  ) : requiresLoginToRespond ? (
+                    <>
+                      <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                        {t("loginRequiredToRespondTitle")}
+                      </p>
+                      <p className="mt-1 text-sm text-indigo-800 dark:text-indigo-200">
+                        {t("loginRequiredToRespondDescription")}
+                      </p>
+                      <div className="mt-3">
+                        <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                          <a href={loginHref(false)}>{t("loginRequiredToRespondAction")}</a>
+                        </Button>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
@@ -1260,12 +1333,22 @@ export function SurveyClientPage({
                   <Button
                     onClick={handleStartSurvey}
                     size="lg"
-                    disabled={starting || submitting || (!isPreview && !survey.settings.isResponseOpen)}
+                    disabled={
+                      starting ||
+                      submitting ||
+                      (!isPreview && !survey.settings.isResponseOpen) ||
+                      (!isPreview && !isLoggedIn && requiresLoginToRespond)
+                    }
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
                   >
                     {starting ? tCommon("loading") : t("startSurvey")}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
+                  {!isPreview && !isLoggedIn && requiresLoginToRespond ? (
+                    <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      {t("loginRequiredToRespondDescription")}
+                    </p>
+                  ) : null}
                   {!isPreview && !survey.settings.isResponseOpen ? (
                     <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                       {t("responsesNotOpen")}

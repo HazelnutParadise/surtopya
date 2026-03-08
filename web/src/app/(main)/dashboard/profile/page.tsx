@@ -30,7 +30,7 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       setLoading(true)
       try {
-        const response = await fetch("/api/me?optional=1", { cache: "no-store" })
+        const response = await fetch("/api/me", { cache: "no-store" })
         if (!response.ok) {
           if (isMounted) {
             setProfile(null)
@@ -120,17 +120,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
-        <Card className="max-w-lg w-full border-0 shadow-xl ring-1 ring-gray-200 dark:ring-gray-800">
-          <CardHeader>
-            <CardTitle>{tProfile("signInTitle")}</CardTitle>
-            <CardDescription>{tProfile("signInDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white">
-              <a href="/api/logto/sign-in">{tProfile("signInAction")}</a>
-            </Button>
-          </CardContent>
-        </Card>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{tCommon("error")}</p>
       </div>
     )
   }

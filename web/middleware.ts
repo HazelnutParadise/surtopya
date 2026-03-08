@@ -11,6 +11,7 @@ const getLocaleFromPath = (pathname: string) => {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const locale = getLocaleFromPath(pathname)
+  const originalPathWithQuery = `${pathname}${request.nextUrl.search}`
 
   if (locale) {
     const url = request.nextUrl.clone()
@@ -20,6 +21,7 @@ export function middleware(request: NextRequest) {
     // Make SSR use the locale from the URL prefix on the first request (no flash of default locale).
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set("x-locale", locale)
+    requestHeaders.set("x-return-to", originalPathWithQuery)
 
     const response = NextResponse.rewrite(url, {
       request: {

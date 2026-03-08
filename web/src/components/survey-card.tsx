@@ -42,6 +42,7 @@ interface SurveyCardProps {
   hasUnpublishedChanges?: boolean;
   currentPublishedVersionNumber?: number;
   isResponseOpen?: boolean;
+  requireLoginToRespond?: boolean;
   locale?: string;
 }
 
@@ -61,6 +62,7 @@ export function SurveyCard({
   hasUnpublishedChanges = false,
   currentPublishedVersionNumber,
   isResponseOpen,
+  requireLoginToRespond = false,
   locale,
 }: SurveyCardProps) {
   const t = useTranslations("SurveyCard");
@@ -119,6 +121,14 @@ export function SurveyCard({
                       {isResponseOpen ? tDashboard("statusResponsesOpen") : tDashboard("statusResponsesClosed")}
                     </Badge>
                   </>
+                ) : null}
+                {variant !== "dashboard" && requireLoginToRespond ? (
+                  <Badge
+                    variant="outline"
+                    className="max-w-full whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-5 px-1.5 font-bold"
+                  >
+                    {t("loginRequired")}
+                  </Badge>
                 ) : null}
                 {shouldShowEditedUnpublished && (
                   <Badge variant="outline" className="max-w-full whitespace-nowrap bg-amber-50 text-amber-600 border-amber-200 text-[10px] h-5 px-1.5 font-bold">

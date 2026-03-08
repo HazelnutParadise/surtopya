@@ -11,6 +11,7 @@ import { withLocale, getLocaleFromPath } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { ResponseDraftSummary, Survey } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/runtime-config"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function DashboardPage() {
   const pathname = usePathname();
@@ -113,96 +114,108 @@ export default function DashboardPage() {
       </div>
 
       <div className="container px-4 py-8 md:px-6 space-y-8">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("totalResponses")}</CardTitle>
-              <BarChart3 className="h-4 w-4 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalResponses.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{t("activeSurveys")}</CardTitle>
-              <Award className="h-4 w-4 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activeSurveys}</div>
-            </CardContent>
-          </Card>
-        </div>
+        <Tabs defaultValue="created" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="created">{t("createdTab")}</TabsTrigger>
+            <TabsTrigger value="responded">{t("respondedTab")}</TabsTrigger>
+          </TabsList>
 
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("unfinishedDraftsTitle")}</h2>
-          <Card>
-            <CardContent className="p-5">
-              {drafts.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{t("noUnfinishedDrafts")}</p>
-              ) : (
-                <div className="space-y-3">
-                  {drafts.map((draft) => (
-                    <div
-                      key={draft.id}
-                      className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{draft.surveyTitle}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {t("updatedAtLabel", { time: new Date(draft.updatedAt).toLocaleString() })}
-                        </p>
-                      </div>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={withLocale(`/survey/${draft.surveyId}`, locale)}>{t("resumeDraft")}</Link>
-                      </Button>
-                    </div>
+          <TabsContent value="created" className="space-y-8">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{t("totalResponses")}</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalResponses.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{t("activeSurveys")}</CardTitle>
+                  <Award className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activeSurveys}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("mySurveys")}</h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {!loading &&
+                  surveys.map((survey) => (
+                    <SurveyCard
+                      key={survey.id}
+                      id={survey.id}
+                      title={survey.title}
+                      description={survey.description}
+                      points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
+                      responses={survey.responseCount}
+                      visibility={survey.visibility}
+                      hasUnpublishedChanges={survey.hasUnpublishedChanges}
+                      currentPublishedVersionNumber={survey.currentPublishedVersionNumber}
+                      isResponseOpen={survey.isResponseOpen}
+                      requireLoginToRespond={Boolean(survey.requireLoginToRespond)}
+                      variant="dashboard"
+                      locale={locale}
+                    />
                   ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
 
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("mySurveys")}</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {!loading &&
-              surveys.map((survey) => (
-                <SurveyCard
-                  key={survey.id}
-                  id={survey.id}
-                  title={survey.title}
-                  description={survey.description}
-                  points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
-                  responses={survey.responseCount}
-                  visibility={survey.visibility}
-                  hasUnpublishedChanges={survey.hasUnpublishedChanges}
-                  currentPublishedVersionNumber={survey.currentPublishedVersionNumber}
-                  isResponseOpen={survey.isResponseOpen}
-                  variant="dashboard"
-                  locale={locale}
-                />
-              ))}
+                {!loading && surveys.length === 0 && (
+                  <div className="col-span-full text-center text-gray-500 py-8">{t("noSurveys")}</div>
+                )}
 
-            {!loading && surveys.length === 0 && (
-              <div className="col-span-full text-center text-gray-500 py-8">{t("noSurveys")}</div>
-            )}
-
-            <Link
-              href={withLocale("/create", locale)}
-              className="group flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-6 transition-all hover:border-purple-500 hover:bg-purple-50/50 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20"
-            >
-              <div className="mb-4 rounded-full bg-gray-100 p-4 group-hover:bg-purple-100 dark:bg-gray-800 dark:group-hover:bg-purple-900">
-                <Plus className="h-6 w-6 text-gray-500 group-hover:text-purple-600 dark:text-gray-400 dark:group-hover:text-purple-400" />
+                <Link
+                  href={withLocale("/create", locale)}
+                  className="group flex h-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white/50 p-6 transition-all hover:border-purple-500 hover:bg-purple-50/50 dark:border-gray-800 dark:bg-gray-900/50 dark:hover:border-purple-500/50 dark:hover:bg-purple-900/20"
+                >
+                  <div className="mb-4 rounded-full bg-gray-100 p-4 group-hover:bg-purple-100 dark:bg-gray-800 dark:group-hover:bg-purple-900">
+                    <Plus className="h-6 w-6 text-gray-500 group-hover:text-purple-600 dark:text-gray-400 dark:group-hover:text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 dark:text-white dark:group-hover:text-purple-400">
+                    {t("createNewSurvey")}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t("startCreating")}</p>
+                </Link>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-purple-600 dark:text-white dark:group-hover:text-purple-400">
-                {t("createNewSurvey")}
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t("startCreating")}</p>
-            </Link>
-          </div>
-        </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="responded">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("unfinishedDraftsTitle")}</h2>
+              <Card>
+                <CardContent className="p-5">
+                  {drafts.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t("noUnfinishedDrafts")}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {drafts.map((draft) => (
+                        <div
+                          key={draft.id}
+                          className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{draft.surveyTitle}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {t("updatedAtLabel", { time: new Date(draft.updatedAt).toLocaleString() })}
+                            </p>
+                          </div>
+                          <Button asChild variant="outline" size="sm">
+                            <Link href={withLocale(`/survey/${draft.surveyId}`, locale)}>{t("resumeDraft")}</Link>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

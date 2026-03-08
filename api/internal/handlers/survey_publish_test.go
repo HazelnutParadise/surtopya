@@ -45,7 +45,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 	}
 
 	surveyCols := []string{
-		"id", "user_id", "title", "description", "visibility", "is_response_open",
+		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
@@ -56,6 +56,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		"Publish Test",
 		"Desc",
 		visibility,
+		false,
 		isResponseOpen,
 		includeInDatasets,
 		everPublic,

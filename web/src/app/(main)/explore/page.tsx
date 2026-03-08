@@ -224,6 +224,7 @@ function ExploreContent() {
                   points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                   responses={survey.responseCount}
                   visibility={survey.visibility}
+                  requireLoginToRespond={Boolean(survey.requireLoginToRespond)}
                   locale={locale}
                 />
               </MotionReveal>

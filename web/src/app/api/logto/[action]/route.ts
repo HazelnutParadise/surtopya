@@ -62,10 +62,9 @@ export const GET = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    return NextResponse.json(
-      { error: "Logto configuration error", details: String(error) },
-      { status: 500 }
-    )
+    const fallbackUrl = new URL("/", request.url)
+    fallbackUrl.searchParams.set("authError", "logto_configuration")
+    return NextResponse.redirect(fallbackUrl)
   }
 }
 
@@ -101,9 +100,8 @@ export const POST = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    return NextResponse.json(
-      { error: "Logto configuration error", details: String(error) },
-      { status: 500 }
-    )
+    const fallbackUrl = new URL("/", request.url)
+    fallbackUrl.searchParams.set("authError", "logto_configuration")
+    return NextResponse.redirect(fallbackUrl)
   }
 }

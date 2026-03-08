@@ -215,6 +215,7 @@ export interface Survey {
   title: string;
   description: string;
   visibility: 'public' | 'non-public';
+  requireLoginToRespond?: boolean;
   isResponseOpen: boolean;
   includeInDatasets: boolean;
   everPublic?: boolean;
@@ -257,6 +258,7 @@ export interface CreateSurveyRequest {
   title: string;
   description: string;
   visibility: 'public' | 'non-public';
+  requireLoginToRespond?: boolean;
   includeInDatasets: boolean;
   theme?: SurveyTheme;
   pointsReward: number;
@@ -266,6 +268,7 @@ export interface CreateSurveyRequest {
 export interface UpdateSurveyRequest {
   title?: string;
   description?: string;
+  requireLoginToRespond?: boolean;
   theme?: SurveyTheme;
   pointsReward?: number;
   expiresAt?: string;

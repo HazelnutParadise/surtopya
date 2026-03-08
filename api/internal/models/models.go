@@ -40,6 +40,7 @@ type Survey struct {
 	Title                         string       `json:"title" db:"title"`
 	Description                   string       `json:"description" db:"description"`
 	Visibility                    string       `json:"visibility" db:"visibility"`
+	RequireLoginToRespond         bool         `json:"requireLoginToRespond" db:"require_login_to_respond"`
 	IsResponseOpen                bool         `json:"isResponseOpen" db:"is_response_open"`
 	IncludeInDatasets             bool         `json:"includeInDatasets" db:"include_in_datasets"`
 	EverPublic                    bool         `json:"everPublic" db:"ever_public"`

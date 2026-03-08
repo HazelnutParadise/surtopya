@@ -111,6 +111,7 @@ export function SurveyBuilder() {
 
   const [isPublic, setIsPublic] = useState(true);
   const [includeInDatasets, setIncludeInDatasets] = useState(true);
+  const [requireLoginToRespond, setRequireLoginToRespond] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(false);
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
@@ -148,6 +149,7 @@ export function SurveyBuilder() {
       pointsReward: number;
       isPublic: boolean;
       includeInDatasets: boolean;
+      requireLoginToRespond: boolean;
   } | null>(null);
   const [confirmSettingsExit, setConfirmSettingsExit] = useState(false);
   const dashboardPath = withLocalePath('/dashboard')
@@ -157,7 +159,8 @@ export function SurveyBuilder() {
       settingsDraft.description !== description || 
       settingsDraft.pointsReward !== pointsReward || 
       settingsDraft.isPublic !== isPublic ||
-      settingsDraft.includeInDatasets !== includeInDatasets
+      settingsDraft.includeInDatasets !== includeInDatasets ||
+      settingsDraft.requireLoginToRespond !== requireLoginToRespond
   ) : false;
   const hasSavedDraft = Boolean(surveyId)
   const hasPublishableChanges = !isPublished || hasUnpublishedChanges
@@ -682,6 +685,7 @@ export function SurveyBuilder() {
     setPointsReward(mapped.settings.pointsReward)
     setIsPublic(mapped.settings.visibility === "public")
     setIncludeInDatasets(mapped.settings.isDatasetActive)
+    setRequireLoginToRespond(mapped.settings.requireLoginToRespond)
     setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
@@ -753,6 +757,7 @@ export function SurveyBuilder() {
         title,
         description,
         visibility: isPublic ? "public" : "non-public",
+        requireLoginToRespond,
         includeInDatasets: getSurveyDatasetSharingEffectiveValue({
           capabilities,
           visibility: isPublic ? "public" : "non-public",
@@ -972,6 +977,7 @@ export function SurveyBuilder() {
                                 pointsReward,
                                 isPublic,
                                 includeInDatasets,
+                                requireLoginToRespond,
                             });
                             setViewMode('settings');
                         }}
@@ -1161,8 +1167,8 @@ export function SurveyBuilder() {
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">{tBuilder("visibility")}</label>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">{tBuilder("visibility")}</label>
                             <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-lg w-fit">
                                 <button
                                     data-testid="builder-settings-visibility-public"
@@ -1195,6 +1201,20 @@ export function SurveyBuilder() {
                                 {tBuilder("settingsLockedAfterPublish")}
                               </p>
                             ) : null}
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 px-4 py-3">
+                            <div className="space-y-1 pr-4">
+                                <label className="text-sm font-medium">{tBuilder("requireLoginToRespondLabel")}</label>
+                                <p className="text-xs text-gray-500">{tBuilder("requireLoginToRespondDescription")}</p>
+                            </div>
+                            <Switch
+                                checked={Boolean(settingsDraft?.requireLoginToRespond)}
+                                onCheckedChange={(checked: boolean) =>
+                                  setSettingsDraft(prev => prev ? ({ ...prev, requireLoginToRespond: checked }) : null)
+                                }
+                                data-testid="builder-settings-require-login"
+                            />
                         </div>
 
                         <Separator className="dark:bg-gray-800" />
@@ -1248,6 +1268,7 @@ export function SurveyBuilder() {
                                      setPointsReward(settingsDraft.pointsReward);
                                      setIsPublic(settingsDraft.isPublic);
                                      setIncludeInDatasets(settingsDraft.includeInDatasets);
+                                     setRequireLoginToRespond(settingsDraft.requireLoginToRespond);
                                      notifyChange();
                                      setViewMode('builder');
                                  }
