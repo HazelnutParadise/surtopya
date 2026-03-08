@@ -13,6 +13,13 @@ export type SubmitAnswerRequest = {
   value: SubmitAnswerValue
 }
 
+export type MergeSource = "guest" | "draft"
+
+export type DraftGuestMergeAnalysis = {
+  mergedNonConflictingAnswers: Record<string, unknown>
+  conflictQuestionIds: string[]
+}
+
 const isNonEmptyString = (value: unknown): value is string => {
   return typeof value === "string" && value.trim().length > 0
 }
@@ -60,6 +67,100 @@ const toSubmitAnswerValue = (
   }
 
   return Object.keys(value).length > 0 ? value : null
+}
+
+const getQuestionType = (
+  survey: SurveyDisplay,
+  questionId: string
+): SurveyDisplay["questions"][number]["type"] | null => {
+  const question = survey.questions.find((q) => q.id === questionId && q.type !== "section")
+  return question?.type ?? null
+}
+
+const normalizeAnswerValueForCompare = (value: SubmitAnswerValue): SubmitAnswerValue => {
+  if (!Array.isArray(value.values)) {
+    return value
+  }
+
+  return {
+    ...value,
+    values: [...value.values].sort((a, b) => a.localeCompare(b)),
+  }
+}
+
+const areAnswerValuesEqual = (
+  left: SubmitAnswerValue | null,
+  right: SubmitAnswerValue | null
+): boolean => {
+  if (!left && !right) return true
+  if (!left || !right) return false
+
+  const leftNormalized = normalizeAnswerValueForCompare(left)
+  const rightNormalized = normalizeAnswerValueForCompare(right)
+  return JSON.stringify(leftNormalized) === JSON.stringify(rightNormalized)
+}
+
+export const analyzeDraftGuestMerge = (
+  survey: SurveyDisplay,
+  draftAnswers: Record<string, unknown>,
+  guestAnswers: Record<string, unknown>
+): DraftGuestMergeAnalysis => {
+  const mergedNonConflictingAnswers: Record<string, unknown> = {}
+  const conflictQuestionIds: string[] = []
+  const questionIds = new Set([...Object.keys(draftAnswers), ...Object.keys(guestAnswers)])
+
+  for (const questionId of questionIds) {
+    const questionType = getQuestionType(survey, questionId)
+    if (!questionType) continue
+
+    const draftRaw = draftAnswers[questionId]
+    const guestRaw = guestAnswers[questionId]
+    const draftValue = toSubmitAnswerValue(questionType, draftRaw)
+    const guestValue = toSubmitAnswerValue(questionType, guestRaw)
+
+    if (!draftValue && !guestValue) continue
+    if (!draftValue && guestValue) {
+      mergedNonConflictingAnswers[questionId] = guestRaw
+      continue
+    }
+    if (draftValue && !guestValue) {
+      mergedNonConflictingAnswers[questionId] = draftRaw
+      continue
+    }
+
+    if (areAnswerValuesEqual(draftValue, guestValue)) {
+      mergedNonConflictingAnswers[questionId] = draftRaw
+      continue
+    }
+
+    conflictQuestionIds.push(questionId)
+  }
+
+  return {
+    mergedNonConflictingAnswers,
+    conflictQuestionIds,
+  }
+}
+
+export const resolveDraftGuestMerge = (
+  survey: SurveyDisplay,
+  draftAnswers: Record<string, unknown>,
+  guestAnswers: Record<string, unknown>,
+  mergeSource: MergeSource
+): Record<string, unknown> => {
+  const analysis = analyzeDraftGuestMerge(survey, draftAnswers, guestAnswers)
+  const resolved: Record<string, unknown> = {
+    ...analysis.mergedNonConflictingAnswers,
+  }
+
+  for (const questionId of analysis.conflictQuestionIds) {
+    const chosenRaw = mergeSource === "guest" ? guestAnswers[questionId] : draftAnswers[questionId]
+    if (chosenRaw !== undefined) {
+      resolved[questionId] = chosenRaw
+    }
+  }
+
+  return resolved
 }
 
 export const buildSubmitAnswers = (

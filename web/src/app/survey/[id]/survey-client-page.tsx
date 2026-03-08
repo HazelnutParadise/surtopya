@@ -34,7 +34,13 @@ import { SurveyTheme } from "@/types/survey"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
-import { buildSubmitAnswers, toRendererAnswers } from "@/lib/response-submit"
+import {
+  analyzeDraftGuestMerge,
+  buildSubmitAnswers,
+  resolveDraftGuestMerge,
+  toRendererAnswers,
+  type MergeSource,
+} from "@/lib/response-submit"
 
 const RichText = ({ content }: { content: string }) => {
   if (!content) return null
@@ -111,6 +117,13 @@ type DraftAnswer = {
     rating?: number
     date?: string
   }
+}
+
+type MergeConflictState = {
+  draftId: string
+  draftAnswers: Record<string, unknown>
+  guestAnswers: Record<string, unknown>
+  conflictQuestionIds: string[]
 }
 
 const guestAnswersStorageKey = (surveyId: string) => `surtopya:guest_answers:${surveyId}`
@@ -208,6 +221,9 @@ export function SurveyClientPage({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [exitDialogMode, setExitDialogMode] = useState<"saved" | "failed">("saved")
   const [leaveHandling, setLeaveHandling] = useState(false)
+  const [mergeConflictState, setMergeConflictState] = useState<MergeConflictState | null>(null)
+  const [mergeApplyingSource, setMergeApplyingSource] = useState<MergeSource | null>(null)
+  const [mergeSaveError, setMergeSaveError] = useState<string | null>(null)
 
   const saveDebounceRef = useRef<number | null>(null)
   const rendererAnswersRef = useRef<Record<string, unknown>>({})
@@ -222,6 +238,54 @@ export function SurveyClientPage({
   const rewardEstimate = survey
     ? surveyBasePoints + Math.floor((survey.settings.pointsReward || 0) / 3)
     : 0
+
+  const questionMap = useMemo(() => {
+    const map = new Map<string, SurveyDisplay["questions"][number]>()
+    if (!survey) return map
+    for (const question of survey.questions) {
+      if (question.type === "section") continue
+      map.set(question.id, question)
+    }
+    return map
+  }, [survey])
+
+  const formatConflictAnswer = useCallback(
+    (questionId: string, raw: unknown) => {
+      const question = questionMap.get(questionId)
+      if (!question) return t("mergeConflictValueFallback")
+
+      switch (question.type) {
+        case "multi": {
+          if (Array.isArray(raw)) {
+            const values = raw
+              .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+              .sort((a, b) => a.localeCompare(b))
+            return values.length > 0 ? values.join(", ") : t("mergeConflictValueFallback")
+          }
+          return t("mergeConflictValueFallback")
+        }
+        case "rating": {
+          if (typeof raw === "number" && Number.isFinite(raw)) {
+            return String(raw)
+          }
+          if (typeof raw === "string" && raw.trim().length > 0) {
+            return raw.trim()
+          }
+          return t("mergeConflictValueFallback")
+        }
+        default: {
+          if (typeof raw === "string" && raw.trim().length > 0) {
+            return raw.trim()
+          }
+          if (Array.isArray(raw)) {
+            return raw.join(", ")
+          }
+          return t("mergeConflictValueFallback")
+        }
+      }
+    },
+    [questionMap, t]
+  )
 
   const formatSavedTime = useCallback(
     (date: Date) => {
@@ -390,7 +454,10 @@ export function SurveyClientPage({
     }, 700)
   }, [flushProgress])
 
-  const startDraftSession = useCallback(async (): Promise<string | null> => {
+  const startDraftSession = useCallback(async (): Promise<{
+    draftId: string | null
+    requiresMergeDecision: boolean
+  }> => {
     const response = await fetch(`/api/surveys/${surveyId}/drafts/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -404,35 +471,64 @@ export function SurveyClientPage({
 
     const nextDraftId = String(payload.id)
     setDraftId(nextDraftId)
+    setMergeConflictState(null)
+    setMergeSaveError(null)
 
     const draftAnswers = toRendererAnswers(
       Array.isArray(payload.answers) ? (payload.answers as DraftAnswer[]) : undefined
     )
     const guestAnswers = readGuestAnswers(surveyId)
-    const mergedAnswers = { ...draftAnswers, ...guestAnswers }
+    const hasGuestAnswers = Object.keys(guestAnswers).length > 0
 
+    if (!hasGuestAnswers || !survey) {
+      setAnswersSnapshot(draftAnswers)
+      isDirtyRef.current = false
+
+      if (Object.keys(draftAnswers).length > 0) {
+        setSaveStatus("saved")
+        setLastSavedAt(formatSavedTime(new Date()))
+      } else {
+        setSaveStatus("idle")
+        setLastSavedAt(null)
+      }
+
+      return { draftId: nextDraftId, requiresMergeDecision: false }
+    }
+
+    const mergeAnalysis = analyzeDraftGuestMerge(survey, draftAnswers, guestAnswers)
+
+    if (mergeAnalysis.conflictQuestionIds.length > 0) {
+      setMergeSaveError(null)
+      setMergeConflictState({
+        draftId: nextDraftId,
+        draftAnswers,
+        guestAnswers,
+        conflictQuestionIds: mergeAnalysis.conflictQuestionIds,
+      })
+
+      return { draftId: nextDraftId, requiresMergeDecision: true }
+    }
+
+    const mergedAnswers = mergeAnalysis.mergedNonConflictingAnswers
     setAnswersSnapshot(mergedAnswers)
     isDirtyRef.current = false
 
-    if (Object.keys(mergedAnswers).length > 0) {
-      setSaveStatus("saved")
-      setLastSavedAt(formatSavedTime(new Date()))
-    } else {
-      setSaveStatus("idle")
-      setLastSavedAt(null)
-    }
-
-    if (Object.keys(guestAnswers).length > 0) {
-      const migrated = await persistDraftBulk(nextDraftId, guestAnswers)
-      if (migrated === "saved" || migrated === "skipped") {
-        clearGuestAnswers(surveyId)
+    const migrated = await persistDraftBulk(nextDraftId, mergedAnswers)
+    if (migrated === "saved" || migrated === "skipped") {
+      clearGuestAnswers(surveyId)
+      if (Object.keys(mergedAnswers).length > 0) {
+        setSaveStatus("saved")
+        setLastSavedAt(formatSavedTime(new Date()))
       } else {
-        setSaveStatus("failed")
+        setSaveStatus("idle")
+        setLastSavedAt(null)
       }
+    } else {
+      setSaveStatus("failed")
     }
 
-    return nextDraftId
-  }, [formatSavedTime, persistDraftBulk, setAnswersSnapshot, surveyId])
+    return { draftId: nextDraftId, requiresMergeDecision: false }
+  }, [formatSavedTime, persistDraftBulk, setAnswersSnapshot, survey, surveyId])
 
   const handleStartSurvey = useCallback(async () => {
     setFlowError(null)
@@ -450,11 +546,16 @@ export function SurveyClientPage({
     setStarting(true)
     try {
       if (isLoggedIn) {
-        await startDraftSession()
+        const startResult = await startDraftSession()
+        if (startResult.requiresMergeDecision) {
+          return
+        }
       } else {
         setDraftId(null)
         setSaveStatus("idle")
         setLastSavedAt(null)
+        setMergeConflictState(null)
+        setMergeSaveError(null)
         setAnswersSnapshot(readGuestAnswers(surveyId))
         isDirtyRef.current = false
       }
@@ -520,7 +621,11 @@ export function SurveyClientPage({
         if (isLoggedIn) {
           let targetDraftId = draftId
           if (!targetDraftId) {
-            targetDraftId = await startDraftSession()
+            const startResult = await startDraftSession()
+            if (startResult.requiresMergeDecision) {
+              throw new Error("Merge conflict requires selection")
+            }
+            targetDraftId = startResult.draftId
           }
           if (!targetDraftId) {
             throw new Error("Missing response draft")
@@ -806,6 +911,56 @@ export function SurveyClientPage({
     }
     setIsTaking(false)
   }
+
+  const mergeConflictDetails = useMemo(() => {
+    if (!mergeConflictState) return []
+
+    return mergeConflictState.conflictQuestionIds.map((questionId) => {
+      const question = questionMap.get(questionId)
+      return {
+        questionId,
+        title: question?.title || t("mergeConflictUnknownQuestion"),
+        guestValue: formatConflictAnswer(questionId, mergeConflictState.guestAnswers[questionId]),
+        draftValue: formatConflictAnswer(questionId, mergeConflictState.draftAnswers[questionId]),
+      }
+    })
+  }, [formatConflictAnswer, mergeConflictState, questionMap, t])
+
+  const handleResolveMergeConflict = useCallback(
+    async (source: MergeSource) => {
+      if (!mergeConflictState || !survey) return
+
+      setMergeApplyingSource(source)
+      setMergeSaveError(null)
+      setSaveStatus("saving")
+
+      const resolvedAnswers = resolveDraftGuestMerge(
+        survey,
+        mergeConflictState.draftAnswers,
+        mergeConflictState.guestAnswers,
+        source
+      )
+      setAnswersSnapshot(resolvedAnswers)
+
+      const saveResult = await persistDraftBulk(mergeConflictState.draftId, resolvedAnswers)
+      if (saveResult !== "saved" && saveResult !== "skipped") {
+        setSaveStatus("failed")
+        setMergeSaveError(t("mergeConflictSaveFailed"))
+        setMergeApplyingSource(null)
+        return
+      }
+
+      clearGuestAnswers(surveyId)
+      isDirtyRef.current = false
+      setSaveStatus("saved")
+      setLastSavedAt(formatSavedTime(new Date()))
+      setMergeConflictState(null)
+      setMergeApplyingSource(null)
+      setRendererSessionKey((prev) => prev + 1)
+      setIsTaking(true)
+    },
+    [formatSavedTime, mergeConflictState, persistDraftBulk, setAnswersSnapshot, survey, surveyId, t]
+  )
 
   const saveStatusLabel = useMemo(() => {
     if (!isLoggedIn || isPreview) return null
@@ -1127,6 +1282,62 @@ export function SurveyClientPage({
           </div>
         </div>
       </main>
+
+      <Dialog
+        open={Boolean(mergeConflictState)}
+        onOpenChange={() => {
+          // Intentionally non-closable: user must choose one source.
+        }}
+      >
+        <DialogContent onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t("mergeConflictTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("mergeConflictDescription", { count: mergeConflictDetails.length })}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
+            {mergeConflictDetails.map((item) => (
+              <div key={item.questionId} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                <p className="font-medium text-gray-900">{item.title}</p>
+                <p className="mt-1 text-gray-700">
+                  {t("mergeConflictGuestLabel")}: <span className="font-medium">{item.guestValue}</span>
+                </p>
+                <p className="text-gray-700">
+                  {t("mergeConflictDraftLabel")}: <span className="font-medium">{item.draftValue}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {mergeSaveError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {mergeSaveError}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={mergeApplyingSource !== null}
+              onClick={() => {
+                void handleResolveMergeConflict("draft")
+              }}
+            >
+              {mergeApplyingSource === "draft" ? tCommon("saving") : t("mergeConflictUseDraft")}
+            </Button>
+            <Button
+              disabled={mergeApplyingSource !== null}
+              onClick={() => {
+                void handleResolveMergeConflict("guest")
+              }}
+            >
+              {mergeApplyingSource === "guest" ? tCommon("saving") : t("mergeConflictUseGuest")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
