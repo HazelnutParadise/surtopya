@@ -90,7 +90,11 @@
     "statusPublished": "公開済み",
     "statusEditedUnpublished": "編集済み・未公開",
     "statusResponsesOpen": "回答受付中",
-    "statusResponsesClosed": "回答受付停止"
+    "statusResponsesClosed": "回答受付停止",
+    "unfinishedDraftsTitle": "未完了のアンケート",
+    "noUnfinishedDrafts": "未完了のアンケートはありません。",
+    "resumeDraft": "再開する",
+    "updatedAtLabel": "最終保存: {time}"
   },
   "SurveyBuilder": {
     "title": "アンケートビルダー",
@@ -494,7 +498,19 @@
     "typeDescriptionSelect": "ドロップダウン選択の質問",
     "typeDescriptionDate": "日付の質問",
     "typeDescriptionDefault": "質問",
-    "responsesNotOpen": "このアンケートは現在回答受付を停止しています。"
+    "responsesNotOpen": "このアンケートは現在回答受付を停止しています。",
+    "progressNoticeGuestTitle": "ゲストの進捗はこのブラウザ内にのみ保存されます。",
+    "progressNoticeGuestDescription": "ログインすると、後で戻っても進捗を保持できます。",
+    "progressNoticeGuestAction": "ログインして進捗を保持",
+    "progressNoticeMemberTitle": "ログイン済みです。",
+    "progressNoticeMemberDescription": "回答進捗は自動で保存されます。",
+    "takingGuestNotice": "ゲストの進捗はこのブラウザ内のみです。ログインして保持できます。",
+    "takingGuestNoticeAction": "ログインして進捗を保持",
+    "saveStatusSaving": "保存中...",
+    "saveStatusSaved": "進捗を保存しました",
+    "saveStatusAt": "{time} に保存済み",
+    "saveStatusRetrying": "保存に失敗しました。再試行中...",
+    "saveStatusFailed": "保存に失敗しました。回答を続けると再試行します。"
   },
   "ThemeEditor": {
     "primaryColor": "メインカラー",

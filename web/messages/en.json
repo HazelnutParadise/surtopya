@@ -90,7 +90,11 @@
     "tagProduct": "Product",
     "responsesDelta": "+20.1% from last month",
     "pointsValue": "~$56.00 value",
-    "endingSoon": "2 ending soon"
+    "endingSoon": "2 ending soon",
+    "unfinishedDraftsTitle": "Unfinished Surveys",
+    "noUnfinishedDrafts": "No unfinished surveys.",
+    "resumeDraft": "Resume",
+    "updatedAtLabel": "Last saved: {time}"
   },
   "SurveyBuilder": {
     "title": "Survey Builder",
@@ -494,7 +498,19 @@
     "typeDescriptionRating": "Rating scale question",
     "typeDescriptionSelect": "Dropdown selection question",
     "typeDescriptionDate": "Date question",
-    "typeDescriptionDefault": "Question"
+    "typeDescriptionDefault": "Question",
+    "progressNoticeGuestTitle": "Guest progress is only stored in this browser.",
+    "progressNoticeGuestDescription": "Sign in to keep your progress across sessions and devices.",
+    "progressNoticeGuestAction": "Sign in and keep progress",
+    "progressNoticeMemberTitle": "You are signed in.",
+    "progressNoticeMemberDescription": "Your survey progress will be saved automatically.",
+    "takingGuestNotice": "As a guest, progress is only kept in this browser. Sign in to keep it.",
+    "takingGuestNoticeAction": "Sign in and keep progress",
+    "saveStatusSaving": "Saving...",
+    "saveStatusSaved": "Progress saved",
+    "saveStatusAt": "Saved at {time}",
+    "saveStatusRetrying": "Save failed, retrying...",
+    "saveStatusFailed": "Save failed. We'll try again when you continue."
   },
   "ThemeEditor": {
     "primaryColor": "Primary Color",

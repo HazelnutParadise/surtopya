@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import { ReactNode, useState } from "react"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -16,28 +16,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowRight, ArrowLeft, Eye } from "lucide-react";
+import { ArrowRight, ArrowLeft, Eye } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation";
-import { Survey, Question, SurveyTheme } from "@/types/survey";
-import { getContrastColor } from "@/lib/utils";
-import { getLocaleFromPath, withLocale } from "@/lib/locale";
-import { useTranslations } from "next-intl";
+import { Survey, Question, SurveyTheme } from "@/types/survey"
+import { getContrastColor } from "@/lib/utils"
+import { getLocaleFromPath, withLocale } from "@/lib/locale"
+import { useTranslations } from "next-intl"
 
 interface SurveyRendererProps {
-  survey: Survey;
-  theme?: SurveyTheme;
-  isPreview?: boolean;
-  onComplete?: (answers: Record<string, unknown>) => void;
+  survey: Survey
+  theme?: SurveyTheme
+  isPreview?: boolean
+  onComplete?: (answers: Record<string, unknown>) => void
+  initialAnswers?: Record<string, unknown>
+  onAnswerChange?: (questionId: string, value: unknown, allAnswers: Record<string, unknown>) => void
+  noticeBar?: ReactNode
 }
 
-export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }: SurveyRendererProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const locale = getLocaleFromPath(pathname);
-  const withLocalePath = (href: string) => withLocale(href, locale);
-  const t = useTranslations("SurveyRenderer");
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+export function SurveyRenderer({
+  survey,
+  theme,
+  isPreview = false,
+  onComplete,
+  initialAnswers,
+  onAnswerChange,
+  noticeBar,
+}: SurveyRendererProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const locale = getLocaleFromPath(pathname)
+  const withLocalePath = (href: string) => withLocale(href, locale)
+  const t = useTranslations("SurveyRenderer")
+  const [currentStep, setCurrentStep] = useState(0)
+  const [answers, setAnswers] = useState<Record<string, unknown>>(() => initialAnswers || {})
   const [validationError, setValidationError] = useState<string | null>(null)
 
   // Default theme
@@ -134,7 +145,11 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
   };
 
   const handleAnswer = (questionId: string, value: unknown) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
+    setAnswers(prev => {
+      const nextAnswers = { ...prev, [questionId]: value }
+      onAnswerChange?.(questionId, value, nextAnswers)
+      return nextAnswers
+    })
   };
 
   return (
@@ -164,6 +179,7 @@ export function SurveyRenderer({ survey, theme, isPreview = false, onComplete }:
             <p className={mutedTextColorClass}>{survey.description}</p>
           )}
         </div>
+        {noticeBar ? <div className="space-y-3">{noticeBar}</div> : null}
 
         {/* Progress Header */}
         <div className="space-y-2">

@@ -140,6 +140,10 @@ class ApiClient {
     return this.request<{ responses: SurveyResponse[] }>(`/surveys/${surveyId}/responses`);
   }
 
+  async getMyDrafts() {
+    return this.request<{ drafts: ResponseDraftSummary[] }>("/drafts/my")
+  }
+
   // Dataset endpoints
   async getDatasets(params?: {
     category?: string;
@@ -308,6 +312,17 @@ export interface SurveyResponse {
   completedAt?: string;
   createdAt: string;
   answers?: Answer[];
+}
+
+export interface ResponseDraftSummary {
+  id: string
+  surveyId: string
+  surveyTitle: string
+  surveyVersionId: string
+  surveyVersionNumber: number
+  startedAt: string
+  updatedAt: string
+  canResume: boolean
 }
 
 export interface Dataset {

@@ -90,7 +90,11 @@
     "statusPublished": "已發布",
     "statusEditedUnpublished": "已編輯未發布",
     "statusResponsesOpen": "開放回應",
-    "statusResponsesClosed": "關閉回應"
+    "statusResponsesClosed": "關閉回應",
+    "unfinishedDraftsTitle": "未完成問卷",
+    "noUnfinishedDrafts": "目前沒有未完成的問卷。",
+    "resumeDraft": "繼續填答",
+    "updatedAtLabel": "最後儲存：{time}"
   },
   "SurveyBuilder": {
     "title": "問卷編輯器",
@@ -494,7 +498,19 @@
     "typeDescriptionSelect": "下拉選單題",
     "typeDescriptionDate": "日期題",
     "typeDescriptionDefault": "題目",
-    "responsesNotOpen": "此問卷目前未開放回應。"
+    "responsesNotOpen": "此問卷目前未開放回應。",
+    "progressNoticeGuestTitle": "訪客進度只會暫存在此瀏覽器。",
+    "progressNoticeGuestDescription": "登入後可跨裝置保留進度，稍後回來可直接續填。",
+    "progressNoticeGuestAction": "登入並保留進度",
+    "progressNoticeMemberTitle": "你已登入。",
+    "progressNoticeMemberDescription": "你的作答進度會自動儲存。",
+    "takingGuestNotice": "你目前以訪客身分填答，進度只會保留在此瀏覽器。登入即可保留進度。",
+    "takingGuestNoticeAction": "登入並保留進度",
+    "saveStatusSaving": "儲存中…",
+    "saveStatusSaved": "已儲存進度",
+    "saveStatusAt": "已儲存於 {time}",
+    "saveStatusRetrying": "儲存失敗，正在重試…",
+    "saveStatusFailed": "儲存失敗，稍後將再嘗試。"
   },
   "ThemeEditor": {
     "primaryColor": "主要色",

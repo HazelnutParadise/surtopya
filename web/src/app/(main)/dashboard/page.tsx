@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { withLocale, getLocaleFromPath } from "@/lib/locale";
 import { useTranslations } from "next-intl";
-import type { Survey } from "@/lib/api";
+import type { ResponseDraftSummary, Survey } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/runtime-config"
 
 export default function DashboardPage() {
@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const t = useTranslations("Dashboard");
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [drafts, setDrafts] = useState<ResponseDraftSummary[]>([])
   const [loading, setLoading] = useState(true);
   const [surveyBasePoints, setSurveyBasePoints] = useState(0)
 
@@ -37,27 +38,32 @@ export default function DashboardPage() {
     let isMounted = true;
     const controller = new AbortController();
 
-    const fetchSurveys = async () => {
+    const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/surveys/my", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          if (isMounted) {
-            setSurveys([]);
-          }
-          return;
-        }
-        const payload = await response.json();
+        const [surveysResponse, draftsResponse] = await Promise.all([
+          fetch("/api/surveys/my", {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+          fetch("/api/drafts/my", {
+            cache: "no-store",
+            signal: controller.signal,
+          }),
+        ])
+
+        const surveysPayload = surveysResponse.ok ? await surveysResponse.json() : { surveys: [] }
+        const draftsPayload = draftsResponse.ok ? await draftsResponse.json() : { drafts: [] }
+
         if (isMounted) {
-          setSurveys(payload.surveys || []);
+          setSurveys(surveysPayload.surveys || [])
+          setDrafts((draftsPayload.drafts || []).filter((item: ResponseDraftSummary) => item.canResume))
         }
       } catch (error) {
         if (isMounted) {
           console.error("Failed to load surveys:", error);
-          setSurveys([]);
+          setSurveys([])
+          setDrafts([])
         }
       } finally {
         if (isMounted) {
@@ -66,7 +72,7 @@ export default function DashboardPage() {
       }
     };
 
-    fetchSurveys();
+    fetchDashboardData();
 
     return () => {
       isMounted = false;
@@ -124,6 +130,36 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeSurveys}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("unfinishedDraftsTitle")}</h2>
+          <Card>
+            <CardContent className="p-5">
+              {drafts.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t("noUnfinishedDrafts")}</p>
+              ) : (
+                <div className="space-y-3">
+                  {drafts.map((draft) => (
+                    <div
+                      key={draft.id}
+                      className="rounded-lg border border-gray-200 dark:border-gray-800 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">{draft.surveyTitle}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {t("updatedAtLabel", { time: new Date(draft.updatedAt).toLocaleString() })}
+                        </p>
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={withLocale(`/survey/${draft.surveyId}`, locale)}>{t("resumeDraft")}</Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

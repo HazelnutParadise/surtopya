@@ -14,6 +14,14 @@ const createClient = async () => {
   return { config, client }
 }
 
+const RETURN_TO_COOKIE = "surtopya_return_to"
+
+const sanitizeReturnTo = (value: string | null) => {
+  if (!value) return null
+  if (!value.startsWith("/")) return null
+  return value
+}
+
 export const GET = async (
   request: NextRequest,
   { params }: { params: Promise<{ action: string }> }
@@ -23,10 +31,20 @@ export const GET = async (
     const { action } = await params
 
     if (action === "sign-in") {
+      const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get("returnTo"))
       const { url } = await client.handleSignIn({
         redirectUri: `${config.baseUrl}/api/logto/sign-in-callback`,
       })
-      return NextResponse.redirect(url)
+      const response = NextResponse.redirect(url)
+      if (returnTo) {
+        response.cookies.set(RETURN_TO_COOKIE, encodeURIComponent(returnTo), {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 10 * 60,
+        })
+      }
+      return response
     }
     if (action === "sign-out") {
       const url = await client.handleSignOut(config.baseUrl)
@@ -34,7 +52,11 @@ export const GET = async (
     }
     if (action === "sign-in-callback") {
       await client.handleSignInCallback(request.url)
-      return NextResponse.redirect(config.baseUrl)
+      const returnToRaw = request.cookies.get(RETURN_TO_COOKIE)?.value
+      const returnTo = sanitizeReturnTo(returnToRaw ? decodeURIComponent(returnToRaw) : null)
+      const response = NextResponse.redirect(returnTo ? new URL(returnTo, config.baseUrl) : new URL(config.baseUrl))
+      response.cookies.delete(RETURN_TO_COOKIE)
+      return response
     }
 
     return new NextResponse("Not Found", { status: 404 })
@@ -48,7 +70,7 @@ export const GET = async (
 }
 
 export const POST = async (
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ action: string }> }
 ) => {
   try {
@@ -56,10 +78,20 @@ export const POST = async (
     const { action } = await params
 
     if (action === "sign-in") {
+      const returnTo = sanitizeReturnTo(request.nextUrl.searchParams.get("returnTo"))
       const { url } = await client.handleSignIn({
         redirectUri: `${config.baseUrl}/api/logto/sign-in-callback`,
       })
-      return NextResponse.redirect(url)
+      const response = NextResponse.redirect(url)
+      if (returnTo) {
+        response.cookies.set(RETURN_TO_COOKIE, encodeURIComponent(returnTo), {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 10 * 60,
+        })
+      }
+      return response
     }
     if (action === "sign-out") {
       const url = await client.handleSignOut(config.baseUrl)

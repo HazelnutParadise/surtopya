@@ -95,6 +95,41 @@ type Response struct {
 	Answers             []Answer   `json:"answers,omitempty"`
 }
 
+// ResponseDraft represents an authenticated in-progress survey draft.
+type ResponseDraft struct {
+	ID                  uuid.UUID             `json:"id" db:"id"`
+	SurveyID            uuid.UUID             `json:"surveyId" db:"survey_id"`
+	SurveyVersionID     uuid.UUID             `json:"surveyVersionId" db:"survey_version_id"`
+	SurveyVersionNumber int                   `json:"surveyVersionNumber" db:"survey_version_number"`
+	UserID              uuid.UUID             `json:"userId" db:"user_id"`
+	StartedAt           time.Time             `json:"startedAt" db:"started_at"`
+	UpdatedAt           time.Time             `json:"updatedAt" db:"updated_at"`
+	CreatedAt           time.Time             `json:"createdAt" db:"created_at"`
+	Answers             []ResponseDraftAnswer `json:"answers,omitempty"`
+}
+
+// ResponseDraftAnswer represents a single answer inside an authenticated draft.
+type ResponseDraftAnswer struct {
+	ID         uuid.UUID   `json:"id" db:"id"`
+	DraftID    uuid.UUID   `json:"draftId" db:"draft_id"`
+	QuestionID uuid.UUID   `json:"questionId" db:"question_id"`
+	Value      AnswerValue `json:"value" db:"value"`
+	CreatedAt  time.Time   `json:"createdAt" db:"created_at"`
+	UpdatedAt  time.Time   `json:"updatedAt" db:"updated_at"`
+}
+
+// ResponseDraftSummary is the lightweight dashboard payload for in-progress drafts.
+type ResponseDraftSummary struct {
+	ID                  uuid.UUID `json:"id"`
+	SurveyID            uuid.UUID `json:"surveyId"`
+	SurveyTitle         string    `json:"surveyTitle"`
+	SurveyVersionID     uuid.UUID `json:"surveyVersionId"`
+	SurveyVersionNumber int       `json:"surveyVersionNumber"`
+	StartedAt           time.Time `json:"startedAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
+	CanResume           bool      `json:"canResume"`
+}
+
 // SurveyVersion represents an immutable published survey version.
 type SurveyVersion struct {
 	ID            uuid.UUID       `json:"id" db:"id"`
@@ -167,7 +202,7 @@ var ValidQuestionTypes = []string{
 var ValidVisibilityOptions = []string{"public", "non-public"}
 
 // Valid response statuses
-var ValidResponseStatuses = []string{"in_progress", "completed", "abandoned"}
+var ValidResponseStatuses = []string{"completed", "abandoned"}
 
 // Valid access types
 var ValidAccessTypes = []string{"free", "paid"}

@@ -55,6 +55,16 @@ func SetupRouter() *gin.Engine {
 		// Survey response routes (nested under surveys)
 		api.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
 		api.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
+		api.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
+
+		// Authenticated draft routes
+		drafts := api.Group("/drafts", middleware.RequireAuth())
+		{
+			drafts.GET("/my", responseHandler.GetMyDrafts)
+			drafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
+			drafts.POST("/:id/submit", responseHandler.SubmitDraft)
+		}
+		api.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
 
 		// Dataset routes
 		datasetHandler := handlers.NewDatasetHandler()

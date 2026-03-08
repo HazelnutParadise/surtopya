@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,7 @@ func newResponseHandlerForTest(t *testing.T) (*ResponseHandler, sqlmock.Sqlmock,
 	h := &ResponseHandler{
 		db:           db,
 		responseRepo: repository.NewResponseRepository(db),
+		draftRepo:    repository.NewResponseDraftRepository(db),
 		surveyRepo:   repository.NewSurveyRepository(db),
 		pointsRepo:   repository.NewPointsRepository(db),
 	}
@@ -68,7 +70,28 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 	return surveyRows, questionRows
 }
 
-func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse(t *testing.T) {
+func TestResponseHandler_StartResponse_AnonymousRejected(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/start", h.StartResponse)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/start", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Anonymous users should submit directly")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_StartResponse_AuthenticatedCreatesDraft(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
@@ -76,6 +99,7 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 
 	surveyID := uuid.New()
 	publisherID := uuid.New()
+	respondentID := uuid.New()
 	versionID := uuid.New()
 	now := time.Now().UTC()
 
@@ -92,14 +116,18 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 			"id", "survey_id", "version_number", "snapshot", "points_reward",
 			"expires_at", "published_at", "published_by", "created_at",
 		}).AddRow(versionID, surveyID, 1, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
-
-	createdResponseID := uuid.New()
-	mock.ExpectQuery("INSERT INTO responses").
-		WithArgs(sqlmock.AnyArg(), surveyID, versionID, 1, nil, sqlmock.AnyArg(), "in_progress", 0, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(createdResponseID, now))
+	mock.ExpectQuery("FROM response_drafts\\s+WHERE survey_id = \\$1 AND user_id = \\$2").
+		WithArgs(surveyID, respondentID).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("INSERT INTO response_drafts").
+		WithArgs(sqlmock.AnyArg(), surveyID, versionID, 1, respondentID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at"}).AddRow(now, now))
 
 	r := gin.New()
-	r.POST("/api/v1/surveys/:id/responses/start", h.StartResponse)
+	r.POST("/api/v1/surveys/:id/responses/start", func(c *gin.Context) {
+		c.Set("userID", respondentID)
+		h.StartResponse(c)
+	})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/start", bytes.NewReader([]byte(`{}`)))
 	req.Header.Set("Content-Type", "application/json")
@@ -107,7 +135,6 @@ func TestResponseHandler_StartResponse_PublishedSurvey_CreatesInProgressResponse
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.Contains(t, w.Body.String(), `"status":"in_progress"`)
 	require.Contains(t, w.Body.String(), `"surveyId":"`+surveyID.String()+`"`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

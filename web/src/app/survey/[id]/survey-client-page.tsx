@@ -1,13 +1,26 @@
-"use client";
+"use client"
 
-import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Navbar } from "@/components/navbar";
-import { SurveyRenderer } from "@/components/survey/survey-renderer";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, Users, Award, ArrowRight, ArrowLeft, X, CheckSquare, AlignLeft, BarChart, Calendar } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Navbar } from "@/components/navbar"
+import { SurveyRenderer } from "@/components/survey/survey-renderer"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import {
+  Clock,
+  Users,
+  Award,
+  ArrowRight,
+  ArrowLeft,
+  X,
+  CheckSquare,
+  AlignLeft,
+  BarChart,
+  Calendar,
+  Save,
+  AlertCircle,
+} from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -15,60 +28,135 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { SurveyDisplay } from "@/lib/survey-mappers";
-import { SurveyTheme } from "@/types/survey";
-import { getLocaleFromPath, withLocale } from "@/lib/locale";
-import { useTranslations } from "next-intl";
-import { buildSubmitAnswers } from "@/lib/response-submit"
+} from "@/components/ui/dialog"
+import { SurveyDisplay } from "@/lib/survey-mappers"
+import { SurveyTheme } from "@/types/survey"
+import { getLocaleFromPath, withLocale } from "@/lib/locale"
+import { useTranslations } from "next-intl"
+import type { UserProfile } from "@/lib/api"
+import { buildSingleSubmitAnswer, buildSubmitAnswers, toRendererAnswers } from "@/lib/response-submit"
 
-// Helper to format rich text description (simple markdown)
 const RichText = ({ content }: { content: string }) => {
-  if (!content) return null;
+  if (!content) return null
 
-  // Simple parser: **bold**, _italic_, [link](url), - list
-  // Note: For production, use a proper library like react-markdown
-  const parts = content.split(/(\*\*.*?\*\*|_[^_]+_|\[.*?\]\(.*?\)|^- .*$)/gm);
+  const parts = content.split(/(\*\*.*?\*\*|_[^_]+_|\[.*?\]\(.*?\)|^- .*$)/gm)
 
   return (
     <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">
       {parts.map((part, i) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return <strong key={i} className="font-semibold text-gray-900 dark:text-gray-200">{part.slice(2, -2)}</strong>;
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return (
+            <strong key={i} className="font-semibold text-gray-900 dark:text-gray-200">
+              {part.slice(2, -2)}
+            </strong>
+          )
         }
-        if (part.startsWith('_') && part.endsWith('_')) {
-          return <em key={i} className="italic">{part.slice(1, -1)}</em>;
+        if (part.startsWith("_") && part.endsWith("_")) {
+          return (
+            <em key={i} className="italic">
+              {part.slice(1, -1)}
+            </em>
+          )
         }
         if (part.match(/\[(.*?)\]\((.*?)\)/)) {
-          const match = part.match(/\[(.*?)\]\((.*?)\)/);
-          return <a key={i} href={match![2]} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">{match![1]}</a>;
+          const match = part.match(/\[(.*?)\]\((.*?)\)/)
+          return (
+            <a
+              key={i}
+              href={match![2]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-600 hover:underline"
+            >
+              {match![1]}
+            </a>
+          )
         }
-        if (part.trim().startsWith('- ')) {
-           return <div key={i} className="flex items-start gap-2 ml-4 my-1"><div className="mt-2 h-1.5 w-1.5 rounded-full bg-gray-400 flex-shrink-0" /><span>{part.trim().substring(2)}</span></div>;
+        if (part.trim().startsWith("- ")) {
+          return (
+            <div key={i} className="flex items-start gap-2 ml-4 my-1">
+              <div className="mt-2 h-1.5 w-1.5 rounded-full bg-gray-400 flex-shrink-0" />
+              <span>{part.trim().substring(2)}</span>
+            </div>
+          )
         }
-        return part;
+        return part
       })}
     </div>
-  );
-};
-
-interface SurveyClientPageProps {
-  initialSurvey?: SurveyDisplay;
-  surveyId: string;
-  isPreview?: boolean;
-  surveyBasePoints: number;
+  )
 }
 
-export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, surveyBasePoints }: SurveyClientPageProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const locale = getLocaleFromPath(pathname);
-  const withLocalePath = (href: string) => withLocale(href, locale);
-  const t = useTranslations("SurveyPage");
-  const tCard = useTranslations("SurveyCard");
+interface SurveyClientPageProps {
+  initialSurvey?: SurveyDisplay
+  surveyId: string
+  isPreview?: boolean
+  surveyBasePoints: number
+}
+
+type SaveStatus = "idle" | "saving" | "saved" | "retrying" | "failed"
+type DraftAnswer = {
+  questionId: string
+  value?: {
+    value?: string
+    values?: string[]
+    text?: string
+    rating?: number
+    date?: string
+  }
+}
+
+const guestAnswersStorageKey = (surveyId: string) => `surtopya:guest_answers:${surveyId}`
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+const readGuestAnswers = (surveyId: string): Record<string, unknown> => {
+  if (typeof window === "undefined") return {}
+
+  try {
+    const raw = sessionStorage.getItem(guestAnswersStorageKey(surveyId))
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+const writeGuestAnswers = (surveyId: string, answers: Record<string, unknown>) => {
+  if (typeof window === "undefined") return
+  try {
+    sessionStorage.setItem(guestAnswersStorageKey(surveyId), JSON.stringify(answers))
+  } catch {
+    // Ignore storage errors (private mode / quota) and continue as in-memory only.
+  }
+}
+
+const clearGuestAnswers = (surveyId: string) => {
+  if (typeof window === "undefined") return
+  try {
+    sessionStorage.removeItem(guestAnswersStorageKey(surveyId))
+  } catch {
+    // Ignore.
+  }
+}
+
+export function SurveyClientPage({
+  initialSurvey,
+  surveyId,
+  isPreview = false,
+  surveyBasePoints,
+}: SurveyClientPageProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const locale = getLocaleFromPath(pathname)
+  const withLocalePath = useCallback((href: string) => withLocale(href, locale), [locale])
+  const t = useTranslations("SurveyPage")
+  const tCard = useTranslations("SurveyCard")
   const tCommon = useTranslations("Common")
-  
+
   const previewData = useMemo(() => {
     if (!isPreview || typeof window === "undefined") {
       return { survey: null as SurveyDisplay | null, theme: undefined as SurveyTheme | undefined }
@@ -98,35 +186,177 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
   const [loading] = useState(false)
 
   const [isTaking, setIsTaking] = useState(Boolean(previewData.survey))
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [responseId, setResponseId] = useState<string | null>(null)
+  const [showExitDialog, setShowExitDialog] = useState(false)
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
-  const [previewCompletePayload, setPreviewCompletePayload] = useState<string | null>(null)
+
+  const [authLoading, setAuthLoading] = useState(!isPreview)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const [rendererAnswers, setRendererAnswers] = useState<Record<string, unknown>>({})
+  const [rendererSessionKey, setRendererSessionKey] = useState(0)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+
+  const saveDebounceRef = useRef<number | null>(null)
+  const pendingDraftAnswersRef = useRef<Map<string, unknown>>(new Map())
+  const resumeAfterLoginRef = useRef(false)
+
+  const isLoggedIn = Boolean(currentUser)
+  const resumeAfterLogin = searchParams.get("resume") === "1"
 
   const rewardEstimate = survey
     ? surveyBasePoints + Math.floor((survey.settings.pointsReward || 0) / 3)
     : 0
 
-  // Effect 2: Enforce title in URL for SEO (non-preview only)
-  useEffect(() => {
-    if (isPreview || !survey || loading || isTaking) return;
+  const formatSavedTime = useCallback(
+    (date: Date) => {
+      try {
+        return new Intl.DateTimeFormat(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: false,
+        }).format(date)
+      } catch {
+        return date.toLocaleTimeString()
+      }
+    },
+    [locale]
+  )
 
-    const currentTitleParam = searchParams.get('title');
-    const expectedTitleSlug = encodeURIComponent(survey.title.replace(/\s+/g, '-').toLowerCase());
+  const loginHref = useCallback(
+    (resume: boolean) => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (resume) {
+        params.set("resume", "1")
+      } else {
+        params.delete("resume")
+      }
 
-    if (currentTitleParam !== expectedTitleSlug) {
-      const newPath = withLocalePath(`/survey/${surveyId}?title=${expectedTitleSlug}`);
-      // Use router.replace but don't depend on 'survey' itself to avoid loop
-      // Only run if the title in URL is actually different
-      router.replace(newPath, { scroll: false });
+      const query = params.toString()
+      const returnTo = query ? `${pathname}?${query}` : pathname
+      return `/api/logto/sign-in?returnTo=${encodeURIComponent(returnTo)}`
+    },
+    [pathname, searchParams]
+  )
+
+  const persistDraftEntries = useCallback(
+    async (targetDraftId: string, entries: Array<[string, unknown]>, attempt: number): Promise<boolean> => {
+      if (!survey || !targetDraftId) return false
+
+      const requests = entries
+        .map(([questionId, raw]) => buildSingleSubmitAnswer(survey, questionId, raw))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+      if (requests.length === 0) {
+        setSaveStatus("saved")
+        setLastSavedAt(formatSavedTime(new Date()))
+        return true
+      }
+
+      try {
+        for (const answer of requests) {
+          const response = await fetch(`/api/drafts/${targetDraftId}/answers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(answer),
+          })
+          if (!response.ok) {
+            throw new Error("Failed to save draft answer")
+          }
+        }
+
+        setSaveStatus("saved")
+        setLastSavedAt(formatSavedTime(new Date()))
+        return true
+      } catch {
+        if (attempt === 0) {
+          setSaveStatus("retrying")
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 1200)
+          })
+          return persistDraftEntries(targetDraftId, entries, 1)
+        }
+
+        setSaveStatus("failed")
+        return false
+      }
+    },
+    [formatSavedTime, survey]
+  )
+
+  const flushPendingDraftSaves = useCallback(async (): Promise<boolean> => {
+    if (!isLoggedIn || !draftId) return true
+
+    const entries = Array.from(pendingDraftAnswersRef.current.entries())
+    pendingDraftAnswersRef.current.clear()
+
+    if (entries.length === 0) {
+      return true
     }
-  }, [isPreview, survey?.title, surveyId, searchParams, router, loading, isTaking]);
 
-  const handleStartSurvey = async () => {
+    return persistDraftEntries(draftId, entries, 0)
+  }, [draftId, isLoggedIn, persistDraftEntries])
+
+  const scheduleDraftSave = useCallback(
+    (questionId: string, value: unknown) => {
+      pendingDraftAnswersRef.current.set(questionId, value)
+      if (saveDebounceRef.current !== null) {
+        window.clearTimeout(saveDebounceRef.current)
+      }
+      setSaveStatus("saving")
+      saveDebounceRef.current = window.setTimeout(() => {
+        void flushPendingDraftSaves()
+      }, 700)
+    },
+    [flushPendingDraftSaves]
+  )
+
+  const startDraftSession = useCallback(async (): Promise<string | null> => {
+    const response = await fetch(`/api/surveys/${surveyId}/drafts/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok || !payload?.id) {
+      throw new Error(payload?.error || "Failed to start response draft")
+    }
+
+    const nextDraftId = String(payload.id)
+    setDraftId(nextDraftId)
+
+    const draftAnswers = toRendererAnswers(
+      Array.isArray(payload.answers) ? (payload.answers as DraftAnswer[]) : undefined
+    )
+    const guestAnswers = readGuestAnswers(surveyId)
+    const mergedAnswers = { ...draftAnswers, ...guestAnswers }
+
+    setRendererAnswers(mergedAnswers)
+
+    if (Object.keys(mergedAnswers).length > 0) {
+      setSaveStatus("saved")
+      setLastSavedAt(formatSavedTime(new Date()))
+    } else {
+      setSaveStatus("idle")
+      setLastSavedAt(null)
+    }
+
+    if (Object.keys(guestAnswers).length > 0) {
+      await persistDraftEntries(nextDraftId, Object.entries(guestAnswers), 0)
+      clearGuestAnswers(surveyId)
+    }
+
+    return nextDraftId
+  }, [formatSavedTime, persistDraftEntries, surveyId])
+
+  const handleStartSurvey = useCallback(async () => {
     setFlowError(null)
     if (isPreview) {
+      setRendererSessionKey((prev) => prev + 1)
       setIsTaking(true)
       return
     }
@@ -138,19 +368,16 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
 
     setStarting(true)
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/responses/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to start response")
+      if (isLoggedIn) {
+        await startDraftSession()
+      } else {
+        setDraftId(null)
+        setSaveStatus("idle")
+        setLastSavedAt(null)
+        setRendererAnswers(readGuestAnswers(surveyId))
       }
-      if (!payload?.id) {
-        throw new Error("Invalid response payload")
-      }
-      setResponseId(String(payload.id))
+
+      setRendererSessionKey((prev) => prev + 1)
       setIsTaking(true)
     } catch (error) {
       console.error("Failed to start survey:", error)
@@ -158,72 +385,283 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
     } finally {
       setStarting(false)
     }
-  }
+  }, [isLoggedIn, isPreview, startDraftSession, survey, surveyId, t, tCommon])
+
+  const handleAnswerChange = useCallback(
+    (questionId: string, value: unknown, allAnswers: Record<string, unknown>) => {
+      setRendererAnswers(allAnswers)
+
+      if (isPreview || !survey) {
+        return
+      }
+
+      if (!isLoggedIn) {
+        writeGuestAnswers(surveyId, allAnswers)
+        return
+      }
+
+      if (!draftId) {
+        return
+      }
+
+      scheduleDraftSave(questionId, value)
+    },
+    [draftId, isLoggedIn, isPreview, scheduleDraftSave, survey, surveyId]
+  )
+
+  const handleComplete = useCallback(
+    async (answers: Record<string, unknown>) => {
+      setFlowError(null)
+      if (!survey) return
+
+      if (isPreview) {
+        console.info(
+          `${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` +
+            JSON.stringify(answers, null, 2)
+        )
+        return
+      }
+
+      setSubmitting(true)
+      try {
+        if (saveDebounceRef.current !== null) {
+          window.clearTimeout(saveDebounceRef.current)
+          saveDebounceRef.current = null
+        }
+        await flushPendingDraftSaves()
+
+        const submitPayload = { answers: buildSubmitAnswers(survey, answers) }
+
+        let response: Response
+        if (isLoggedIn) {
+          let targetDraftId = draftId
+          if (!targetDraftId) {
+            targetDraftId = await startDraftSession()
+          }
+          if (!targetDraftId) {
+            throw new Error("Missing response draft")
+          }
+
+          response = await fetch(`/api/drafts/${targetDraftId}/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(submitPayload),
+          })
+        } else {
+          response = await fetch(`/api/surveys/${surveyId}/responses/submit-anonymous`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(submitPayload),
+          })
+        }
+
+        const payload = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(payload?.error || "Submit failed")
+        }
+
+        clearGuestAnswers(surveyId)
+
+        const pointsAwardedRaw = payload?.pointsAwarded
+        const pointsAwarded =
+          typeof pointsAwardedRaw === "number"
+            ? pointsAwardedRaw
+            : Number(pointsAwardedRaw || 0)
+        const pointsParam = Number.isFinite(pointsAwarded)
+          ? Math.max(0, Math.floor(pointsAwarded))
+          : 0
+        const qs = new URLSearchParams({ points: String(pointsParam) }).toString()
+
+        router.push(withLocalePath(`/survey/thank-you?${qs}`))
+      } catch (error) {
+        console.error("Failed to submit response:", error)
+        setFlowError(tCommon("error"))
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [
+      draftId,
+      flushPendingDraftSaves,
+      isLoggedIn,
+      isPreview,
+      router,
+      startDraftSession,
+      survey,
+      surveyId,
+      t,
+      tCommon,
+      withLocalePath,
+    ]
+  )
+
+  useEffect(() => {
+    if (isPreview) {
+      setAuthLoading(false)
+      setCurrentUser(null)
+      return
+    }
+
+    let alive = true
+    const controller = new AbortController()
+
+    const loadAuth = async () => {
+      setAuthLoading(true)
+      try {
+        const response = await fetch("/api/me?optional=1", {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+
+        if (!alive) return
+
+        if (!response.ok) {
+          setCurrentUser(null)
+          return
+        }
+
+        const payload = await response.json().catch(() => null)
+        setCurrentUser(payload)
+      } catch {
+        if (alive) {
+          setCurrentUser(null)
+        }
+      } finally {
+        if (alive) {
+          setAuthLoading(false)
+        }
+      }
+    }
+
+    void loadAuth()
+
+    return () => {
+      alive = false
+      controller.abort()
+    }
+  }, [isPreview])
+
+  useEffect(() => {
+    if (isPreview || !resumeAfterLogin) return
+    if (resumeAfterLoginRef.current) return
+    if (authLoading || !isLoggedIn || !survey || isTaking) return
+
+    resumeAfterLoginRef.current = true
+    void handleStartSurvey()
+  }, [authLoading, handleStartSurvey, isLoggedIn, isPreview, isTaking, resumeAfterLogin, survey])
+
+  useEffect(() => {
+    if (isPreview || isLoggedIn) {
+      return
+    }
+
+    setRendererAnswers(readGuestAnswers(surveyId))
+  }, [isLoggedIn, isPreview, surveyId])
+
+  useEffect(() => {
+    return () => {
+      if (saveDebounceRef.current !== null) {
+        window.clearTimeout(saveDebounceRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isPreview || !survey || loading || isTaking) return
+
+    const currentTitleParam = searchParams.get("title")
+    const expectedTitleSlug = encodeURIComponent(survey.title.replace(/\s+/g, "-").toLowerCase())
+
+    if (currentTitleParam !== expectedTitleSlug) {
+      const newPath = withLocalePath(`/survey/${surveyId}?title=${expectedTitleSlug}`)
+      router.replace(newPath, { scroll: false })
+    }
+  }, [isPreview, survey, survey?.title, surveyId, searchParams, router, loading, isTaking, withLocalePath])
 
   const handleExitClick = () => {
     if (isPreview) {
-      window.close();
+      window.close()
     } else {
-      setShowExitDialog(true);
+      setShowExitDialog(true)
     }
-  };
+  }
 
   const handleConfirmExit = () => {
-    setShowExitDialog(false);
-    setIsTaking(false);
-  };
-
-  const handleComplete = async (answers: Record<string, unknown>) => {
-    setFlowError(null)
-    if (!survey) return
-
-    if (isPreview) {
-      setPreviewCompletePayload(
-        `${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` +
-          JSON.stringify(answers, null, 2)
-      )
-      return
+    setShowExitDialog(false)
+    if (isLoggedIn) {
+      void flushPendingDraftSaves()
     }
+    setIsTaking(false)
+  }
 
-    if (!responseId) {
-      setFlowError(tCommon("error"))
-      return
+  const saveStatusLabel = useMemo(() => {
+    if (!isLoggedIn || isPreview) return null
+
+    switch (saveStatus) {
+      case "saving":
+        return t("saveStatusSaving")
+      case "saved":
+        return lastSavedAt
+          ? t("saveStatusAt", { time: lastSavedAt })
+          : t("saveStatusSaved")
+      case "retrying":
+        return t("saveStatusRetrying")
+      case "failed":
+        return t("saveStatusFailed")
+      default:
+        return t("saveStatusSaved")
     }
+  }, [isLoggedIn, isPreview, lastSavedAt, saveStatus, t])
 
-    setSubmitting(true)
-    try {
-      const submitPayload = { answers: buildSubmitAnswers(survey, answers) }
-      const response = await fetch(`/api/responses/${responseId}/submit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(submitPayload),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(payload?.error || "Submit failed")
-      }
+  const questionTypes = survey
+    ? Array.from(new Set(survey.questions.map((q) => q.type))).filter((type) => type !== "section")
+    : []
 
-      const pointsAwardedRaw = payload?.pointsAwarded
-      const pointsAwarded =
-        typeof pointsAwardedRaw === "number" ? pointsAwardedRaw : Number(pointsAwardedRaw || 0)
-      const pointsParam = Number.isFinite(pointsAwarded) ? Math.max(0, Math.floor(pointsAwarded)) : 0
-      const qs = new URLSearchParams({ points: String(pointsParam) }).toString()
+  const getTypeDescription = (type: string) => {
+    switch (type) {
+      case "single":
+        return t("typeDescriptionSingle")
+      case "multi":
+        return t("typeDescriptionMulti")
+      case "text":
+      case "short":
+      case "long":
+        return t("typeDescriptionText")
+      case "rating":
+        return t("typeDescriptionRating")
+      case "select":
+        return t("typeDescriptionSelect")
+      case "date":
+        return t("typeDescriptionDate")
+      default:
+        return t("typeDescriptionDefault")
+    }
+  }
 
-      router.push(withLocalePath(`/survey/thank-you?${qs}`))
-    } catch (error) {
-      console.error("Failed to submit response:", error)
-      setFlowError(tCommon("error"))
-    } finally {
-      setSubmitting(false)
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "single":
+      case "multi":
+        return <CheckSquare className="w-4 h-4 text-purple-600" />
+      case "text":
+      case "short":
+      case "long":
+        return <AlignLeft className="w-4 h-4 text-purple-600" />
+      case "rating":
+        return <BarChart className="w-4 h-4 text-purple-600" />
+      case "date":
+        return <Calendar className="w-4 h-4 text-purple-600" />
+      default:
+        return <AlignLeft className="w-4 h-4 text-purple-600" />
     }
   }
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-950 dark:to-gray-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
       </div>
-    );
+    )
   }
 
   if (!survey) {
@@ -232,9 +670,7 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
         <div className="text-center space-y-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("notFoundTitle")}</h1>
           <p className="text-gray-500">
-            {isPreview 
-              ? t("notFoundPreviewDescription") 
-              : t("notFoundDescription")}
+            {isPreview ? t("notFoundPreviewDescription") : t("notFoundDescription")}
           </p>
           <Button onClick={() => router.push(withLocalePath(isPreview ? "/create" : "/explore"))} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -242,18 +678,18 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
           </Button>
         </div>
       </div>
-    );
+    )
   }
 
-  // Show survey renderer when taking the survey
   if (isTaking) {
+    const showGuestTakingPrompt = !isPreview && !authLoading && !isLoggedIn
+
     return (
       <div className="relative">
-        {/* Exit Button */}
         <div className="fixed top-4 right-4 z-[60]">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExitClick}
             className="bg-white/90 backdrop-blur shadow-lg hover:bg-white"
           >
@@ -262,11 +698,39 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
           </Button>
         </div>
 
-        <SurveyRenderer 
-          survey={survey} 
+        <SurveyRenderer
+          key={rendererSessionKey}
+          survey={survey}
           theme={theme}
           isPreview={isPreview}
+          initialAnswers={rendererAnswers}
+          onAnswerChange={handleAnswerChange}
           onComplete={handleComplete}
+          noticeBar={
+            <>
+              {showGuestTakingPrompt ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-left text-sm text-amber-900">
+                  <p className="font-medium">{t("takingGuestNotice")}</p>
+                  <div className="mt-2">
+                    <Button asChild size="sm" className="h-8 bg-amber-600 hover:bg-amber-700 text-white">
+                      <a href={loginHref(true)}>{t("takingGuestNoticeAction")}</a>
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {!isPreview && isLoggedIn && saveStatusLabel ? (
+                <div className="rounded-lg border border-gray-200 bg-white/90 px-3 py-2 text-xs text-gray-700 flex items-center gap-2">
+                  {saveStatus === "failed" ? (
+                    <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5 text-emerald-600" />
+                  )}
+                  <span>{saveStatusLabel}</span>
+                </div>
+              ) : null}
+            </>
+          }
         />
 
         {flowError ? (
@@ -275,115 +739,109 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
           </div>
         ) : null}
 
-        {/* Exit Confirmation Dialog */}
         <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
           <DialogContent onInteractOutside={(e) => e.preventDefault()}>
             <DialogHeader>
-            <DialogTitle>{t("exitSurveyTitle")}</DialogTitle>
-            <DialogDescription>
-                {t("exitSurveyDescription")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowExitDialog(false)}>
+              <DialogTitle>{t("exitSurveyTitle")}</DialogTitle>
+              <DialogDescription>{t("exitSurveyDescription")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowExitDialog(false)}>
                 {t("continueSurvey")}
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmExit}>
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmExit}>
                 {t("exitWithoutSaving")}
-            </Button>
-          </DialogFooter>
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
-    );
+    )
   }
 
-  // Question Types Summary
-  const questionTypes = Array.from(new Set(survey.questions.map(q => q.type))).filter(t => t !== 'section');
-  
-  const getTypeDescription = (type: string) => {
-      switch(type) {
-          case 'single': return t('typeDescriptionSingle');
-          case 'multi': return t('typeDescriptionMulti');
-          case 'text': return t('typeDescriptionText');
-          case 'short': return t('typeDescriptionText');
-          case 'long': return t('typeDescriptionText');
-          case 'rating': return t('typeDescriptionRating');
-          case 'select': return t('typeDescriptionSelect');
-          case 'date': return t('typeDescriptionDate');
-          default: return t('typeDescriptionDefault');
-      }
-  };
-  
-  const getTypeIcon = (type: string) => {
-       switch(type) {
-          case 'single': return <CheckSquare className="w-4 h-4 text-purple-600" />;
-          case 'multi': return <CheckSquare className="w-4 h-4 text-purple-600" />;
-          case 'text': return <AlignLeft className="w-4 h-4 text-purple-600" />;
-          case 'rating': return <BarChart className="w-4 h-4 text-purple-600" />;
-          case 'date': return <Calendar className="w-4 h-4 text-purple-600" />;
-          default: return <AlignLeft className="w-4 h-4 text-purple-600" />;
-      }
-  };
-
-  // SEO-friendly Intro Page
   return (
     <div className="flex flex-col min-h-screen">
       {!isPreview && <Navbar />}
-      
+
       <main className="flex-1 bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        {/* Full-width hero section */}
         <header className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
           <div className="max-w-4xl mx-auto px-4 py-16 md:py-24">
             <div className="flex items-center gap-2 mb-6">
-                <Badge className="bg-white/20 text-white border-0 hover:bg-white/30 text-sm px-3 py-1">
-                  <Award className="mr-1.5 h-4 w-4" />
+              <Badge className="bg-white/20 text-white border-0 hover:bg-white/30 text-sm px-3 py-1">
+                <Award className="mr-1.5 h-4 w-4" />
                 {t("earnPoints", { points: rewardEstimate })}
               </Badge>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{survey.title}</h1>
-            {survey.creatorName && (
-              <p className="text-xl text-white/80">by {survey.creatorName}</p>
-            )}
+            {survey.creatorName && <p className="text-xl text-white/80">by {survey.creatorName}</p>}
           </div>
         </header>
 
-        {/* Content section */}
         <div className="max-w-4xl mx-auto px-4 py-12">
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Main content */}
             <article className="md:col-span-2 space-y-8">
               <section>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t("aboutTitle")}</h2>
-                {/* Rich Text Description */}
                 <RichText content={survey.description} />
               </section>
 
               <section>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t("questionPreviewTitle")}</h3>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  {t("questionPreviewTitle")}
+                </h3>
                 <ul className="space-y-3 text-gray-600 dark:text-gray-400">
-                  {questionTypes.length > 0 ? questionTypes.map(type => (
+                  {questionTypes.length > 0 ? (
+                    questionTypes.map((type) => (
                       <li key={type} className="flex items-center gap-3">
-                          <div className="flex-shrink-0 p-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                              {getTypeIcon(type)}
-                          </div>
-                          <span>{getTypeDescription(type)}</span>
+                        <div className="flex-shrink-0 p-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                          {getTypeIcon(type)}
+                        </div>
+                        <span>{getTypeDescription(type)}</span>
                       </li>
-                  )) : (
-                      <li className="text-gray-500 italic">{t("noQuestions")}</li>
+                    ))
+                  ) : (
+                    <li className="text-gray-500 italic">{t("noQuestions")}</li>
                   )}
                 </ul>
               </section>
 
               <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{t("privacyTitle")}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {t("privacyDescription")}
-                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t("privacyDescription")}</p>
               </div>
+
+              {!isPreview ? (
+                <div className="p-5 rounded-2xl border border-indigo-200 bg-indigo-50/80 dark:border-indigo-800/60 dark:bg-indigo-950/30">
+                  {authLoading ? (
+                    <p className="text-sm text-indigo-800 dark:text-indigo-200">{tCommon("loading")}</p>
+                  ) : isLoggedIn ? (
+                    <>
+                      <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                        {t("progressNoticeMemberTitle")}
+                      </p>
+                      <p className="mt-1 text-sm text-indigo-800 dark:text-indigo-200">
+                        {t("progressNoticeMemberDescription")}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-100">
+                        {t("progressNoticeGuestTitle")}
+                      </p>
+                      <p className="mt-1 text-sm text-indigo-800 dark:text-indigo-200">
+                        {t("progressNoticeGuestDescription")}
+                      </p>
+                      <div className="mt-3">
+                        <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                          <a href={loginHref(false)}>{t("progressNoticeGuestAction")}</a>
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
             </article>
 
-            {/* Sidebar */}
             <aside className="space-y-6">
               <Card className="border-0 shadow-xl overflow-hidden sticky top-8">
                 <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4">
@@ -410,35 +868,33 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">{t("responsesLabel")}</p>
-                      <p className="font-semibold text-gray-900 dark:text-white">{survey.responseCount.toLocaleString()}</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        {survey.responseCount.toLocaleString()}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
 
                 <div className="p-4 pt-0">
-                    <Button 
-                      onClick={handleStartSurvey}
-                      size="lg"
-                      disabled={starting || (!isPreview && !survey.settings.isResponseOpen)}
-                      className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
-                    >
-                      {starting ? tCommon("loading") : t("startSurvey")}
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </Button>
-                    {!isPreview && !survey.settings.isResponseOpen ? (
-                      <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                        {t("responsesNotOpen")}
-                      </p>
-                    ) : null}
+                  <Button
+                    onClick={handleStartSurvey}
+                    size="lg"
+                    disabled={starting || submitting || (!isPreview && !survey.settings.isResponseOpen)}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
+                  >
+                    {starting ? tCommon("loading") : t("startSurvey")}
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                  {!isPreview && !survey.settings.isResponseOpen ? (
+                    <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                      {t("responsesNotOpen")}
+                    </p>
+                  ) : null}
 
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => router.push(withLocalePath("/explore"))}
-                      className="w-full"
-                    >
-                      <ArrowLeft className="mr-2 h-4 w-4" />
-                      {t("backToMarketplace")}
-                    </Button>
+                  <Button variant="ghost" onClick={() => router.push(withLocalePath("/explore"))} className="w-full">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {t("backToMarketplace")}
+                  </Button>
                 </div>
               </Card>
             </aside>
@@ -446,5 +902,5 @@ export function SurveyClientPage({ initialSurvey, surveyId, isPreview = false, s
         </div>
       </main>
     </div>
-  );
+  )
 }

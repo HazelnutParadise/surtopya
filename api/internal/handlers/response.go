@@ -19,6 +19,7 @@ const surveyResponsesClosedError = "Survey responses are closed"
 type ResponseHandler struct {
 	db           *sql.DB
 	responseRepo *repository.ResponseRepository
+	draftRepo    *repository.ResponseDraftRepository
 	surveyRepo   *repository.SurveyRepository
 	pointsRepo   *repository.PointsRepository
 }
@@ -29,6 +30,7 @@ func NewResponseHandler() *ResponseHandler {
 	return &ResponseHandler{
 		db:           db,
 		responseRepo: repository.NewResponseRepository(db),
+		draftRepo:    repository.NewResponseDraftRepository(db),
 		surveyRepo:   repository.NewSurveyRepository(db),
 		pointsRepo:   repository.NewPointsRepository(db),
 	}
@@ -41,80 +43,11 @@ type StartResponseRequest struct {
 
 // StartResponse handles POST /api/v1/surveys/:id/responses/start
 func (h *ResponseHandler) StartResponse(c *gin.Context) {
-	surveyIDStr := c.Param("id")
-	surveyID, err := uuid.Parse(surveyIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+	if _, exists := c.Get("userID"); !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Anonymous users should submit directly without starting a backend session"})
 		return
 	}
-
-	// Check if survey exists and currently accepts responses.
-	survey, err := h.surveyRepo.GetByID(surveyID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
-		return
-	}
-
-	if survey == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
-		return
-	}
-
-	if !survey.IsResponseOpen || survey.CurrentPublishedVersionID == nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": surveyResponsesClosedError})
-		return
-	}
-
-	version, err := h.surveyRepo.GetCurrentPublishedVersion(surveyID)
-	if err != nil || version == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get published survey version"})
-		return
-	}
-
-	// Check expiration on the currently published version.
-	if version.ExpiresAt != nil && version.ExpiresAt.Before(time.Now()) {
-		c.JSON(http.StatusGone, gin.H{"error": "Survey has expired"})
-		return
-	}
-
-	var req StartResponseRequest
-	c.ShouldBindJSON(&req)
-
-	// Get user ID if authenticated
-	var userID *uuid.UUID
-	if uid, exists := c.Get("userID"); exists {
-		id := uid.(uuid.UUID)
-		userID = &id
-	}
-
-	// Generate anonymous ID if not authenticated and not provided
-	var anonymousID *string
-	if userID == nil {
-		if req.AnonymousID != "" {
-			anonymousID = &req.AnonymousID
-		} else {
-			anonID := uuid.New().String()
-			anonymousID = &anonID
-		}
-	}
-
-	response := &models.Response{
-		ID:                  uuid.New(),
-		SurveyID:            surveyID,
-		SurveyVersionID:     version.ID,
-		SurveyVersionNumber: version.VersionNumber,
-		UserID:              userID,
-		AnonymousID:         anonymousID,
-		Status:              "in_progress",
-		StartedAt:           time.Now(),
-	}
-
-	if err := h.responseRepo.Create(response); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start response"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, response)
+	h.StartDraft(c)
 }
 
 // SubmitAnswerRequest represents a single answer submission
