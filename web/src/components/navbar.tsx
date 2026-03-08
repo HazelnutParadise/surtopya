@@ -165,10 +165,10 @@ export function Navbar() {
               <>
                 <div
                   data-testid="navbar-points-desktop"
-                  className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1 text-xs text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
+                  className="inline-flex min-w-24 flex-col rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
                 >
-                  <span className="font-medium">{tDashboard("pointsBalance")}</span>
-                  <span className="text-sm font-semibold tabular-nums">{pointsBalanceText}</span>
+                  <span className="text-[10px] font-medium leading-none">{tDashboard("pointsBalance")}</span>
+                  <span className="mt-1 text-sm font-semibold leading-none tabular-nums">{pointsBalanceText}</span>
                 </div>
 
                 <Button asChild variant="ghost" className="transform-gpu text-gray-600 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400">
@@ -249,9 +249,10 @@ export function Navbar() {
             <div
               data-testid="navbar-points-mobile"
               title={`${tDashboard("pointsBalance")}: ${pointsBalanceText}`}
-              className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-semibold tabular-nums text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
+              className="inline-flex min-w-[74px] flex-col rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
             >
-              {pointsBalanceText}
+              <span className="text-[9px] font-medium leading-none">{tDashboard("pointsBalance")}</span>
+              <span className="mt-1 text-xs font-semibold leading-none tabular-nums">{pointsBalanceText}</span>
             </div>
           ) : null}
           <button
