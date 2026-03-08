@@ -16,6 +16,29 @@ type SubmitAnonymousResponseRequest struct {
 	Answers     []SubmitAnswerRequest `json:"answers"`
 }
 
+type SaveDraftAnswersBulkRequest struct {
+	Answers []SubmitAnswerRequest `json:"answers"`
+}
+
+func isAnswerValueEmpty(value models.AnswerValue) bool {
+	if value.Value != nil && *value.Value != "" {
+		return false
+	}
+	if len(value.Values) > 0 {
+		return false
+	}
+	if value.Text != nil && *value.Text != "" {
+		return false
+	}
+	if value.Rating != nil {
+		return false
+	}
+	if value.Date != nil && *value.Date != "" {
+		return false
+	}
+	return true
+}
+
 func (h *ResponseHandler) ensureSurveyAcceptingResponses(surveyID uuid.UUID) (*models.Survey, *models.SurveyVersion, int, string) {
 	survey, err := h.surveyRepo.GetByID(surveyID)
 	if err != nil {
@@ -213,6 +236,127 @@ func (h *ResponseHandler) SaveDraftAnswer(c *gin.Context) {
 		"createdAt":      answerCreatedAt,
 		"updatedAt":      answerUpdatedAt,
 		"draftUpdatedAt": draftUpdatedAt,
+	})
+}
+
+// SaveDraftAnswersBulk handles POST /api/v1/drafts/:id/answers/bulk
+func (h *ResponseHandler) SaveDraftAnswersBulk(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	draftID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid draft ID"})
+		return
+	}
+
+	var req SaveDraftAnswersBulkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	var surveyID uuid.UUID
+	var surveyVersionID uuid.UUID
+	var draftUpdatedAt time.Time
+	if err := tx.QueryRow(
+		`SELECT survey_id, survey_version_id, updated_at
+		 FROM response_drafts
+		 WHERE id = $1 AND user_id = $2
+		 FOR UPDATE`,
+		draftID,
+		userID.(uuid.UUID),
+	).Scan(&surveyID, &surveyVersionID, &draftUpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Response draft not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get response draft"})
+		return
+	}
+
+	_, _, code, message := h.ensureSurveyAcceptingResponses(surveyID)
+	if code != 0 {
+		c.JSON(code, gin.H{"error": message})
+		return
+	}
+
+	validQuestions, _, err := h.loadVersionQuestionSet(tx, surveyVersionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
+		return
+	}
+
+	answersByQuestion := make(map[uuid.UUID]models.AnswerValue)
+	for _, item := range req.Answers {
+		questionID, err := uuid.Parse(item.QuestionID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid question ID"})
+			return
+		}
+		if _, ok := validQuestions[questionID]; !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Question does not belong to survey"})
+			return
+		}
+		if isAnswerValueEmpty(item.Value) {
+			continue
+		}
+		answersByQuestion[questionID] = item.Value
+	}
+
+	savedCount := 0
+	if len(answersByQuestion) > 0 {
+		for questionID, answerValue := range answersByQuestion {
+			valueJSON, err := json.Marshal(answerValue)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid answer value"})
+				return
+			}
+
+			if _, err := tx.Exec(
+				`INSERT INTO response_draft_answers (id, draft_id, question_id, value)
+				 VALUES ($1, $2, $3, $4)
+				 ON CONFLICT (draft_id, question_id)
+				 DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+				uuid.New(),
+				draftID,
+				questionID,
+				valueJSON,
+			); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save draft answers"})
+				return
+			}
+
+			savedCount++
+		}
+
+		if err := tx.QueryRow(
+			"UPDATE response_drafts SET updated_at = NOW() WHERE id = $1 RETURNING updated_at",
+			draftID,
+		).Scan(&draftUpdatedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update draft timestamp"})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"saved_count":      savedCount,
+		"draft_updated_at": draftUpdatedAt,
 	})
 }
 

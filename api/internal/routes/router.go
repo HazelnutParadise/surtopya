@@ -62,6 +62,7 @@ func SetupRouter() *gin.Engine {
 		{
 			drafts.GET("/my", responseHandler.GetMyDrafts)
 			drafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
+			drafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
 			drafts.POST("/:id/submit", responseHandler.SubmitDraft)
 		}
 		api.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)

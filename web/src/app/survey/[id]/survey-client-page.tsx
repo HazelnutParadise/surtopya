@@ -34,7 +34,7 @@ import { SurveyTheme } from "@/types/survey"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
-import { buildSingleSubmitAnswer, buildSubmitAnswers, toRendererAnswers } from "@/lib/response-submit"
+import { buildSubmitAnswers, toRendererAnswers } from "@/lib/response-submit"
 
 const RichText = ({ content }: { content: string }) => {
   if (!content) return null
@@ -94,6 +94,14 @@ interface SurveyClientPageProps {
 }
 
 type SaveStatus = "idle" | "saving" | "saved" | "retrying" | "failed"
+type FlushStatus = "saved" | "failed" | "skipped"
+type FlushReason =
+  | "autosave"
+  | "exit_button"
+  | "popstate"
+  | "beforeunload"
+  | "pagehide"
+  | "in_app_nav"
 type DraftAnswer = {
   questionId: string
   value?: {
@@ -198,9 +206,14 @@ export function SurveyClientPage({
   const [rendererSessionKey, setRendererSessionKey] = useState(0)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle")
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const [exitDialogMode, setExitDialogMode] = useState<"saved" | "failed">("saved")
+  const [leaveHandling, setLeaveHandling] = useState(false)
 
   const saveDebounceRef = useRef<number | null>(null)
-  const pendingDraftAnswersRef = useRef<Map<string, unknown>>(new Map())
+  const rendererAnswersRef = useRef<Record<string, unknown>>({})
+  const isDirtyRef = useRef(false)
+  const pendingLeaveActionRef = useRef<(() => void) | null>(null)
+  const suppressPopstateRef = useRef(false)
   const resumeAfterLoginRef = useRef(false)
 
   const isLoggedIn = Boolean(currentUser)
@@ -242,77 +255,140 @@ export function SurveyClientPage({
     [pathname, searchParams]
   )
 
-  const persistDraftEntries = useCallback(
-    async (targetDraftId: string, entries: Array<[string, unknown]>, attempt: number): Promise<boolean> => {
-      if (!survey || !targetDraftId) return false
+  const setAnswersSnapshot = useCallback((nextAnswers: Record<string, unknown>) => {
+    rendererAnswersRef.current = nextAnswers
+    setRendererAnswers(nextAnswers)
+  }, [])
 
-      const requests = entries
-        .map(([questionId, raw]) => buildSingleSubmitAnswer(survey, questionId, raw))
-        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  const persistDraftBulk = useCallback(
+    async (
+      targetDraftId: string,
+      answersSnapshot: Record<string, unknown>,
+      options?: { bestEffort?: boolean }
+    ): Promise<FlushStatus> => {
+      if (!survey || !targetDraftId) return "failed"
 
-      if (requests.length === 0) {
-        setSaveStatus("saved")
-        setLastSavedAt(formatSavedTime(new Date()))
-        return true
+      const answers = buildSubmitAnswers(survey, answersSnapshot)
+      if (answers.length === 0) {
+        return "skipped"
       }
 
-      try {
-        for (const answer of requests) {
-          const response = await fetch(`/api/drafts/${targetDraftId}/answers`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(answer),
-          })
-          if (!response.ok) {
-            throw new Error("Failed to save draft answer")
+      const body = JSON.stringify({ answers })
+      const endpoint = `/api/drafts/${targetDraftId}/answers/bulk`
+
+      if (options?.bestEffort) {
+        let queued = false
+        if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+          try {
+            queued = navigator.sendBeacon(
+              endpoint,
+              new Blob([body], { type: "application/json" })
+            )
+          } catch {
+            queued = false
           }
         }
 
-        setSaveStatus("saved")
-        setLastSavedAt(formatSavedTime(new Date()))
-        return true
+        if (!queued) {
+          void fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: true,
+            credentials: "same-origin",
+          }).catch(() => undefined)
+        }
+
+        return "saved"
+      }
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+        })
+
+        if (!response.ok) {
+          return "failed"
+        }
+
+        return "saved"
       } catch {
-        if (attempt === 0) {
+        return "failed"
+      }
+    },
+    [survey]
+  )
+
+  const flushProgress = useCallback(
+    async (
+      reason: FlushReason,
+      options?: { bestEffort?: boolean; force?: boolean }
+    ): Promise<FlushStatus> => {
+      if (isPreview || !survey || !isTaking) return "skipped"
+      if (!options?.force && !isDirtyRef.current) return "skipped"
+
+      if (!isLoggedIn) {
+        writeGuestAnswers(surveyId, rendererAnswersRef.current)
+        isDirtyRef.current = false
+        return "saved"
+      }
+
+      if (!draftId) {
+        return "failed"
+      }
+
+      if (!options?.bestEffort) {
+        setSaveStatus("saving")
+      }
+
+      const attemptPersist = async (attempt: number): Promise<FlushStatus> => {
+        const result = await persistDraftBulk(draftId, rendererAnswersRef.current, {
+          bestEffort: options?.bestEffort,
+        })
+
+        if (result === "failed" && !options?.bestEffort && attempt === 0) {
           setSaveStatus("retrying")
           await new Promise((resolve) => {
             window.setTimeout(resolve, 1200)
           })
-          return persistDraftEntries(targetDraftId, entries, 1)
+          return attemptPersist(1)
         }
 
+        return result
+      }
+
+      const result = await attemptPersist(0)
+
+      if (result === "saved" || result === "skipped") {
+        isDirtyRef.current = false
+        if (!options?.bestEffort) {
+          setSaveStatus("saved")
+          setLastSavedAt(formatSavedTime(new Date()))
+        }
+        return result
+      }
+
+      if (!options?.bestEffort) {
         setSaveStatus("failed")
-        return false
       }
+      if (reason === "beforeunload" || reason === "pagehide") {
+        return "saved"
+      }
+      return "failed"
     },
-    [formatSavedTime, survey]
+    [draftId, formatSavedTime, isLoggedIn, isPreview, isTaking, persistDraftBulk, survey, surveyId]
   )
 
-  const flushPendingDraftSaves = useCallback(async (): Promise<boolean> => {
-    if (!isLoggedIn || !draftId) return true
-
-    const entries = Array.from(pendingDraftAnswersRef.current.entries())
-    pendingDraftAnswersRef.current.clear()
-
-    if (entries.length === 0) {
-      return true
+  const scheduleDraftSave = useCallback(() => {
+    if (saveDebounceRef.current !== null) {
+      window.clearTimeout(saveDebounceRef.current)
     }
-
-    return persistDraftEntries(draftId, entries, 0)
-  }, [draftId, isLoggedIn, persistDraftEntries])
-
-  const scheduleDraftSave = useCallback(
-    (questionId: string, value: unknown) => {
-      pendingDraftAnswersRef.current.set(questionId, value)
-      if (saveDebounceRef.current !== null) {
-        window.clearTimeout(saveDebounceRef.current)
-      }
-      setSaveStatus("saving")
-      saveDebounceRef.current = window.setTimeout(() => {
-        void flushPendingDraftSaves()
-      }, 700)
-    },
-    [flushPendingDraftSaves]
-  )
+    saveDebounceRef.current = window.setTimeout(() => {
+      void flushProgress("autosave")
+    }, 700)
+  }, [flushProgress])
 
   const startDraftSession = useCallback(async (): Promise<string | null> => {
     const response = await fetch(`/api/surveys/${surveyId}/drafts/start`, {
@@ -335,7 +411,8 @@ export function SurveyClientPage({
     const guestAnswers = readGuestAnswers(surveyId)
     const mergedAnswers = { ...draftAnswers, ...guestAnswers }
 
-    setRendererAnswers(mergedAnswers)
+    setAnswersSnapshot(mergedAnswers)
+    isDirtyRef.current = false
 
     if (Object.keys(mergedAnswers).length > 0) {
       setSaveStatus("saved")
@@ -346,12 +423,16 @@ export function SurveyClientPage({
     }
 
     if (Object.keys(guestAnswers).length > 0) {
-      await persistDraftEntries(nextDraftId, Object.entries(guestAnswers), 0)
-      clearGuestAnswers(surveyId)
+      const migrated = await persistDraftBulk(nextDraftId, guestAnswers)
+      if (migrated === "saved" || migrated === "skipped") {
+        clearGuestAnswers(surveyId)
+      } else {
+        setSaveStatus("failed")
+      }
     }
 
     return nextDraftId
-  }, [formatSavedTime, persistDraftEntries, surveyId])
+  }, [formatSavedTime, persistDraftBulk, setAnswersSnapshot, surveyId])
 
   const handleStartSurvey = useCallback(async () => {
     setFlowError(null)
@@ -374,7 +455,8 @@ export function SurveyClientPage({
         setDraftId(null)
         setSaveStatus("idle")
         setLastSavedAt(null)
-        setRendererAnswers(readGuestAnswers(surveyId))
+        setAnswersSnapshot(readGuestAnswers(surveyId))
+        isDirtyRef.current = false
       }
 
       setRendererSessionKey((prev) => prev + 1)
@@ -385,11 +467,12 @@ export function SurveyClientPage({
     } finally {
       setStarting(false)
     }
-  }, [isLoggedIn, isPreview, startDraftSession, survey, surveyId, t, tCommon])
+  }, [isLoggedIn, isPreview, setAnswersSnapshot, startDraftSession, survey, surveyId, t, tCommon])
 
   const handleAnswerChange = useCallback(
-    (questionId: string, value: unknown, allAnswers: Record<string, unknown>) => {
-      setRendererAnswers(allAnswers)
+    (_questionId: string, _value: unknown, allAnswers: Record<string, unknown>) => {
+      setAnswersSnapshot(allAnswers)
+      isDirtyRef.current = true
 
       if (isPreview || !survey) {
         return
@@ -397,6 +480,7 @@ export function SurveyClientPage({
 
       if (!isLoggedIn) {
         writeGuestAnswers(surveyId, allAnswers)
+        isDirtyRef.current = false
         return
       }
 
@@ -404,9 +488,9 @@ export function SurveyClientPage({
         return
       }
 
-      scheduleDraftSave(questionId, value)
+      scheduleDraftSave()
     },
-    [draftId, isLoggedIn, isPreview, scheduleDraftSave, survey, surveyId]
+    [draftId, isLoggedIn, isPreview, scheduleDraftSave, setAnswersSnapshot, survey, surveyId]
   )
 
   const handleComplete = useCallback(
@@ -428,7 +512,7 @@ export function SurveyClientPage({
           window.clearTimeout(saveDebounceRef.current)
           saveDebounceRef.current = null
         }
-        await flushPendingDraftSaves()
+        await flushProgress("autosave", { force: true })
 
         const submitPayload = { answers: buildSubmitAnswers(survey, answers) }
 
@@ -482,7 +566,7 @@ export function SurveyClientPage({
     },
     [
       draftId,
-      flushPendingDraftSaves,
+      flushProgress,
       isLoggedIn,
       isPreview,
       router,
@@ -555,8 +639,9 @@ export function SurveyClientPage({
       return
     }
 
-    setRendererAnswers(readGuestAnswers(surveyId))
-  }, [isLoggedIn, isPreview, surveyId])
+    setAnswersSnapshot(readGuestAnswers(surveyId))
+    isDirtyRef.current = false
+  }, [isLoggedIn, isPreview, setAnswersSnapshot, surveyId])
 
   useEffect(() => {
     return () => {
@@ -578,18 +663,146 @@ export function SurveyClientPage({
     }
   }, [isPreview, survey, survey?.title, surveyId, searchParams, router, loading, isTaking, withLocalePath])
 
+  const runLeaveFlow = useCallback(
+    async ({
+      reason,
+      action,
+      showDialogOnSuccess,
+    }: {
+      reason: FlushReason
+      action: () => void
+      showDialogOnSuccess: boolean
+    }) => {
+      setFlowError(null)
+      setLeaveHandling(true)
+      const result = await flushProgress(reason, { force: true })
+
+      if (showDialogOnSuccess || result === "failed") {
+        pendingLeaveActionRef.current = action
+        setExitDialogMode(result === "failed" ? "failed" : "saved")
+        setShowExitDialog(true)
+      } else {
+        action()
+      }
+
+      setLeaveHandling(false)
+    },
+    [flushProgress]
+  )
+
+  useEffect(() => {
+    if (isPreview || !isTaking) return
+
+    const onBeforeUnload = () => {
+      void flushProgress("beforeunload", { bestEffort: true, force: true })
+    }
+    const onPageHide = () => {
+      void flushProgress("pagehide", { bestEffort: true, force: true })
+    }
+
+    window.addEventListener("beforeunload", onBeforeUnload)
+    window.addEventListener("pagehide", onPageHide)
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload)
+      window.removeEventListener("pagehide", onPageHide)
+    }
+  }, [flushProgress, isPreview, isTaking])
+
+  useEffect(() => {
+    if (isPreview || !isTaking) return
+
+    const marker = { surtopyaSurveyGuard: surveyId }
+    window.history.pushState(marker, "", window.location.href)
+
+    const onPopState = () => {
+      if (suppressPopstateRef.current) {
+        return
+      }
+
+      window.history.pushState(marker, "", window.location.href)
+      void runLeaveFlow({
+        reason: "popstate",
+        action: () => {
+          suppressPopstateRef.current = true
+          window.history.back()
+          window.setTimeout(() => {
+            suppressPopstateRef.current = false
+          }, 0)
+        },
+        showDialogOnSuccess: true,
+      })
+    }
+
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+    }
+  }, [isPreview, isTaking, runLeaveFlow, surveyId])
+
+  useEffect(() => {
+    if (isPreview || !isTaking) return
+
+    const onDocumentClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null
+      if (!anchor) return
+      if (anchor.target && anchor.target !== "_self") return
+
+      const href = anchor.getAttribute("href")
+      if (!href || href.startsWith("#")) return
+
+      const url = new URL(anchor.href, window.location.href)
+      if (url.origin !== window.location.origin) return
+
+      event.preventDefault()
+      void runLeaveFlow({
+        reason: "in_app_nav",
+        action: () => {
+          window.location.assign(url.toString())
+        },
+        showDialogOnSuccess: false,
+      })
+    }
+
+    document.addEventListener("click", onDocumentClick, true)
+    return () => {
+      document.removeEventListener("click", onDocumentClick, true)
+    }
+  }, [isPreview, isTaking, runLeaveFlow])
+
   const handleExitClick = () => {
     if (isPreview) {
       window.close()
-    } else {
-      setShowExitDialog(true)
+      return
     }
+
+    void runLeaveFlow({
+      reason: "exit_button",
+      action: () => {
+        setIsTaking(false)
+      },
+      showDialogOnSuccess: true,
+    })
   }
 
   const handleConfirmExit = () => {
     setShowExitDialog(false)
-    if (isLoggedIn) {
-      void flushPendingDraftSaves()
+    const action = pendingLeaveActionRef.current
+    pendingLeaveActionRef.current = null
+    if (action) {
+      action()
+      return
     }
     setIsTaking(false)
   }
@@ -691,10 +904,11 @@ export function SurveyClientPage({
             variant="outline"
             size="sm"
             onClick={handleExitClick}
+            disabled={leaveHandling}
             className="bg-white/90 backdrop-blur shadow-lg hover:bg-white"
           >
             <X className="mr-2 h-4 w-4" />
-            {isPreview ? t("exitPreview") : t("exitSurvey")}
+            {leaveHandling ? tCommon("saving") : isPreview ? t("exitPreview") : t("exitSurvey")}
           </Button>
         </div>
 
@@ -740,17 +954,29 @@ export function SurveyClientPage({
         ) : null}
 
         <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-          <DialogContent onInteractOutside={(e) => e.preventDefault()}>
+          <DialogContent onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
             <DialogHeader>
-              <DialogTitle>{t("exitSurveyTitle")}</DialogTitle>
-              <DialogDescription>{t("exitSurveyDescription")}</DialogDescription>
+              <DialogTitle>
+                {exitDialogMode === "failed" ? t("leaveDialogFailedTitle") : t("leaveDialogSavedTitle")}
+              </DialogTitle>
+              <DialogDescription>
+                {exitDialogMode === "failed"
+                  ? t("leaveDialogFailedDescription")
+                  : t("leaveDialogSavedDescription")}
+              </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowExitDialog(false)}>
-                {t("continueSurvey")}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  pendingLeaveActionRef.current = null
+                  setShowExitDialog(false)
+                }}
+              >
+                {t("leaveContinueButton")}
               </Button>
-              <Button variant="destructive" onClick={handleConfirmExit}>
-                {t("exitWithoutSaving")}
+              <Button variant={exitDialogMode === "failed" ? "destructive" : "default"} onClick={handleConfirmExit}>
+                {t("leaveSurveyButton")}
               </Button>
             </DialogFooter>
           </DialogContent>
