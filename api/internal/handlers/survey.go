@@ -1013,7 +1013,7 @@ func (h *SurveyHandler) DeleteSurvey(c *gin.Context) {
 		return
 	}
 
-	if err := h.repo.Delete(id); err != nil {
+	if err := h.repo.SoftDelete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete survey"})
 		return
 	}

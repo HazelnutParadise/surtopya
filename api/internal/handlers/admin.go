@@ -383,7 +383,7 @@ func (h *AdminHandler) DeleteSurvey(c *gin.Context) {
 		return
 	}
 
-	if err := h.surveys.Delete(id); err != nil {
+	if err := h.surveys.HardDelete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete survey"})
 		return
 	}

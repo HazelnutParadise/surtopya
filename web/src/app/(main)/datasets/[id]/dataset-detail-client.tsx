@@ -84,7 +84,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
     setDownloading(true);
     setDownloadError(null)
     try {
-      const response = await fetch(`/api/datasets/${id}`, { method: "POST" });
+      const response = await fetch(`/api/datasets/${id}/download`, { method: "POST" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Download failed");

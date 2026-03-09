@@ -97,7 +97,7 @@ func (h *ResponseHandler) loadVersionQuestionSet(tx *sql.Tx, surveyVersionID uui
 	return validQuestions, boostSpend, nil
 }
 
-// StartDraft handles POST /api/v1/surveys/:id/drafts/start
+// StartDraft handles POST /api/app/surveys/:id/drafts/start
 func (h *ResponseHandler) StartDraft(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -144,7 +144,7 @@ func (h *ResponseHandler) StartDraft(c *gin.Context) {
 	c.JSON(http.StatusCreated, draft)
 }
 
-// SaveDraftAnswer handles POST /api/v1/drafts/:id/answers
+// SaveDraftAnswer handles POST /api/app/drafts/:id/answers
 func (h *ResponseHandler) SaveDraftAnswer(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -252,7 +252,7 @@ func (h *ResponseHandler) SaveDraftAnswer(c *gin.Context) {
 	})
 }
 
-// SaveDraftAnswersBulk handles POST /api/v1/drafts/:id/answers/bulk
+// SaveDraftAnswersBulk handles POST /api/app/drafts/:id/answers/bulk
 func (h *ResponseHandler) SaveDraftAnswersBulk(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -373,7 +373,7 @@ func (h *ResponseHandler) SaveDraftAnswersBulk(c *gin.Context) {
 	})
 }
 
-// SubmitDraft handles POST /api/v1/drafts/:id/submit
+// SubmitDraft handles POST /api/app/drafts/:id/submit
 func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -586,7 +586,7 @@ func (h *ResponseHandler) GetMyDrafts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"drafts": drafts})
 }
 
-// SubmitAnonymousResponse handles POST /api/v1/surveys/:id/responses/submit-anonymous
+// SubmitAnonymousResponse handles POST /api/app/surveys/:id/responses/submit-anonymous
 func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	surveyID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -751,7 +751,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
-// ClaimAnonymousPoints handles POST /api/v1/responses/claim-anonymous-points
+// ClaimAnonymousPoints handles POST /api/app/responses/claim-anonymous-points
 func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {

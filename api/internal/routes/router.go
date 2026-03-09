@@ -16,115 +16,132 @@ func SetupRouter() *gin.Engine {
 	// Add auth middleware (processes token but doesn't require it)
 	r.Use(middleware.AuthMiddleware())
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api")
 	{
-		// Health check
-		api.GET("/health", handlers.HealthHandler)
-		api.GET("/ready", handlers.ReadyHandler)
-
-		// Survey routes
-		surveyHandler := handlers.NewSurveyHandler()
-		surveys := api.Group("/surveys")
-		{
-			// Public endpoints
-			surveys.GET("/public", surveyHandler.GetPublicSurveys)
-			surveys.GET("/:id", surveyHandler.GetSurvey)
-
-			// Authenticated endpoints
-			surveys.POST("", middleware.RequireAuth(), surveyHandler.CreateSurvey)
-			surveys.GET("/my", middleware.RequireAuth(), surveyHandler.GetMySurveys)
-			surveys.PUT("/:id", middleware.RequireAuth(), surveyHandler.UpdateSurvey)
-			surveys.DELETE("/:id", middleware.RequireAuth(), surveyHandler.DeleteSurvey)
-			surveys.POST("/:id/publish", middleware.RequireAuth(), surveyHandler.PublishSurvey)
-			surveys.POST("/:id/responses/open", middleware.RequireAuth(), surveyHandler.OpenSurveyResponses)
-			surveys.POST("/:id/responses/close", middleware.RequireAuth(), surveyHandler.CloseSurveyResponses)
-			surveys.GET("/:id/versions", middleware.RequireAuth(), surveyHandler.ListSurveyVersions)
-			surveys.GET("/:id/versions/:versionNumber", middleware.RequireAuth(), surveyHandler.GetSurveyVersion)
-			surveys.POST("/:id/versions/:versionNumber/restore-draft", middleware.RequireAuth(), surveyHandler.RestoreSurveyVersionDraft)
-		}
-
-		// Response routes
 		responseHandler := handlers.NewResponseHandler()
-		responses := api.Group("/responses")
+
+		// App-internal write routes for survey response flow.
+		app := api.Group("/app", middleware.RequireInternalApp())
 		{
-			responses.GET("/:id", responseHandler.GetResponse)
-			responses.POST("/:id/answers", responseHandler.SubmitAnswer)
-			responses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
-			responses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
-			responses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
+			appResponses := app.Group("/responses")
+			{
+				appResponses.POST("/:id/answers", responseHandler.SubmitAnswer)
+				appResponses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
+				appResponses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
+				appResponses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
+			}
+
+			app.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
+			app.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
+			app.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
+
+			appDrafts := app.Group("/drafts", middleware.RequireAuth())
+			{
+				appDrafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
+				appDrafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
+				appDrafts.POST("/:id/submit", responseHandler.SubmitDraft)
+			}
 		}
 
-		// Survey response routes (nested under surveys)
-		api.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
-		api.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
-		api.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
-
-		// Authenticated draft routes
-		drafts := api.Group("/drafts", middleware.RequireAuth())
+		v1 := api.Group("/v1")
 		{
-			drafts.GET("/my", responseHandler.GetMyDrafts)
-			drafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
-			drafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
-			drafts.POST("/:id/submit", responseHandler.SubmitDraft)
-		}
-		api.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
+			// Health check
+			v1.GET("/health", handlers.HealthHandler)
+			v1.GET("/ready", handlers.ReadyHandler)
 
-		// Dataset routes
-		datasetHandler := handlers.NewDatasetHandler()
-		datasets := api.Group("/datasets")
-		{
-			datasets.GET("", datasetHandler.GetDatasets)
-			datasets.GET("/categories", datasetHandler.GetCategories)
-			datasets.GET("/:id", datasetHandler.GetDataset)
-			datasets.POST("/:id/download", datasetHandler.DownloadDataset)
-		}
+			// Survey routes
+			surveyHandler := handlers.NewSurveyHandler()
+			surveys := v1.Group("/surveys")
+			{
+				// Public endpoints
+				surveys.GET("/public", surveyHandler.GetPublicSurveys)
+				surveys.GET("/:id", surveyHandler.GetSurvey)
 
-		// Bootstrap status
-		adminHandler := handlers.NewAdminHandler()
-		api.GET("/bootstrap", adminHandler.GetBootstrapStatus)
-		api.GET("/config", adminHandler.GetPublicConfig)
-		api.GET("/pricing/plans", adminHandler.GetPricingPlans)
+				// Authenticated endpoints
+				surveys.POST("", middleware.RequireAuth(), surveyHandler.CreateSurvey)
+				surveys.GET("/my", middleware.RequireAuth(), surveyHandler.GetMySurveys)
+				surveys.PUT("/:id", middleware.RequireAuth(), surveyHandler.UpdateSurvey)
+				surveys.DELETE("/:id", middleware.RequireAuth(), surveyHandler.DeleteSurvey)
+				surveys.POST("/:id/publish", middleware.RequireAuth(), surveyHandler.PublishSurvey)
+				surveys.POST("/:id/responses/open", middleware.RequireAuth(), surveyHandler.OpenSurveyResponses)
+				surveys.POST("/:id/responses/close", middleware.RequireAuth(), surveyHandler.CloseSurveyResponses)
+				surveys.GET("/:id/versions", middleware.RequireAuth(), surveyHandler.ListSurveyVersions)
+				surveys.GET("/:id/versions/:versionNumber", middleware.RequireAuth(), surveyHandler.GetSurveyVersion)
+				surveys.POST("/:id/versions/:versionNumber/restore-draft", middleware.RequireAuth(), surveyHandler.RestoreSurveyVersionDraft)
+			}
 
-		// User profile and settings routes
-		userSettingsHandler := handlers.NewUserSettingsHandler()
-		userHandler := handlers.NewUserHandler()
-		me := api.Group("/me", middleware.RequireAuth())
-		{
-			me.GET("", userHandler.GetProfile)
-			me.PATCH("", userHandler.UpdateProfile)
-			me.GET("/settings", userSettingsHandler.GetSettings)
-			me.PATCH("/settings", userSettingsHandler.UpdateSettings)
-		}
+			// Response routes
+			responses := v1.Group("/responses")
+			{
+				responses.GET("/:id", responseHandler.GetResponse)
+			}
 
-		// Admin routes
-		admin := api.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
-		{
-			admin.GET("/surveys", adminHandler.GetSurveys)
-			admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
-			admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
-			admin.POST("/surveys/:id/responses/open", adminHandler.OpenSurveyResponses)
-			admin.POST("/surveys/:id/responses/close", adminHandler.CloseSurveyResponses)
-			admin.GET("/surveys/:id/versions", adminHandler.ListSurveyVersions)
-			admin.GET("/surveys/:id/versions/:versionNumber", adminHandler.GetSurveyVersion)
-			admin.POST("/surveys/:id/versions/:versionNumber/restore-draft", adminHandler.RestoreSurveyVersionDraft)
-			admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
-			admin.GET("/datasets", adminHandler.GetDatasets)
-			admin.POST("/datasets", adminHandler.CreateDataset)
-			admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
-			admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
-			admin.GET("/users", adminHandler.GetUsers)
-			admin.PATCH("/users/:id", adminHandler.UpdateUser)
-			admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
-			admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
-			admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
-			admin.DELETE("/subscription-plans/:id", adminHandler.DeactivateSubscriptionPlan)
-			admin.GET("/policies", adminHandler.GetPolicies)
-			admin.PATCH("/policies", adminHandler.UpdatePolicies)
-			admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
-			admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
-			admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
-			admin.GET("/system-settings", adminHandler.GetSystemSettings)
-			admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
+			// Survey response read routes (nested under surveys)
+			v1.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
+
+			// Authenticated draft read routes
+			drafts := v1.Group("/drafts", middleware.RequireAuth())
+			{
+				drafts.GET("/my", responseHandler.GetMyDrafts)
+			}
+
+			// Dataset routes
+			datasetHandler := handlers.NewDatasetHandler()
+			datasets := v1.Group("/datasets")
+			{
+				datasets.GET("", datasetHandler.GetDatasets)
+				datasets.GET("/categories", datasetHandler.GetCategories)
+				datasets.GET("/:id", datasetHandler.GetDataset)
+				datasets.POST("/:id/download", datasetHandler.DownloadDataset)
+			}
+
+			// Bootstrap status
+			adminHandler := handlers.NewAdminHandler()
+			v1.GET("/bootstrap", adminHandler.GetBootstrapStatus)
+			v1.GET("/config", adminHandler.GetPublicConfig)
+			v1.GET("/pricing/plans", adminHandler.GetPricingPlans)
+
+			// User profile and settings routes
+			userSettingsHandler := handlers.NewUserSettingsHandler()
+			userHandler := handlers.NewUserHandler()
+			me := v1.Group("/me", middleware.RequireAuth())
+			{
+				me.GET("", userHandler.GetProfile)
+				me.PATCH("", userHandler.UpdateProfile)
+				me.GET("/settings", userSettingsHandler.GetSettings)
+				me.PATCH("/settings", userSettingsHandler.UpdateSettings)
+			}
+
+			// Admin routes
+			admin := v1.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
+			{
+				admin.GET("/surveys", adminHandler.GetSurveys)
+				admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
+				admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
+				admin.POST("/surveys/:id/responses/open", adminHandler.OpenSurveyResponses)
+				admin.POST("/surveys/:id/responses/close", adminHandler.CloseSurveyResponses)
+				admin.GET("/surveys/:id/versions", adminHandler.ListSurveyVersions)
+				admin.GET("/surveys/:id/versions/:versionNumber", adminHandler.GetSurveyVersion)
+				admin.POST("/surveys/:id/versions/:versionNumber/restore-draft", adminHandler.RestoreSurveyVersionDraft)
+				admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
+				admin.GET("/datasets", adminHandler.GetDatasets)
+				admin.POST("/datasets", adminHandler.CreateDataset)
+				admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
+				admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
+				admin.GET("/users", adminHandler.GetUsers)
+				admin.PATCH("/users/:id", adminHandler.UpdateUser)
+				admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
+				admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
+				admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
+				admin.DELETE("/subscription-plans/:id", adminHandler.DeactivateSubscriptionPlan)
+				admin.GET("/policies", adminHandler.GetPolicies)
+				admin.PATCH("/policies", adminHandler.UpdatePolicies)
+				admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
+				admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
+				admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
+				admin.GET("/system-settings", adminHandler.GetSystemSettings)
+				admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
+			}
 		}
 	}
 

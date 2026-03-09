@@ -48,7 +48,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
 		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
-		"current_published_version_id", "current_published_version_number", "has_unpublished_changes",
+		"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
 	}
 	surveyRows := sqlmock.NewRows(surveyCols).AddRow(
 		id,
@@ -71,6 +71,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		currentVersionIDValue,
 		currentVersionNumberValue,
 		false,
+		nil,
 	)
 
 	questionCols := []string{

@@ -197,7 +197,7 @@ function DatasetsContent() {
                 className="transform-gpu border-white/35 bg-white/20 text-white hover:bg-white/30 hover:text-white shadow-xl transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98]"
                 asChild
               >
-                <Link href={withLocalePath("/docs/api")}>{tDatasets("apiDocs")}</Link>
+                <Link href={withLocalePath("/datasets/api")}>{tDatasets("apiDocs")}</Link>
               </Button>
             </div>
           </div>

@@ -40,3 +40,24 @@ export async function PUT(
   const payload = await response.json().catch(() => ({}))
   return NextResponse.json(payload, { status: response.status })
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const token = await getAuthToken()
+  if (!token) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  const payload = await response.json().catch(() => ({}))
+  return NextResponse.json(payload, { status: response.status })
+}

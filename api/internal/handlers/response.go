@@ -41,7 +41,7 @@ type StartResponseRequest struct {
 	AnonymousID string `json:"anonymousId,omitempty"`
 }
 
-// StartResponse handles POST /api/v1/surveys/:id/responses/start
+// StartResponse handles POST /api/app/surveys/:id/responses/start
 func (h *ResponseHandler) StartResponse(c *gin.Context) {
 	if _, exists := c.Get("userID"); !exists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Anonymous users should submit directly without starting a backend session"})
@@ -56,7 +56,7 @@ type SubmitAnswerRequest struct {
 	Value      models.AnswerValue `json:"value" binding:"required"`
 }
 
-// SubmitAnswer handles POST /api/v1/responses/:id/answers
+// SubmitAnswer handles POST /api/app/responses/:id/answers
 func (h *ResponseHandler) SubmitAnswer(c *gin.Context) {
 	responseIDStr := c.Param("id")
 	responseID, err := uuid.Parse(responseIDStr)
@@ -113,7 +113,7 @@ type SubmitAllAnswersRequest struct {
 	Answers []SubmitAnswerRequest `json:"answers"`
 }
 
-// SubmitAllAnswers handles POST /api/v1/responses/:id/submit
+// SubmitAllAnswers handles POST /api/app/responses/:id/submit
 func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	responseIDStr := c.Param("id")
 	responseID, err := uuid.Parse(responseIDStr)

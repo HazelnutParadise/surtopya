@@ -65,10 +65,11 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes
+			s.has_unpublished_changes, s.deleted_at
 		FROM surveys s
 		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.id = $1
+		  AND s.deleted_at IS NULL
 	`
 
 	err := r.db.QueryRow(query, id).Scan(
@@ -78,7 +79,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
 		&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-		&survey.HasUnpublishedChanges,
+		&survey.HasUnpublishedChanges, &survey.DeletedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -114,10 +115,11 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes
+			s.has_unpublished_changes, s.deleted_at
 		FROM surveys s
 		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.user_id = $1
+		  AND s.deleted_at IS NULL
 		ORDER BY s.updated_at DESC
 	`
 
@@ -139,7 +141,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-			&survey.HasUnpublishedChanges,
+			&survey.HasUnpublishedChanges, &survey.DeletedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -165,6 +167,7 @@ func (r *SurveyRepository) CountActiveResponseOpenByUser(userID uuid.UUID, exclu
 		LEFT JOIN survey_versions sv
 			ON sv.id = s.current_published_version_id
 		WHERE s.user_id = $1
+		  AND s.deleted_at IS NULL
 		  AND s.is_response_open = TRUE
 		  AND sv.id IS NOT NULL
 		  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
@@ -191,10 +194,10 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes
+			s.has_unpublished_changes, s.deleted_at
 		FROM surveys s
 		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
-		WHERE 1=1
+		WHERE s.deleted_at IS NULL
 	`
 	args := []interface{}{}
 	argCount := 0
@@ -243,7 +246,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-			&survey.HasUnpublishedChanges,
+			&survey.HasUnpublishedChanges, &survey.DeletedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -269,10 +272,11 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes
+			s.has_unpublished_changes, s.deleted_at
 		FROM surveys s
 		JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.visibility = 'public'
+		  AND s.deleted_at IS NULL
 		  AND s.is_response_open = true
 		  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
 		ORDER BY s.published_at DESC
@@ -297,7 +301,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-			&survey.HasUnpublishedChanges,
+			&survey.HasUnpublishedChanges, &survey.DeletedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -362,13 +366,30 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 	return nil
 }
 
-// Delete deletes a survey
-func (r *SurveyRepository) Delete(id uuid.UUID) error {
+// SoftDelete marks a survey as deleted for user-facing flows.
+func (r *SurveyRepository) SoftDelete(id uuid.UUID) error {
+	_, err := r.db.Exec(
+		"UPDATE surveys SET deleted_at = NOW(), is_response_open = FALSE WHERE id = $1 AND deleted_at IS NULL",
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to soft-delete survey: %w", err)
+	}
+	return nil
+}
+
+// HardDelete permanently deletes a survey.
+func (r *SurveyRepository) HardDelete(id uuid.UUID) error {
 	_, err := r.db.Exec("DELETE FROM surveys WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete survey: %w", err)
 	}
 	return nil
+}
+
+// Delete permanently deletes a survey.
+func (r *SurveyRepository) Delete(id uuid.UUID) error {
+	return r.HardDelete(id)
 }
 
 // GetQuestions retrieves all questions for a survey
@@ -513,6 +534,7 @@ func (r *SurveyRepository) GetCurrentPublishedVersion(surveyID uuid.UUID) (*mode
 		FROM surveys s
 		JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.id = $1
+		  AND s.deleted_at IS NULL
 	`
 	version := &models.SurveyVersion{}
 	if err := r.db.QueryRow(query, surveyID).Scan(
@@ -614,6 +636,7 @@ func (r *SurveyRepository) IsCurrentVersionSnapshotEqual(surveyID uuid.UUID, sna
 		FROM surveys s
 		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.id = $1
+		  AND s.deleted_at IS NULL
 	`
 	var isEqual bool
 	if err := r.db.QueryRow(query, surveyID, snapshot).Scan(&isEqual); err != nil {

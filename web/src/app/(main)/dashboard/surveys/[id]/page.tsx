@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
   Lock,
   Unlock,
   Send,
+  Trash2,
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
@@ -32,6 +33,7 @@ import type { SurveyResponse, SurveyVersion } from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
+import { buildCsvContent } from "@/lib/csv";
 import {
   Dialog,
   DialogContent,
@@ -48,16 +50,11 @@ const formatDateTime = (value?: string) => {
   return date.toLocaleString();
 };
 
-const escapeCsv = (value: string) => {
-  const normalized = value.replace(/\r?\n/g, " ").trim()
-  if (normalized.includes(",") || normalized.includes('"')) {
-    return `"${normalized.replace(/"/g, '""')}"`
-  }
-  return normalized
-}
-
-const downloadCsv = (filename: string, rows: string[][]) => {
-  const content = rows.map((row) => row.map(escapeCsv).join(",")).join("\n") + "\n"
+const downloadCsv = (filename: string, rows: string[][], includeBom: boolean) => {
+  const content = buildCsvContent(rows, {
+    includeBom,
+    lineBreak: "crlf",
+  })
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
@@ -89,6 +86,8 @@ export default function SurveyManagementPage() {
   const [publishError, setPublishError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [surveyVersions, setSurveyVersions] = useState<SurveyVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null)
@@ -107,7 +106,7 @@ export default function SurveyManagementPage() {
     expiresAt: "",
   });
 
-  const loadSurveyVersions = async () => {
+  const loadSurveyVersions = useCallback(async () => {
     setVersionsLoading(true)
     setVersionError(null)
     try {
@@ -132,7 +131,7 @@ export default function SurveyManagementPage() {
     } finally {
       setVersionsLoading(false)
     }
-  }
+  }, [surveyId, tBuilder])
 
   useEffect(() => {
     let isMounted = true;
@@ -207,7 +206,7 @@ export default function SurveyManagementPage() {
       isMounted = false;
       controller.abort();
     };
-  }, [surveyId]);
+  }, [loadSurveyVersions, surveyId]);
 
   useEffect(() => {
     if (!survey) return;
@@ -246,7 +245,7 @@ export default function SurveyManagementPage() {
     })
   }, [responses])
 
-  const handleExportCsv = () => {
+  const handleExportCsv = (encoding: "excel" | "utf8") => {
     const rows: string[][] = [
       [
         t("responsesTableId"),
@@ -265,7 +264,7 @@ export default function SurveyManagementPage() {
         r.completedAt || r.createdAt || "",
       ]),
     ]
-    downloadCsv(`responses-${surveyId}.csv`, rows)
+    downloadCsv(`responses-${surveyId}.csv`, rows, encoding === "excel")
   }
 
   const handlePreview = () => {
@@ -290,6 +289,27 @@ export default function SurveyManagementPage() {
   const handleViewSurvey = () => {
     window.open(withLocalePath(`/survey/${surveyId}`), "_blank", "noopener,noreferrer");
   };
+
+  const handleDeleteSurvey = async () => {
+    if (!window.confirm(t("deleteSurveyConfirm"))) return
+
+    setDeleteError(null)
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || "Delete failed")
+      }
+      router.replace(withLocalePath("/dashboard"))
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : tCommon("error"))
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const mapPublishStatusError = (rawError?: string) => {
     if (!rawError) return tCommon("error");
@@ -658,11 +678,18 @@ export default function SurveyManagementPage() {
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="outline"
-                          onClick={handleExportCsv}
+                          onClick={() => handleExportCsv("excel")}
                           disabled={responses.length === 0}
                           data-testid="dashboard-responses-export"
                         >
-                          {t("exportCsv")}
+                          {t("exportCsvExcel")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleExportCsv("utf8")}
+                          disabled={responses.length === 0}
+                        >
+                          {t("exportCsvUtf8")}
                         </Button>
                         <Button
                           variant="outline"
@@ -1031,6 +1058,16 @@ export default function SurveyManagementPage() {
                   <ExternalLink className="mr-2 h-4 w-4" />
                   {t("openSurveyPage")}
                 </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start"
+                  onClick={handleDeleteSurvey}
+                  disabled={deleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {deleting ? tCommon("saving") : t("deleteSurvey")}
+                </Button>
+                {deleteError ? <p className="text-xs text-red-600">{deleteError}</p> : null}
               </CardContent>
             </Card>
 

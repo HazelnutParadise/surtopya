@@ -660,6 +660,8 @@
     "editSurvey": "編集",
     "openSurveyPage": "アンケートページを開く",
     "exportCsv": "CSV をエクスポート",
+    "exportCsvExcel": "CSV をエクスポート（Excel）",
+    "exportCsvUtf8": "CSV をエクスポート（UTF-8）",
     "noResponsesYet": "まだ回答がありません。",
     "responsesTableId": "回答 ID",
     "responsesTableStatus": "ステータス",
@@ -669,7 +671,9 @@
     "responsesTableSubmittedAt": "送信日時",
     "statusCompleted": "完了",
     "statusInProgress": "進行中",
-    "statusAbandoned": "放棄"
+    "statusAbandoned": "放棄",
+    "deleteSurvey": "アンケートを削除",
+    "deleteSurveyConfirm": "このアンケートを削除しますか？この操作は元に戻せません。"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "プレビューデータがありません",
@@ -798,9 +802,22 @@
     "summaryNote": "注記: これは平易な要約です。正式な法的文書には追加の詳細が記載される場合があります。"
   },
   "ApiDocs": {
-    "title": "API リファレンス",
-    "subtitle": "主要エンドポイントとベース URL をまとめ、素早い連携とテストを支援します。",
-    "baseUrlTitle": "ベース URL",
-    "commonEndpoints": "主要エンドポイント"
+    "title": "データセット API ドキュメント",
+    "subtitle": "Swagger UI でデータセット API を確認し、完全なパラメータ、サンプル、エラーコードを対話的に試せます。",
+    "recommendedServer": "Try-it 推奨サーバー（同一オリジンプロキシ）",
+    "publicServer": "公開バージョン API サーバー",
+    "howToTitle": "使い方",
+    "howToAuth": "Try-it は現在のログインセッション cookie を利用します。事前にログインしてください。",
+    "howToTryIt": "Swagger UI 右上で server を切り替えできます。対話試験は /api 同一オリジンプロキシを使ってください。",
+    "howToDownloadLimit": "安全制限: POST /datasets/{id}/download はドキュメント上では free データセットのみ実行可能です。paid または判定不能時はブロックされます。",
+    "troubleshootingTitle": "よくあるトラブル",
+    "troubleshootingAuth": "401 unauthorized: 再ログインし、セッション有効期限を確認してください。",
+    "troubleshootingOrigin": "オリジン検証失敗: このサイトのページから呼び出し、外部サイトから直接叩かないでください。",
+    "troubleshootingRateLimit": "429 rate limit: 少し待って再試行し、短時間の連続リクエストを避けてください。",
+    "specSourceLabel": "OpenAPI 仕様ソース",
+    "swaggerLoadFailed": "Swagger UI の読み込みに失敗しました",
+    "tryItBlockedInvalidDownload": "ダウンロードリクエスト形式が不正なため、実行をブロックしました。",
+    "tryItBlockedPaid": "このデータセットは paid のため、ドキュメント Try-it ではダウンロードできません。",
+    "tryItBlockedLookupFailed": "データセットの access type を確認できないため、安全側でダウンロードをブロックしました。"
   }
 }

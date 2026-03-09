@@ -660,6 +660,8 @@
     "editSurvey": "Edit Survey",
     "openSurveyPage": "Open Survey Page",
     "exportCsv": "Export CSV",
+    "exportCsvExcel": "Export CSV (Excel)",
+    "exportCsvUtf8": "Export CSV (UTF-8)",
     "noResponsesYet": "No responses yet.",
     "responsesTableId": "Response ID",
     "responsesTableStatus": "Status",
@@ -669,7 +671,9 @@
     "responsesTableSubmittedAt": "Submitted at",
     "statusCompleted": "Completed",
     "statusInProgress": "In progress",
-    "statusAbandoned": "Abandoned"
+    "statusAbandoned": "Abandoned",
+    "deleteSurvey": "Delete Survey",
+    "deleteSurveyConfirm": "Delete this survey? This action cannot be undone."
   },
   "PreviewPage": {
     "noPreviewDataTitle": "No Preview Data",
@@ -798,9 +802,22 @@
     "summaryNote": "Note: this is a plain-language summary. Formal legal documents may provide additional details."
   },
   "ApiDocs": {
-    "title": "API Reference",
-    "subtitle": "Common endpoints and base URL for quick integration and testing.",
-    "baseUrlTitle": "Base URL",
-    "commonEndpoints": "Common Endpoints"
+    "title": "Dataset API Docs",
+    "subtitle": "Explore dataset APIs in Swagger UI with complete parameters, examples, and error codes, plus interactive try-out.",
+    "recommendedServer": "Recommended Try-it Server (same-origin proxy)",
+    "publicServer": "Public Versioned API Server",
+    "howToTitle": "How To Use",
+    "howToAuth": "Try-it reuses your current signed-in session cookie. Sign in first before testing.",
+    "howToTryIt": "Switch servers from Swagger UI. Use /api same-origin proxy for interactive testing.",
+    "howToDownloadLimit": "Safety limit: POST /datasets/{id}/download is allowed only for free datasets in docs Try-it. Paid or unknown datasets are blocked.",
+    "troubleshootingTitle": "Troubleshooting",
+    "troubleshootingAuth": "401 unauthorized: sign in again and confirm your session is still valid.",
+    "troubleshootingOrigin": "Origin verification failed: call from this site page, not direct cross-site requests.",
+    "troubleshootingRateLimit": "429 rate limit: retry later and avoid burst traffic.",
+    "specSourceLabel": "OpenAPI spec source",
+    "swaggerLoadFailed": "Failed to load Swagger UI",
+    "tryItBlockedInvalidDownload": "Download request format is invalid. Request blocked.",
+    "tryItBlockedPaid": "This dataset is paid. Docs Try-it download is blocked.",
+    "tryItBlockedLookupFailed": "Unable to confirm dataset access type. Download blocked by safe default."
   }
 }

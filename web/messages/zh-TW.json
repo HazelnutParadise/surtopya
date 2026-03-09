@@ -660,6 +660,8 @@
     "editSurvey": "編輯問卷",
     "openSurveyPage": "開啟問卷頁",
     "exportCsv": "匯出 CSV",
+    "exportCsvExcel": "匯出 CSV（Excel）",
+    "exportCsvUtf8": "匯出 CSV（UTF-8）",
     "noResponsesYet": "目前還沒有回應。",
     "responsesTableId": "回應 ID",
     "responsesTableStatus": "狀態",
@@ -669,7 +671,9 @@
     "responsesTableSubmittedAt": "送出時間",
     "statusCompleted": "已完成",
     "statusInProgress": "進行中",
-    "statusAbandoned": "已放棄"
+    "statusAbandoned": "已放棄",
+    "deleteSurvey": "刪除問卷",
+    "deleteSurveyConfirm": "確定要刪除此問卷嗎？此操作無法復原。"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "沒有預覽資料",
@@ -798,9 +802,22 @@
     "summaryNote": "注意：此為白話摘要，正式法律文件可能提供更多細節。"
   },
   "ApiDocs": {
-    "title": "API 參考",
-    "subtitle": "提供常用端點與基礎 URL，方便快速整合與測試。",
-    "baseUrlTitle": "基礎 URL",
-    "commonEndpoints": "常用端點"
+    "title": "資料集 API 文件",
+    "subtitle": "使用 Swagger UI 瀏覽資料集 API，查看完整參數、範例與錯誤碼，並可直接互動試打。",
+    "recommendedServer": "Try-it 建議 Server（同站代理）",
+    "publicServer": "公開版本化 API Server",
+    "howToTitle": "如何使用",
+    "howToAuth": "Try-it 會沿用你目前登入會話（cookie），請先登入再試打。",
+    "howToTryIt": "Swagger 右上可切換 server；要互動測試請優先使用 /api 同站代理。",
+    "howToDownloadLimit": "安全限制：POST /datasets/{id}/download 在文件頁只允許 free 資料集；paid 或無法判斷時會阻擋。",
+    "troubleshootingTitle": "常見錯誤排查",
+    "troubleshootingAuth": "401 unauthorized：請先登入，並確認會話未過期。",
+    "troubleshootingOrigin": "來源驗證失敗：請從本站頁面呼叫，不要跨站直接打內部端點。",
+    "troubleshootingRateLimit": "429 rate limit：稍後重試，避免短時間大量重複請求。",
+    "specSourceLabel": "OpenAPI 規格來源",
+    "swaggerLoadFailed": "Swagger UI 載入失敗",
+    "tryItBlockedInvalidDownload": "下載請求格式無法辨識，已阻擋執行。",
+    "tryItBlockedPaid": "此資料集為 paid，文件頁 Try-it 不允許執行下載。",
+    "tryItBlockedLookupFailed": "無法確認資料集是否為 free，已依安全預設阻擋下載。"
   }
 }

@@ -17,6 +17,7 @@ services:
       - LOGTO_COOKIE_SECRET=${LOGTO_COOKIE_SECRET:-complex_password_at_least_32_characters_long}
       - LOGTO_AUDIENCE=${LOGTO_AUDIENCE:-}
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
+      - INTERNAL_APP_SIGNING_SECRET=${INTERNAL_APP_SIGNING_SECRET:-development-internal-app-secret}
       - REQUIRE_BOOTSTRAP_AUTH=${REQUIRE_BOOTSTRAP_AUTH:-false}
     depends_on:
       - api
@@ -39,6 +40,7 @@ services:
       - DB_NAME=${DB_NAME:-surtopya}
       - DB_SSLMODE=disable
       - JWT_SECRET=${JWT_SECRET:-development-secret-key}
+      - INTERNAL_APP_SIGNING_SECRET=${INTERNAL_APP_SIGNING_SECRET:-development-internal-app-secret}
       - ALLOW_UNVERIFIED_JWT=${ALLOW_UNVERIFIED_JWT:-true}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
       - DATASETS_DIR=${DATASETS_DIR:-/data/datasets}

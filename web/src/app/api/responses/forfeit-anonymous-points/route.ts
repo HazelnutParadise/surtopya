@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/responses/forfeit-anonymous-points`, {
+  const response = await fetchInternalApp("/responses/forfeit-anonymous-points", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
