@@ -662,6 +662,7 @@
     "exportCsv": "CSV をエクスポート",
     "exportCsvExcel": "CSV をエクスポート（Excel）",
     "exportCsvUtf8": "CSV をエクスポート（UTF-8）",
+    "exportCsvHint": "完了済み回答のみを出力し、各設問の回答列を含みます。",
     "noResponsesYet": "まだ回答がありません。",
     "responsesTableId": "回答 ID",
     "responsesTableStatus": "ステータス",

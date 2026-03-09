@@ -662,6 +662,7 @@
     "exportCsv": "匯出 CSV",
     "exportCsvExcel": "匯出 CSV（Excel）",
     "exportCsvUtf8": "匯出 CSV（UTF-8）",
+    "exportCsvHint": "僅匯出已完成回應，並包含每題答案欄位。",
     "noResponsesYet": "目前還沒有回應。",
     "responsesTableId": "回應 ID",
     "responsesTableStatus": "狀態",

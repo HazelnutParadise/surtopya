@@ -326,3 +326,54 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestResponseHandler_GetSurveyResponses_IncludesAnswers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	ownerID := uuid.New()
+	versionID := uuid.New()
+	responseID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, true, versionID, 1)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+
+	mock.ExpectQuery("FROM responses WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 1, ownerID, nil, "completed", 6, now, now, now))
+
+	mock.ExpectQuery("FROM answers\\s+WHERE response_id IN \\(\\$1\\)").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}).AddRow(
+			uuid.New(), responseID, questionID, []byte(`{"text":"foo"}`), now,
+		))
+
+	r := gin.New()
+	r.GET("/api/v1/surveys/:id/responses", func(c *gin.Context) {
+		c.Set("userID", ownerID)
+		h.GetSurveyResponses(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/surveys/"+surveyID.String()+"/responses", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"responses"`)
+	require.Contains(t, w.Body.String(), `"answers":[`)
+	require.Contains(t, w.Body.String(), `"text":"foo"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

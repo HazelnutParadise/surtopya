@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/models"
@@ -93,6 +94,7 @@ func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Respons
 	defer rows.Close()
 
 	var responses []models.Response
+	var responseIDs []uuid.UUID
 	for rows.Next() {
 		var response models.Response
 		err := rows.Scan(
@@ -105,9 +107,72 @@ func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Respons
 			return nil, fmt.Errorf("failed to scan response: %w", err)
 		}
 		responses = append(responses, response)
+		responseIDs = append(responseIDs, response.ID)
+	}
+
+	answersByResponseID, err := r.GetAnswersByResponseIDs(responseIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range responses {
+		if answers, exists := answersByResponseID[responses[i].ID]; exists {
+			responses[i].Answers = answers
+		}
 	}
 
 	return responses, nil
+}
+
+// GetAnswersByResponseIDs retrieves answers for multiple responses in one query.
+func (r *ResponseRepository) GetAnswersByResponseIDs(responseIDs []uuid.UUID) (map[uuid.UUID][]models.Answer, error) {
+	result := make(map[uuid.UUID][]models.Answer)
+	if len(responseIDs) == 0 {
+		return result, nil
+	}
+
+	placeholders := make([]string, len(responseIDs))
+	args := make([]any, len(responseIDs))
+	for index, responseID := range responseIDs {
+		placeholders[index] = fmt.Sprintf("$%d", index+1)
+		args[index] = responseID
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, response_id, question_id, value, created_at
+		FROM answers
+		WHERE response_id IN (%s)
+		ORDER BY created_at ASC
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query answers: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var answer models.Answer
+		var valueJSON []byte
+
+		if err := rows.Scan(
+			&answer.ID,
+			&answer.ResponseID,
+			&answer.QuestionID,
+			&valueJSON,
+			&answer.CreatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan answer: %w", err)
+		}
+
+		if len(valueJSON) > 0 {
+			_ = json.Unmarshal(valueJSON, &answer.Value)
+		}
+
+		result[answer.ResponseID] = append(result[answer.ResponseID], answer)
+	}
+
+	return result, nil
 }
 
 // Complete marks a response as completed

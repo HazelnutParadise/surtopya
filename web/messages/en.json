@@ -662,6 +662,7 @@
     "exportCsv": "Export CSV",
     "exportCsvExcel": "Export CSV (Excel)",
     "exportCsvUtf8": "Export CSV (UTF-8)",
+    "exportCsvHint": "Exports completed responses only and includes per-question answer columns.",
     "noResponsesYet": "No responses yet.",
     "responsesTableId": "Response ID",
     "responsesTableStatus": "Status",

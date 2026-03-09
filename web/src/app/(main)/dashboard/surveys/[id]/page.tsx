@@ -34,6 +34,7 @@ import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { buildCsvContent } from "@/lib/csv";
+import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
 import {
   Dialog,
   DialogContent,
@@ -245,25 +246,24 @@ export default function SurveyManagementPage() {
     })
   }, [responses])
 
+  const completedResponseCount = useMemo(
+    () => responseRows.filter((response) => response.status === "completed").length,
+    [responseRows]
+  )
+
   const handleExportCsv = (encoding: "excel" | "utf8") => {
-    const rows: string[][] = [
-      [
-        t("responsesTableId"),
-        t("responsesTableStatus"),
-        t("responsesTableRespondent"),
-        t("responsesTablePoints"),
-        t("responsesTableStartedAt"),
-        t("responsesTableSubmittedAt"),
-      ],
-      ...responseRows.map((r) => [
-        r.id,
-        r.status,
-        r.userId || r.anonymousId || "",
-        String(r.pointsAwarded || 0),
-        r.startedAt || "",
-        r.completedAt || r.createdAt || "",
-      ]),
-    ]
+    const rows = buildSurveyResponsesCsvRows({
+      responses: responseRows,
+      surveyVersions,
+      metadataHeaders: {
+        id: t("responsesTableId"),
+        status: t("responsesTableStatus"),
+        respondent: t("responsesTableRespondent"),
+        points: t("responsesTablePoints"),
+        startedAt: t("responsesTableStartedAt"),
+        submittedAt: t("responsesTableSubmittedAt"),
+      },
+    })
     downloadCsv(`responses-${surveyId}.csv`, rows, encoding === "excel")
   }
 
@@ -679,7 +679,7 @@ export default function SurveyManagementPage() {
                         <Button
                           variant="outline"
                           onClick={() => handleExportCsv("excel")}
-                          disabled={responses.length === 0}
+                          disabled={completedResponseCount === 0}
                           data-testid="dashboard-responses-export"
                         >
                           {t("exportCsvExcel")}
@@ -687,7 +687,7 @@ export default function SurveyManagementPage() {
                         <Button
                           variant="outline"
                           onClick={() => handleExportCsv("utf8")}
-                          disabled={responses.length === 0}
+                          disabled={completedResponseCount === 0}
                         >
                           {t("exportCsvUtf8")}
                         </Button>
@@ -700,6 +700,7 @@ export default function SurveyManagementPage() {
                         </Button>
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("exportCsvHint")}</p>
                   </CardHeader>
                   <CardContent>
                     {responses.length === 0 ? (
