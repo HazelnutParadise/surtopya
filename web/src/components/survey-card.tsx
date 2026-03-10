@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Clock, Users, Star, ChevronRight, Lock, Globe } from "lucide-react";
+import { Clock, Users, Star, Lock, Globe } from "lucide-react";
 import { withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 
@@ -43,6 +43,7 @@ interface SurveyCardProps {
   currentPublishedVersionNumber?: number;
   isResponseOpen?: boolean;
   requireLoginToRespond?: boolean;
+  hasResponded?: boolean;
   locale?: string;
 }
 
@@ -63,6 +64,7 @@ export function SurveyCard({
   currentPublishedVersionNumber,
   isResponseOpen,
   requireLoginToRespond = false,
+  hasResponded = false,
   locale,
 }: SurveyCardProps) {
   const t = useTranslations("SurveyCard");
@@ -128,6 +130,14 @@ export function SurveyCard({
                     className="max-w-full whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-5 px-1.5 font-bold"
                   >
                     {t("loginRequired")}
+                  </Badge>
+                ) : null}
+                {variant !== "dashboard" && hasResponded ? (
+                  <Badge
+                    variant="outline"
+                    className="max-w-full whitespace-nowrap bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 font-bold"
+                  >
+                    {t("alreadySubmitted")}
                   </Badge>
                 ) : null}
                 {shouldShowEditedUnpublished && (

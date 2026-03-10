@@ -264,7 +264,20 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 }
 
 // GetPublicSurveys retrieves all public surveys with responses currently open.
-func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey, error) {
+func (r *SurveyRepository) GetPublicSurveys(
+	limit, offset int,
+	viewerUserID *uuid.UUID,
+	viewerAnonymousID *string,
+) ([]models.Survey, error) {
+	var viewerArg interface{}
+	if viewerUserID != nil {
+		viewerArg = *viewerUserID
+	}
+	var anonymousArg interface{}
+	if viewerAnonymousID != nil {
+		anonymousArg = *viewerAnonymousID
+	}
+
 	query := `
 		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
 			s.require_login_to_respond,
@@ -272,7 +285,19 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes, s.deleted_at
+			s.has_unpublished_changes, s.deleted_at,
+			CASE
+				WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
+				ELSE EXISTS(
+					SELECT 1
+					FROM survey_response_once_locks sr
+					WHERE sr.survey_id = s.id
+					  AND (
+					  	($3::uuid IS NOT NULL AND sr.user_id = $3::uuid)
+						OR (NULLIF($4::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($4::text, ''))
+					  )
+				)
+			END AS has_responded
 		FROM surveys s
 		JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.visibility = 'public'
@@ -283,7 +308,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 		LIMIT $1 OFFSET $2
 	`
 
-	rows, err := r.db.Query(query, limit, offset)
+	rows, err := r.db.Query(query, limit, offset, viewerArg, anonymousArg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query public surveys: %w", err)
 	}
@@ -301,7 +326,7 @@ func (r *SurveyRepository) GetPublicSurveys(limit, offset int) ([]models.Survey,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-			&survey.HasUnpublishedChanges, &survey.DeletedAt,
+			&survey.HasUnpublishedChanges, &survey.DeletedAt, &survey.HasResponded,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)

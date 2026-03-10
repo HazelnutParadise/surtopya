@@ -225,6 +225,7 @@ function ExploreContent() {
                   responses={survey.responseCount}
                   visibility={survey.visibility}
                   requireLoginToRespond={Boolean(survey.requireLoginToRespond)}
+                  hasResponded={Boolean(survey.hasResponded)}
                   locale={locale}
                 />
               </MotionReveal>

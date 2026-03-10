@@ -59,15 +59,15 @@ func TestSurveyRepository_GetPublicSurveys_FiltersDeletedSurveys(t *testing.T) {
 
 	queryPattern := "WHERE s.visibility = 'public'\\s+AND s.deleted_at IS NULL"
 	mock.ExpectQuery(queryPattern).
-		WithArgs(20, 0).
+		WithArgs(20, 0, nil, nil).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
 			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
-			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "has_responded",
 		}))
 
-	surveys, err := repo.GetPublicSurveys(20, 0)
+	surveys, err := repo.GetPublicSurveys(20, 0, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, surveys, 0)
 	require.NoError(t, mock.ExpectationsWereMet())

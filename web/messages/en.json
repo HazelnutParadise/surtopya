@@ -599,7 +599,8 @@
     "public": "Public",
     "nonPublic": "Non-public",
     "points": "{count} PTS",
-    "loginRequired": "Login Required"
+    "loginRequired": "Login Required",
+    "alreadySubmitted": "Already Submitted"
   },
   "Profile": {
     "title": "Profile",

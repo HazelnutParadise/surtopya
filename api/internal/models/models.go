@@ -52,6 +52,7 @@ type Survey struct {
 	PointsReward                  int          `json:"pointsReward" db:"points_reward"`
 	ExpiresAt                     *time.Time   `json:"expiresAt,omitempty" db:"expires_at"`
 	ResponseCount                 int          `json:"responseCount" db:"response_count"`
+	HasResponded                  bool         `json:"hasResponded" db:"-"`
 	DeletedAt                     *time.Time   `json:"deletedAt,omitempty" db:"deleted_at"`
 	CreatedAt                     time.Time    `json:"createdAt" db:"created_at"`
 	UpdatedAt                     time.Time    `json:"updatedAt" db:"updated_at"`

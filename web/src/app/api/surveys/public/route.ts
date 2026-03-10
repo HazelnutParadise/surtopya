@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL } from "@/lib/api-server"
+import { cookies } from "next/headers"
+import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { ANONYMOUS_RESPONDENT_COOKIE } from "@/lib/anonymous-respondent"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -10,8 +12,22 @@ export async function GET(request: Request) {
   if (limit) params.set("limit", limit)
   if (offset) params.set("offset", offset)
 
+  const token = await getAuthToken()
+  const cookieStore = await cookies()
+  const anonymousId = cookieStore.get(ANONYMOUS_RESPONDENT_COOKIE)?.value?.trim()
+  const outboundHeaders =
+    token || anonymousId
+      ? {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(anonymousId ? { "X-Surtopya-Anonymous-Id": anonymousId } : {}),
+        }
+      : undefined
+
   const url = `${API_BASE_URL}/surveys/public${params.toString() ? `?${params}` : ""}`
-  const response = await fetch(url, { cache: "no-store" })
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: outboundHeaders,
+  })
   const payload = await response.json().catch(() => ({}))
 
   return NextResponse.json(payload, { status: response.status })
