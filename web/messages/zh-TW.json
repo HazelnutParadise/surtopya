@@ -600,7 +600,7 @@
     "nonPublic": "非公開",
     "points": "{count} 點",
     "loginRequired": "需登入",
-    "alreadySubmitted": "已填過"
+    "alreadySubmitted": "已完成"
   },
   "Profile": {
     "title": "個人檔案",

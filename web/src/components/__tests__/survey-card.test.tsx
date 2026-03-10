@@ -14,7 +14,7 @@ const messages = {
     nonPublic: "Non-public",
     points: "{count} PTS",
     loginRequired: "Login Required",
-    alreadySubmitted: "Already Submitted",
+    alreadySubmitted: "Completed",
   },
   Dashboard: {
     statusPublished: "Published",
@@ -39,29 +39,32 @@ const renderSurveyCard = (props: Partial<ComponentProps<typeof SurveyCard>> = {}
     </NextIntlClientProvider>
   )
 
-describe("SurveyCard ribbons", () => {
-  it("shows only HOT ribbon when hot and not submitted", () => {
+describe("SurveyCard status labels", () => {
+  it("shows only HOT status when hot and not submitted", () => {
     renderSurveyCard({ isHot: true, hasResponded: false })
 
     expect(screen.getByText("HOT")).toBeInTheDocument()
-    expect(screen.queryByText("Already Submitted")).not.toBeInTheDocument()
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
   })
 
-  it("shows only already-submitted ribbon when submitted and not hot", () => {
+  it("shows only already-submitted status when submitted and not hot", () => {
     renderSurveyCard({ isHot: false, hasResponded: true })
 
     expect(screen.queryByText("HOT")).not.toBeInTheDocument()
-    expect(screen.getByText("Already Submitted")).toBeInTheDocument()
+    expect(screen.getByText("Completed")).toBeInTheDocument()
+    expect(screen.getByTestId("survey-card-survey-1").firstChild).toHaveClass("grayscale-[0.4]")
+    expect(screen.getByTestId("survey-card-survey-1").firstChild).not.toHaveClass("opacity-75")
   })
 
-  it("shows both ribbons when hot and already submitted", () => {
+  it("shows both statuses when hot and already submitted", () => {
     renderSurveyCard({ isHot: true, hasResponded: true })
 
     expect(screen.getByText("HOT")).toBeInTheDocument()
-    expect(screen.getByText("Already Submitted")).toBeInTheDocument()
+    expect(screen.getByText("Completed")).toBeInTheDocument()
+    expect(screen.getByTestId("survey-card-statuses-survey-1")).toHaveClass("mr-auto", "items-start")
   })
 
-  it("does not show explore ribbons in dashboard variant", () => {
+  it("does not show explore statuses in dashboard variant", () => {
     renderSurveyCard({
       variant: "dashboard",
       isHot: true,
@@ -71,6 +74,6 @@ describe("SurveyCard ribbons", () => {
     })
 
     expect(screen.queryByText("HOT")).not.toBeInTheDocument()
-    expect(screen.queryByText("Already Submitted")).not.toBeInTheDocument()
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
   })
 })

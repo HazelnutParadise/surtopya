@@ -600,7 +600,7 @@
     "nonPublic": "非公開",
     "points": "{count}ポイント",
     "loginRequired": "ログイン必須",
-    "alreadySubmitted": "回答済み"
+    "alreadySubmitted": "完了"
   },
   "Profile": {
     "title": "プロフィール",

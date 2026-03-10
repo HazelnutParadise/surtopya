@@ -600,7 +600,7 @@
     "nonPublic": "Non-public",
     "points": "{count} PTS",
     "loginRequired": "Login Required",
-    "alreadySubmitted": "Already Submitted"
+    "alreadySubmitted": "Completed"
   },
   "Profile": {
     "title": "Profile",
