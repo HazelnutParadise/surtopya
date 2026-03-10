@@ -52,8 +52,9 @@ describe("SurveyCard status labels", () => {
 
     expect(screen.queryByText("HOT")).not.toBeInTheDocument()
     expect(screen.getByText("Completed")).toBeInTheDocument()
-    expect(screen.getByTestId("survey-card-survey-1").firstChild).toHaveClass("grayscale-[0.4]")
+    expect(screen.getByTestId("survey-card-survey-1").firstChild).not.toHaveClass("grayscale-[0.4]")
     expect(screen.getByTestId("survey-card-survey-1").firstChild).not.toHaveClass("opacity-75")
+    expect(screen.getByTestId("survey-card-status-completed-survey-1")).toHaveClass("text-emerald-700", "bg-emerald-100")
   })
 
   it("shows both statuses when hot and already submitted", () => {
