@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { fetchInternalApp, validateBrowserOrigin } from "@/lib/internal-app-fetch"
+import {
+  resolveAnonymousRespondentID,
+  setAnonymousRespondentCookie,
+} from "@/lib/anonymous-respondent"
 
 const ANONYMOUS_SUBMIT_WINDOW_MS = 60_000
 const ANONYMOUS_SUBMIT_MAX_PER_WINDOW = 12
@@ -66,16 +71,29 @@ export async function POST(
     )
   }
 
+  const cookieStore = await cookies()
+  const { anonymousId, shouldSetCookie } = resolveAnonymousRespondentID(cookieStore)
   const body = await request.json().catch(() => ({}))
+  const outboundBody =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? {
+          ...body,
+          anonymousId,
+        }
+      : { anonymousId }
 
   const response = await fetchInternalApp(`/surveys/${id}/responses/submit-anonymous`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(outboundBody),
   })
 
   const payload = await response.json().catch(() => ({}))
-  return NextResponse.json(payload, { status: response.status })
+  const outbound = NextResponse.json(payload, { status: response.status })
+  if (shouldSetCookie) {
+    setAnonymousRespondentCookie(outbound, anonymousId)
+  }
+  return outbound
 }

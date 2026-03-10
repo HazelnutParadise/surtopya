@@ -30,8 +30,41 @@ type SaveDraftAnswersBulkRequest struct {
 
 const (
 	loginRequiredToRespondCode = "LOGIN_REQUIRED_TO_RESPOND"
+	alreadySubmittedCode       = "ALREADY_SUBMITTED"
 	anonymousClaimTTL          = 24 * time.Hour
 )
+
+func alreadySubmittedPayload(extra gin.H) gin.H {
+	payload := gin.H{
+		"error": "Survey already submitted",
+		"code":  alreadySubmittedCode,
+	}
+	for key, value := range extra {
+		payload[key] = value
+	}
+	return payload
+}
+
+func (h *ResponseHandler) discardAnonymousResponseTx(tx *sql.Tx, responseID uuid.UUID, surveyID uuid.UUID) error {
+	result, err := tx.Exec("DELETE FROM responses WHERE id = $1", responseID)
+	if err != nil {
+		return err
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return nil
+	}
+
+	_, err = tx.Exec(
+		"UPDATE surveys SET response_count = GREATEST(response_count - 1, 0) WHERE id = $1",
+		surveyID,
+	)
+	return err
+}
 
 func isAnswerValueEmpty(value models.AnswerValue) bool {
 	if value.Value != nil && *value.Value != "" {
@@ -118,6 +151,16 @@ func (h *ResponseHandler) StartDraft(c *gin.Context) {
 	}
 
 	uid := userID.(uuid.UUID)
+	hasOnceLock, err := h.responseRepo.HasSurveyResponseOnceLockForUser(surveyID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check survey response lock"})
+		return
+	}
+	if hasOnceLock {
+		c.JSON(http.StatusConflict, alreadySubmittedPayload(nil))
+		return
+	}
+
 	existingDraft, err := h.draftRepo.GetBySurveyAndUser(surveyID, uid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get response draft"})
@@ -501,6 +544,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 
 	responseID := uuid.New()
 	completedAt := time.Now()
+	uid := userID.(uuid.UUID)
 	if _, err := tx.Exec(
 		`INSERT INTO responses (
 			id, survey_id, survey_version_id, survey_version_number, user_id,
@@ -510,12 +554,29 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		surveyID,
 		surveyVersionID,
 		surveyVersionNumber,
-		userID.(uuid.UUID),
+		uid,
 		pointsAwarded,
 		startedAt,
 		completedAt,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create response"})
+		return
+	}
+
+	lockInserted, err := h.responseRepo.AcquireSurveyResponseOnceLockTx(
+		tx,
+		surveyID,
+		responseID,
+		&uid,
+		nil,
+		"authenticated_submit",
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create survey response lock"})
+		return
+	}
+	if !lockInserted {
+		c.JSON(http.StatusConflict, alreadySubmittedPayload(nil))
 		return
 	}
 
@@ -544,7 +605,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 	}
 
 	if pointsAwarded > 0 {
-		if err := h.pointsRepo.AwardSurveyPointsTx(tx, userID.(uuid.UUID), surveyID, pointsAwarded, "Survey completion reward"); err != nil {
+		if err := h.pointsRepo.AwardSurveyPointsTx(tx, uid, surveyID, pointsAwarded, "Survey completion reward"); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
 			return
 		}
@@ -682,6 +743,23 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		return
 	}
 
+	lockInserted, err := h.responseRepo.AcquireSurveyResponseOnceLockTx(
+		tx,
+		surveyID,
+		responseID,
+		nil,
+		&anonymousID,
+		"anonymous_submit",
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create survey response lock"})
+		return
+	}
+	if !lockInserted {
+		c.JSON(http.StatusConflict, alreadySubmittedPayload(nil))
+		return
+	}
+
 	for _, row := range answerRows {
 		if _, err := tx.Exec(
 			`INSERT INTO answers (id, response_id, question_id, value)
@@ -811,7 +889,35 @@ func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 		return
 	}
 
-	if err := h.pointsRepo.AwardSurveyPointsTx(tx, userID.(uuid.UUID), surveyID, pointsAwarded, "Anonymous survey completion reward"); err != nil {
+	uid := userID.(uuid.UUID)
+	lockInserted, err := h.responseRepo.AcquireSurveyResponseOnceLockTx(
+		tx,
+		surveyID,
+		responseID,
+		&uid,
+		nil,
+		"anonymous_claim",
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create survey response lock"})
+		return
+	}
+	if !lockInserted {
+		if err := h.discardAnonymousResponseTx(tx, responseID, surveyID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to discard anonymous response"})
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize duplicate claim cleanup"})
+			return
+		}
+		c.JSON(http.StatusConflict, alreadySubmittedPayload(gin.H{
+			"discarded_anonymous_response": true,
+		}))
+		return
+	}
+
+	if err := h.pointsRepo.AwardSurveyPointsTx(tx, uid, surveyID, pointsAwarded, "Anonymous survey completion reward"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
 		return
 	}
@@ -820,7 +926,7 @@ func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 		`UPDATE anonymous_response_point_claims
 		 SET status = 'claimed', claimed_by_user_id = $1, claimed_at = $2
 		 WHERE claim_token = $3`,
-		userID.(uuid.UUID),
+		uid,
 		time.Now(),
 		claimToken,
 	); err != nil {

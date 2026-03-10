@@ -477,7 +477,8 @@
     "claimSuccess": "點數已加入你的帳戶。",
     "forfeitSuccess": "你已放棄這次的點數。",
     "claimError": "領取點數失敗，請稍後再試。",
-    "forfeitError": "放棄點數失敗，請稍後再試。"
+    "forfeitError": "放棄點數失敗，請稍後再試。",
+    "alreadySubmittedDescription": "你已填過這份問卷，本次匿名回應已自動捨棄。"
   },
   "SurveyPage": {
     "notFoundTitle": "找不到問卷",
@@ -530,6 +531,9 @@
     "typeDescriptionDate": "日期題",
     "typeDescriptionDefault": "題目",
     "responsesNotOpen": "此問卷目前未開放回應。",
+    "alreadySubmittedTitle": "你已完成這份問卷",
+    "alreadySubmittedDescription": "你已填過這份問卷，無法再次提交。",
+    "alreadySubmittedActionDisabled": "已填過",
     "progressNoticeGuestTitle": "訪客進度只會暫存在此瀏覽器。",
     "progressNoticeGuestDescription": "登入後可跨裝置保留進度，稍後回來可直接續填。",
     "progressNoticeGuestAction": "登入並保留進度",

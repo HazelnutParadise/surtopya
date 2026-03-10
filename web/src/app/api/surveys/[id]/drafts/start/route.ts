@@ -13,13 +13,17 @@ export async function POST(
   }
 
   const body = await request.json().catch(() => ({}))
+  const outboundBody =
+    body && typeof body === "object" && !Array.isArray(body) ? { ...body } : {}
+  delete (outboundBody as Record<string, unknown>).anonymousId
+
   const response = await fetchInternalApp(`/surveys/${id}/drafts/start`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(outboundBody),
   })
 
   const payload = await response.json().catch(() => ({}))

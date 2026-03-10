@@ -118,6 +118,9 @@ func TestResponseHandler_StartResponse_AuthenticatedCreatesDraft(t *testing.T) {
 			"id", "survey_id", "version_number", "snapshot", "points_reward",
 			"expires_at", "published_at", "published_by", "created_at",
 		}).AddRow(versionID, surveyID, 1, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
+	mock.ExpectQuery("SELECT EXISTS\\(\\s*SELECT 1\\s*FROM survey_response_once_locks\\s*WHERE survey_id = \\$1 AND user_id = \\$2\\s*\\)").
+		WithArgs(surveyID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 	mock.ExpectQuery("FROM response_drafts\\s+WHERE survey_id = \\$1 AND user_id = \\$2").
 		WithArgs(surveyID, respondentID).
 		WillReturnError(sql.ErrNoRows)
@@ -138,6 +141,51 @@ func TestResponseHandler_StartResponse_AuthenticatedCreatesDraft(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.Contains(t, w.Body.String(), `"surveyId":"`+surveyID.String()+`"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_StartResponse_AuthenticatedAlreadySubmitted(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	respondentID := uuid.New()
+	versionID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true, versionID, 1)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(versionID, surveyID, 1, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
+	mock.ExpectQuery("SELECT EXISTS\\(\\s*SELECT 1\\s*FROM survey_response_once_locks\\s*WHERE survey_id = \\$1 AND user_id = \\$2\\s*\\)").
+		WithArgs(surveyID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/start", func(c *gin.Context) {
+		c.Set("userID", respondentID)
+		h.StartResponse(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/start", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	require.Contains(t, w.Body.String(), `"code":"ALREADY_SUBMITTED"`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

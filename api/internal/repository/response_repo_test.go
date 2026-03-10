@@ -68,3 +68,56 @@ func TestResponseRepository_GetBySurveyID_LoadsAnswersInBatch(t *testing.T) {
 	require.Equal(t, []string{"A", "B"}, responses[1].Answers[0].Value.Values)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestResponseRepository_HasSurveyResponseOnceLockForUser(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := NewResponseRepository(db)
+	surveyID := uuid.New()
+	userID := uuid.New()
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT EXISTS(
+			SELECT 1
+			FROM survey_response_once_locks
+			WHERE survey_id = $1 AND user_id = $2
+		)`)).
+		WithArgs(surveyID, userID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	exists, err := repo.HasSurveyResponseOnceLockForUser(surveyID, userID)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseRepository_AcquireSurveyResponseOnceLockTx(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := NewResponseRepository(db)
+	surveyID := uuid.New()
+	responseID := uuid.New()
+	userID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO survey_response_once_locks (
+			id, survey_id, response_id, user_id, anonymous_id, source
+		) VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT DO NOTHING`)).
+		WithArgs(sqlmock.AnyArg(), surveyID, responseID, userID, nil, "authenticated_submit").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	tx, err := db.Begin()
+	require.NoError(t, err)
+	inserted, err := repo.AcquireSurveyResponseOnceLockTx(tx, surveyID, responseID, &userID, nil, "authenticated_submit")
+	require.NoError(t, err)
+	require.True(t, inserted)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}

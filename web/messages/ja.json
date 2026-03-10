@@ -477,7 +477,8 @@
     "claimSuccess": "ポイントがアカウントに追加されました。",
     "forfeitSuccess": "今回のポイントは放棄されました。",
     "claimError": "ポイントの受け取りに失敗しました。再試行してください。",
-    "forfeitError": "ポイントの放棄に失敗しました。再試行してください。"
+    "forfeitError": "ポイントの放棄に失敗しました。再試行してください。",
+    "alreadySubmittedDescription": "このアンケートは既に回答済みのため、今回の匿名回答は破棄されました。"
   },
   "SurveyPage": {
     "notFoundTitle": "アンケートが見つかりません",
@@ -530,6 +531,9 @@
     "typeDescriptionDate": "日付の質問",
     "typeDescriptionDefault": "質問",
     "responsesNotOpen": "このアンケートは現在回答受付を停止しています。",
+    "alreadySubmittedTitle": "このアンケートは回答済みです",
+    "alreadySubmittedDescription": "このアンケートは既に回答済みのため、再送信できません。",
+    "alreadySubmittedActionDisabled": "回答済み",
     "progressNoticeGuestTitle": "ゲストの進捗はこのブラウザ内にのみ保存されます。",
     "progressNoticeGuestDescription": "ログインすると、後で戻っても進捗を保持できます。",
     "progressNoticeGuestAction": "ログインして進捗を保持",

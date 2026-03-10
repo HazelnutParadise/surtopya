@@ -106,6 +106,7 @@ interface SurveyClientPageProps {
 
 type SaveStatus = "idle" | "saving" | "saved" | "retrying" | "failed"
 type FlushStatus = "saved" | "failed" | "skipped"
+type SubmissionState = "available" | "already_submitted"
 type FlushReason =
   | "autosave"
   | "exit_button"
@@ -125,6 +126,12 @@ type DraftAnswer = {
 }
 
 const loginRequiredToRespondCode = "LOGIN_REQUIRED_TO_RESPOND"
+const alreadySubmittedCode = "ALREADY_SUBMITTED"
+
+type FlowApiError = Error & {
+  code?: string
+  status?: number
+}
 
 type MergeConflictState = {
   draftId: string
@@ -168,6 +175,25 @@ const clearGuestAnswers = (surveyId: string) => {
   } catch {
     // Ignore.
   }
+}
+
+const toFlowApiError = (payload: unknown, status: number, fallbackMessage: string): FlowApiError => {
+  const payloadRecord = isRecord(payload) ? payload : {}
+  const message =
+    typeof payloadRecord.error === "string" && payloadRecord.error.length > 0
+      ? payloadRecord.error
+      : fallbackMessage
+  const error = new Error(message) as FlowApiError
+  error.status = status
+  if (typeof payloadRecord.code === "string") {
+    error.code = payloadRecord.code
+  }
+  return error
+}
+
+const isAlreadySubmittedError = (value: unknown) => {
+  if (!value || typeof value !== "object") return false
+  return (value as { code?: unknown }).code === alreadySubmittedCode
 }
 
 export function SurveyClientPage({
@@ -218,6 +244,7 @@ export function SurveyClientPage({
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
+  const [submissionState, setSubmissionState] = useState<SubmissionState>("available")
 
   const [authLoading, setAuthLoading] = useState(!isPreview)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
@@ -475,7 +502,7 @@ export function SurveyClientPage({
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok || !payload?.id) {
-      throw new Error(payload?.error || "Failed to start response draft")
+      throw toFlowApiError(payload, response.status, "Failed to start response draft")
     }
 
     const nextDraftId = String(payload.id)
@@ -539,6 +566,24 @@ export function SurveyClientPage({
     return { draftId: nextDraftId, requiresMergeDecision: false }
   }, [formatSavedTime, persistDraftBulk, setAnswersSnapshot, survey, surveyId])
 
+  const clearProgressForAlreadySubmitted = useCallback(() => {
+    clearGuestAnswers(surveyId)
+    setDraftId(null)
+    setAnswersSnapshot({})
+    setSaveStatus("idle")
+    setLastSavedAt(null)
+    setMergeConflictState(null)
+    setMergeSaveError(null)
+    setIsTaking(false)
+    setSubmissionState("already_submitted")
+    isDirtyRef.current = false
+  }, [setAnswersSnapshot, surveyId])
+
+  useEffect(() => {
+    // Reset local one-time-submit state when account or survey context changes.
+    setSubmissionState("available")
+  }, [currentUser?.id, surveyId])
+
   const handleStartSurvey = useCallback(async () => {
     setFlowError(null)
     if (isPreview) {
@@ -576,12 +621,27 @@ export function SurveyClientPage({
       setRendererSessionKey((prev) => prev + 1)
       setIsTaking(true)
     } catch (error) {
+      if (isAlreadySubmittedError(error)) {
+        clearProgressForAlreadySubmitted()
+        setFlowError(t("alreadySubmittedDescription"))
+        return
+      }
       console.error("Failed to start survey:", error)
       setFlowError(tCommon("error"))
     } finally {
       setStarting(false)
     }
-  }, [isLoggedIn, isPreview, setAnswersSnapshot, startDraftSession, survey, surveyId, t, tCommon])
+  }, [
+    clearProgressForAlreadySubmitted,
+    isLoggedIn,
+    isPreview,
+    setAnswersSnapshot,
+    startDraftSession,
+    survey,
+    surveyId,
+    t,
+    tCommon,
+  ])
 
   const handleAnswerChange = useCallback(
     (_questionId: string, _value: unknown, allAnswers: Record<string, unknown>) => {
@@ -659,11 +719,16 @@ export function SurveyClientPage({
 
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) {
+          if (payload?.code === alreadySubmittedCode) {
+            clearProgressForAlreadySubmitted()
+            setFlowError(t("alreadySubmittedDescription"))
+            return
+          }
           if (!isLoggedIn && payload?.code === loginRequiredToRespondCode) {
             setIsTaking(false)
             setFlowError(t("loginRequiredToRespondDescription"))
           }
-          throw new Error(payload?.error || "Submit failed")
+          throw toFlowApiError(payload, response.status, "Submit failed")
         }
 
         clearGuestAnswers(surveyId)
@@ -707,6 +772,11 @@ export function SurveyClientPage({
 
         router.push(withLocalePath(`/survey/thank-you?${qs}`))
       } catch (error) {
+        if (isAlreadySubmittedError(error)) {
+          clearProgressForAlreadySubmitted()
+          setFlowError(t("alreadySubmittedDescription"))
+          return
+        }
         console.error("Failed to submit response:", error)
         setFlowError(tCommon("error"))
       } finally {
@@ -715,6 +785,7 @@ export function SurveyClientPage({
     },
     [
       draftId,
+      clearProgressForAlreadySubmitted,
       flushProgress,
       isLoggedIn,
       isPreview,
@@ -1037,6 +1108,7 @@ export function SurveyClientPage({
   const questionTypes = survey
     ? Array.from(new Set(survey.questions.map((q) => q.type))).filter((type) => type !== "section")
     : []
+  const isAlreadySubmitted = submissionState === "already_submitted"
 
   const getTypeDescription = (type: string) => {
     switch (type) {
@@ -1294,6 +1366,12 @@ export function SurveyClientPage({
                   )}
                 </div>
               ) : null}
+
+              {!isPreview && flowError && !isTaking && !isAlreadySubmitted ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {flowError}
+                </div>
+              ) : null}
             </article>
 
             <aside className="space-y-6">
@@ -1336,14 +1414,25 @@ export function SurveyClientPage({
                     disabled={
                       starting ||
                       submitting ||
+                      isAlreadySubmitted ||
                       (!isPreview && !survey.settings.isResponseOpen) ||
                       (!isPreview && !isLoggedIn && requiresLoginToRespond)
                     }
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-lg py-6 shadow-lg shadow-purple-500/25 mb-4"
                   >
-                    {starting ? tCommon("loading") : t("startSurvey")}
-                    <ArrowRight className="ml-2 h-5 w-5" />
+                    {isAlreadySubmitted
+                      ? t("alreadySubmittedActionDisabled")
+                      : starting
+                        ? tCommon("loading")
+                        : t("startSurvey")}
+                    {!isAlreadySubmitted ? <ArrowRight className="ml-2 h-5 w-5" /> : null}
                   </Button>
+                  {!isPreview && isAlreadySubmitted ? (
+                    <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                      <p className="text-sm font-semibold text-red-800">{t("alreadySubmittedTitle")}</p>
+                      <p className="mt-1 text-sm text-red-700">{t("alreadySubmittedDescription")}</p>
+                    </div>
+                  ) : null}
                   {!isPreview && !isLoggedIn && requiresLoginToRespond ? (
                     <p className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                       {t("loginRequiredToRespondDescription")}

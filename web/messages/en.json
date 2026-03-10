@@ -477,7 +477,8 @@
     "claimSuccess": "Points were added to your account.",
     "forfeitSuccess": "You chose not to claim these points.",
     "claimError": "Failed to claim points. Please try again.",
-    "forfeitError": "Failed to forfeit points. Please try again."
+    "forfeitError": "Failed to forfeit points. Please try again.",
+    "alreadySubmittedDescription": "You have already completed this survey, so this anonymous response was discarded."
   },
   "SurveyPage": {
     "notFoundTitle": "Survey Not Found",
@@ -518,6 +519,9 @@
     "responsesLabel": "Responses",
     "startSurvey": "Start Survey",
     "responsesNotOpen": "Responses are currently closed for this survey.",
+    "alreadySubmittedTitle": "You have already completed this survey",
+    "alreadySubmittedDescription": "You have already completed this survey and cannot submit again.",
+    "alreadySubmittedActionDisabled": "Already Submitted",
     "exitPreview": "Exit Preview",
     "exitSurvey": "Exit Survey",
     "previewCompleteTitle": "Preview Complete!",

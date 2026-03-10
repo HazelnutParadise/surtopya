@@ -16,6 +16,8 @@ import {
 } from "@/lib/anonymous-claim";
 import type { UserProfile } from "@/lib/api";
 
+const alreadySubmittedCode = "ALREADY_SUBMITTED"
+
 export default function ThankYouPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams()
@@ -105,6 +107,11 @@ export default function ThankYouPage() {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
+        if (payload?.code === alreadySubmittedCode) {
+          clearClaim(claimContext.responseId)
+          setClaimError(t("alreadySubmittedDescription"))
+          return
+        }
         throw new Error(payload?.error || t("claimError"))
       }
 

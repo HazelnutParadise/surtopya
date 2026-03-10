@@ -124,6 +124,71 @@ func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Respons
 	return responses, nil
 }
 
+// HasSurveyResponseOnceLockForUser checks whether a user has already completed a survey.
+func (r *ResponseRepository) HasSurveyResponseOnceLockForUser(surveyID uuid.UUID, userID uuid.UUID) (bool, error) {
+	var exists bool
+	if err := r.db.QueryRow(
+		`SELECT EXISTS(
+			SELECT 1
+			FROM survey_response_once_locks
+			WHERE survey_id = $1 AND user_id = $2
+		)`,
+		surveyID,
+		userID,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("failed to check survey response once lock for user: %w", err)
+	}
+	return exists, nil
+}
+
+// AcquireSurveyResponseOnceLockTx attempts to create a one-response lock for a survey identity.
+// Returns inserted=false when the lock already exists.
+func (r *ResponseRepository) AcquireSurveyResponseOnceLockTx(
+	tx *sql.Tx,
+	surveyID uuid.UUID,
+	responseID uuid.UUID,
+	userID *uuid.UUID,
+	anonymousID *string,
+	source string,
+) (bool, error) {
+	if tx == nil {
+		return false, fmt.Errorf("transaction is required")
+	}
+
+	var userArg any
+	if userID != nil {
+		userArg = *userID
+	}
+
+	var anonymousArg any
+	if anonymousID != nil {
+		anonymousArg = *anonymousID
+	}
+
+	result, err := tx.Exec(
+		`INSERT INTO survey_response_once_locks (
+			id, survey_id, response_id, user_id, anonymous_id, source
+		) VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT DO NOTHING`,
+		uuid.New(),
+		surveyID,
+		responseID,
+		userArg,
+		anonymousArg,
+		source,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to acquire survey response once lock: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect survey response once lock insert result: %w", err)
+	}
+
+	return affected > 0, nil
+}
+
 // GetAnswersByResponseIDs retrieves answers for multiple responses in one query.
 func (r *ResponseRepository) GetAnswersByResponseIDs(responseIDs []uuid.UUID) (map[uuid.UUID][]models.Answer, error) {
 	result := make(map[uuid.UUID][]models.Answer)
