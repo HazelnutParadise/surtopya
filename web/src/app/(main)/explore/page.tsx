@@ -225,6 +225,7 @@ function ExploreContent() {
                   responses={survey.responseCount}
                   visibility={survey.visibility}
                   requireLoginToRespond={Boolean(survey.requireLoginToRespond)}
+                  isHot={Boolean(survey.isHot)}
                   hasResponded={Boolean(survey.hasResponded)}
                   locale={locale}
                 />

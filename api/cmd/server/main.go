@@ -50,6 +50,30 @@ func main() {
 				runSweep()
 			}
 		}()
+
+		go func() {
+			runHotSweep := func() {
+				hotCount, err := surveyRepo.RecomputeHotSurveysUTC()
+				if err != nil {
+					log.Printf("Warning: Failed to recompute hot surveys: %v", err)
+					return
+				}
+				log.Printf("Recomputed hot surveys: %d marked hot", hotCount)
+			}
+
+			runHotSweep()
+			for {
+				nowUTC := time.Now().UTC()
+				nextRunUTC := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), 0, 5, 0, 0, time.UTC)
+				if !nowUTC.Before(nextRunUTC) {
+					nextRunUTC = nextRunUTC.Add(24 * time.Hour)
+				}
+
+				timer := time.NewTimer(time.Until(nextRunUTC))
+				<-timer.C
+				runHotSweep()
+			}
+		}()
 	}
 
 	// Setup router

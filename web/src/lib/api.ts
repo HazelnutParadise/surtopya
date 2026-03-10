@@ -227,6 +227,7 @@ export interface Survey {
   pointsReward: number;
   expiresAt?: string;
   responseCount: number;
+  isHot?: boolean;
   hasResponded?: boolean;
   createdAt: string;
   updatedAt: string;

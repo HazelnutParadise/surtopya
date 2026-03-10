@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
@@ -64,11 +65,92 @@ func TestSurveyRepository_GetPublicSurveys_FiltersDeletedSurveys(t *testing.T) {
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
 			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
-			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "has_responded",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
 		}))
 
 	surveys, err := repo.GetPublicSurveys(20, 0, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, surveys, 0)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_RecomputeHotSurveysUTC_MarksTopTenPercent(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	now := time.Now().UTC()
+	rows := sqlmock.NewRows([]string{"id", "ranking_published_at", "completed_count_30d"})
+	ids := make([]uuid.UUID, 0, 20)
+	for i := 0; i < 20; i++ {
+		id := uuid.New()
+		ids = append(ids, id)
+		rows.AddRow(id, now.Add(time.Duration(i)*time.Minute), int64(20-i))
+	}
+
+	mock.ExpectQuery(`SELECT s\.id,\s*COALESCE\(s\.published_at, s\.created_at\) AS ranking_published_at`).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE surveys SET is_hot = FALSE WHERE is_hot = TRUE`).
+		WillReturnResult(sqlmock.NewResult(0, 3))
+	mock.ExpectExec(`UPDATE surveys SET is_hot = TRUE WHERE id IN \(\$1, \$2\)`).
+		WithArgs(ids[0], ids[1]).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectCommit()
+
+	hotCount, err := repo.RecomputeHotSurveysUTC()
+	require.NoError(t, err)
+	require.EqualValues(t, 2, hotCount)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_RecomputeHotSurveysUTC_UsesOneSlotWhenCandidateCountBelowTen(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	now := time.Now().UTC()
+	rows := sqlmock.NewRows([]string{"id", "ranking_published_at", "completed_count_30d"})
+	ids := make([]uuid.UUID, 0, 5)
+	for i := 0; i < 5; i++ {
+		id := uuid.New()
+		ids = append(ids, id)
+		rows.AddRow(id, now.Add(time.Duration(i)*time.Minute), int64(5-i))
+	}
+
+	mock.ExpectQuery(`SELECT s\.id,\s*COALESCE\(s\.published_at, s\.created_at\) AS ranking_published_at`).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE surveys SET is_hot = FALSE WHERE is_hot = TRUE`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`UPDATE surveys SET is_hot = TRUE WHERE id IN \(\$1\)`).
+		WithArgs(ids[0]).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	hotCount, err := repo.RecomputeHotSurveysUTC()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, hotCount)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_RecomputeHotSurveysUTC_DoesNotMarkHotWhenAllCountsAreZero(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	now := time.Now().UTC()
+	rows := sqlmock.NewRows([]string{"id", "ranking_published_at", "completed_count_30d"})
+	for i := 0; i < 6; i++ {
+		rows.AddRow(uuid.New(), now.Add(time.Duration(i)*time.Minute), int64(0))
+	}
+
+	mock.ExpectQuery(`SELECT s\.id,\s*COALESCE\(s\.published_at, s\.created_at\) AS ranking_published_at`).
+		WillReturnRows(rows)
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE surveys SET is_hot = FALSE WHERE is_hot = TRUE`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	hotCount, err := repo.RecomputeHotSurveysUTC()
+	require.NoError(t, err)
+	require.EqualValues(t, 0, hotCount)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

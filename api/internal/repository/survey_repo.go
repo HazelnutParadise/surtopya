@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
+	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/google/uuid"
@@ -285,7 +288,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes, s.deleted_at,
+			s.has_unpublished_changes, s.deleted_at, s.is_hot,
 			CASE
 				WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
 				ELSE EXISTS(
@@ -326,7 +329,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
-			&survey.HasUnpublishedChanges, &survey.DeletedAt, &survey.HasResponded,
+			&survey.HasUnpublishedChanges, &survey.DeletedAt, &survey.IsHot, &survey.HasResponded,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan survey: %w", err)
@@ -341,6 +344,113 @@ func (r *SurveyRepository) GetPublicSurveys(
 	}
 
 	return surveys, nil
+}
+
+// RecomputeHotSurveysUTC recalculates HOT surveys from the last 30 days completed responses.
+func (r *SurveyRepository) RecomputeHotSurveysUTC() (int64, error) {
+	type hotSurveyCandidate struct {
+		ID                uuid.UUID
+		RankingPublished  time.Time
+		CompletedCount30d int64
+	}
+
+	candidateQuery := `
+		SELECT s.id,
+			COALESCE(s.published_at, s.created_at) AS ranking_published_at,
+			COALESCE(
+				COUNT(r.id) FILTER (
+					WHERE r.status = 'completed'
+					  AND r.completed_at IS NOT NULL
+					  AND r.completed_at >= NOW() - INTERVAL '30 days'
+				),
+				0
+			) AS completed_count_30d
+		FROM surveys s
+		JOIN survey_versions sv ON sv.id = s.current_published_version_id
+		LEFT JOIN responses r ON r.survey_id = s.id
+		WHERE s.visibility = 'public'
+		  AND s.deleted_at IS NULL
+		  AND s.is_response_open = TRUE
+		  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
+		GROUP BY s.id, COALESCE(s.published_at, s.created_at)
+		ORDER BY completed_count_30d DESC, ranking_published_at DESC, s.id ASC
+	`
+
+	rows, err := r.db.Query(candidateQuery)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query hot-survey candidates: %w", err)
+	}
+	defer rows.Close()
+
+	candidates := make([]hotSurveyCandidate, 0)
+	for rows.Next() {
+		var candidate hotSurveyCandidate
+		if err := rows.Scan(&candidate.ID, &candidate.RankingPublished, &candidate.CompletedCount30d); err != nil {
+			return 0, fmt.Errorf("failed to scan hot-survey candidate: %w", err)
+		}
+		candidates = append(candidates, candidate)
+	}
+
+	targetCount := 0
+	if len(candidates) > 0 {
+		targetCount = int(math.Ceil(float64(len(candidates)) * 0.1))
+		if targetCount < 1 {
+			targetCount = 1
+		}
+	}
+
+	hotIDs := make([]uuid.UUID, 0, targetCount)
+	for index, candidate := range candidates {
+		if index >= targetCount {
+			break
+		}
+		if candidate.CompletedCount30d <= 0 {
+			continue
+		}
+		hotIDs = append(hotIDs, candidate.ID)
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin hot-survey recompute transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`UPDATE surveys SET is_hot = FALSE WHERE is_hot = TRUE`); err != nil {
+		return 0, fmt.Errorf("failed to clear existing hot surveys: %w", err)
+	}
+
+	hotCount := int64(0)
+	if len(hotIDs) > 0 {
+		placeholders := make([]string, len(hotIDs))
+		args := make([]interface{}, len(hotIDs))
+		for index, surveyID := range hotIDs {
+			placeholders[index] = fmt.Sprintf("$%d", index+1)
+			args[index] = surveyID
+		}
+
+		updateHotQuery := fmt.Sprintf(
+			`UPDATE surveys SET is_hot = TRUE WHERE id IN (%s)`,
+			strings.Join(placeholders, ", "),
+		)
+
+		result, err := tx.Exec(updateHotQuery, args...)
+		if err != nil {
+			return 0, fmt.Errorf("failed to mark hot surveys: %w", err)
+		}
+
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("failed to read hot survey rows affected: %w", err)
+		}
+		hotCount = affected
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit hot-survey recompute transaction: %w", err)
+	}
+
+	return hotCount, nil
 }
 
 // Update updates a survey

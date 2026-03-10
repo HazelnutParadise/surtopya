@@ -72,6 +72,9 @@ export function SurveyCard({
   const cleanedDescription = stripMarkdown(description)
   const isPublished = Boolean(currentPublishedVersionNumber && currentPublishedVersionNumber > 0)
   const shouldShowEditedUnpublished = variant === "dashboard" && isPublished && hasUnpublishedChanges
+  const showHotRibbon = variant !== "dashboard" && Boolean(isHot)
+  const showAlreadySubmittedRibbon = variant !== "dashboard" && hasResponded
+  const hotRibbonTopClass = showAlreadySubmittedRibbon ? "top-14" : "top-6"
   // Determine link based on variant
   const href = variant === 'dashboard' 
     ? `/dashboard/surveys/${id}` 
@@ -81,8 +84,13 @@ export function SurveyCard({
   return (
     <Link href={localizedHref} className="block h-full" data-testid={`survey-card-${id}`}>
       <Card className="group relative flex h-full flex-col overflow-hidden border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-purple-500/50 hover:shadow-xl dark:border-gray-800 dark:bg-gray-950 dark:hover:border-purple-400/50">
-        {isHot && (
-          <div className="absolute -right-12 top-6 rotate-45 bg-gradient-to-r from-red-500 to-pink-500 py-1 pl-12 pr-12 text-xs font-bold text-white shadow-sm">
+        {showAlreadySubmittedRibbon && (
+          <div className="absolute -right-12 top-6 z-30 rotate-45 bg-gradient-to-r from-emerald-500 to-teal-500 py-1 pl-12 pr-12 text-xs font-bold text-white shadow-sm">
+            {t("alreadySubmitted")}
+          </div>
+        )}
+        {showHotRibbon && (
+          <div className={`absolute -right-12 ${hotRibbonTopClass} z-20 rotate-45 bg-gradient-to-r from-red-500 to-pink-500 py-1 pl-12 pr-12 text-xs font-bold text-white shadow-sm`}>
             {t("hot")}
           </div>
         )}
@@ -130,14 +138,6 @@ export function SurveyCard({
                     className="max-w-full whitespace-nowrap bg-amber-50 text-amber-700 border-amber-200 text-[10px] h-5 px-1.5 font-bold"
                   >
                     {t("loginRequired")}
-                  </Badge>
-                ) : null}
-                {variant !== "dashboard" && hasResponded ? (
-                  <Badge
-                    variant="outline"
-                    className="max-w-full whitespace-nowrap bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] h-5 px-1.5 font-bold"
-                  >
-                    {t("alreadySubmitted")}
                   </Badge>
                 ) : null}
                 {shouldShowEditedUnpublished && (
