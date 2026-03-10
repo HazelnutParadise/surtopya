@@ -76,6 +76,10 @@ export function SurveyCard({
   const showAlreadySubmittedStatus = variant !== "dashboard" && hasResponded
   const shouldToneDownCard = variant !== "dashboard" && hasResponded
   const mutedSectionClass = shouldToneDownCard ? "grayscale brightness-[0.7] contrast-110" : ""
+  const cardSurfaceClass = shouldToneDownCard ? "bg-slate-100 dark:bg-slate-900" : "bg-white dark:bg-gray-950"
+  const footerSurfaceClass = shouldToneDownCard
+    ? "bg-slate-200/80 dark:bg-slate-800/80"
+    : "bg-gray-50/50 dark:bg-gray-900/50"
   const cardStateClass = shouldToneDownCard
     ? "hover:border-gray-400 hover:shadow-lg dark:hover:border-gray-700"
     : "hover:border-purple-500/50 hover:shadow-xl dark:hover:border-purple-400/50"
@@ -88,7 +92,7 @@ export function SurveyCard({
   return (
     <Link href={localizedHref} className="block h-full" data-testid={`survey-card-${id}`}>
       <Card
-        className={`group relative flex h-full flex-col overflow-hidden border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 dark:border-gray-800 dark:bg-gray-950 ${cardStateClass}`}
+        className={`group relative flex h-full flex-col overflow-hidden border-gray-200 transition-all duration-300 hover:-translate-y-1 dark:border-gray-800 ${cardSurfaceClass} ${cardStateClass}`}
       >
         <CardHeader className={`p-5 pb-2 ${mutedSectionClass}`}>
           <div className="flex items-start justify-between gap-4">
@@ -173,7 +177,7 @@ export function SurveyCard({
           </div>
         </CardContent>
 
-        <CardFooter className="border-t border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+        <CardFooter className={`border-t border-gray-100 p-4 dark:border-gray-800 ${footerSurfaceClass}`}>
           <div className="flex w-full items-center gap-3">
             <div className={`flex shrink-0 items-center gap-2 ${mutedSectionClass}`}>
               {variant === 'dashboard' ? (
