@@ -822,7 +822,9 @@
     "agentPermissionDatasetsRead": "データセット内容、価格、公開状態を閲覧できます。",
     "agentOwnerFilter": "Owner フィルター",
     "agentOwnerAll": "すべての owner",
-    "agentKeyDialogDescription": "{name} の完全な API key です。安全に保管してください。"
+    "agentKeyDialogDescription": "{name} の完全な API key です。安全に保管してください。",
+    "agentRotateKeyConfirmTitle": "API Key のローテーションを確認",
+    "agentRotateKeyConfirmDescription": "{name} の API key をローテーションすると、旧 key はすぐに無効となり、新しい key が発行されます。"
   },
   "LegalTerms": {
     "title": "利用規約サマリー",

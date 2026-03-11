@@ -201,6 +201,8 @@ export default function AdminPage() {
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [keyDialogAgent, setKeyDialogAgent] =
     useState<AgentAdminAccount | null>(null);
+  const [rotateConfirmAgent, setRotateConfirmAgent] =
+    useState<AgentAdminAccount | null>(null);
   const [revealedAgentKey, setRevealedAgentKey] = useState<string | null>(null);
   const [agentForm, setAgentForm] = useState({
     ownerUserId: "",
@@ -945,6 +947,7 @@ export default function AdminPage() {
           body?.message || body?.error || "Failed to reveal agent key",
         );
       }
+      setRotateConfirmAgent(null);
       setKeyDialogAgent(account);
       setRevealedAgentKey(body.api_key || null);
       void trackUIEvent({
@@ -958,6 +961,28 @@ export default function AdminPage() {
     } finally {
       setSavingAgentId(null);
     }
+  };
+
+  const openRotateAgentKeyDialog = (account: AgentAdminAccount) => {
+    setRotateConfirmAgent(account);
+    void trackUIEvent({
+      screen: "admin_agents",
+      component: "rotate_agent_key_dialog",
+      event_name: "open",
+      resource_id: account.id,
+      state_to: "open",
+    });
+  };
+
+  const closeRotateAgentKeyDialog = () => {
+    void trackUIEvent({
+      screen: "admin_agents",
+      component: "rotate_agent_key_dialog",
+      event_name: "close",
+      resource_id: rotateConfirmAgent?.id,
+      state_to: "closed",
+    });
+    setRotateConfirmAgent(null);
   };
 
   const rotateAgentKey = async (account: AgentAdminAccount) => {
@@ -981,6 +1006,7 @@ export default function AdminPage() {
             : item,
         ),
       );
+      setRotateConfirmAgent(null);
       setKeyDialogAgent(account);
       setRevealedAgentKey(body.api_key || null);
       void trackUIEvent({
@@ -1858,7 +1884,7 @@ export default function AdminPage() {
                             </Button>
                             <Button
                               size="sm"
-                              onClick={() => rotateAgentKey(account)}
+                              onClick={() => openRotateAgentKeyDialog(account)}
                               disabled={savingAgentId === account.id}
                             >
                               {savingAgentId === account.id
@@ -3312,7 +3338,7 @@ export default function AdminPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingSurvey(null)}>
-              {tCommon("cancel")}
+              {tCommon("confirm")}
             </Button>
             <Button onClick={saveSurvey} disabled={savingSurvey}>
               {savingSurvey ? tCommon("saving") : tCommon("save")}
@@ -3612,6 +3638,39 @@ export default function AdminPage() {
       </Dialog>
 
       <Dialog
+        open={Boolean(rotateConfirmAgent)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRotateAgentKeyDialog();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tAdmin("agentRotateKeyConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {tAdmin("agentRotateKeyConfirmDescription", {
+                name: rotateConfirmAgent?.name || "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeRotateAgentKeyDialog}>
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              onClick={() => rotateConfirmAgent && void rotateAgentKey(rotateConfirmAgent)}
+              disabled={savingAgentId === rotateConfirmAgent?.id}
+            >
+              {savingAgentId === rotateConfirmAgent?.id
+                ? tCommon("saving")
+                : tAdmin("rotateAgentKey")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={Boolean(revealedAgentKey && keyDialogAgent)}
         onOpenChange={(open) => {
           if (!open) {
@@ -3637,13 +3696,12 @@ export default function AdminPage() {
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
               onClick={() => {
                 setKeyDialogAgent(null);
                 setRevealedAgentKey(null);
               }}
             >
-              {tCommon("cancel")}
+              {tCommon("confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

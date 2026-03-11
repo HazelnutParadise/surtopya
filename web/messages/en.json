@@ -822,7 +822,9 @@
     "agentPermissionDatasetsRead": "View dataset records, pricing, and availability.",
     "agentOwnerFilter": "Owner filter",
     "agentOwnerAll": "All owners",
-    "agentKeyDialogDescription": "This is the full API key for {name}. Store it securely."
+    "agentKeyDialogDescription": "This is the full API key for {name}. Store it securely.",
+    "agentRotateKeyConfirmTitle": "Confirm API key rotation",
+    "agentRotateKeyConfirmDescription": "Rotating the API key for {name} will immediately invalidate the old key and generate a new one."
   },
   "LegalTerms": {
     "title": "Terms of Service Summary",

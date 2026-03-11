@@ -822,7 +822,9 @@
     "agentPermissionDatasetsRead": "可查看資料集內容、定價與上架狀態。",
     "agentOwnerFilter": "Owner 篩選",
     "agentOwnerAll": "全部 owner",
-    "agentKeyDialogDescription": "這是 {name} 的完整 API key。請妥善保存。"
+    "agentKeyDialogDescription": "這是 {name} 的完整 API key。請妥善保存。",
+    "agentRotateKeyConfirmTitle": "確認輪替 API Key",
+    "agentRotateKeyConfirmDescription": "輪替 {name} 的 API key 後，舊 key 會立即失效，並產生一把新的 key。"
   },
   "LegalTerms": {
     "title": "服務條款摘要",
