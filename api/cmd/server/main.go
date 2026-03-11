@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/TimLai666/surtopya-api/internal/routes"
 )
@@ -72,6 +74,31 @@ func main() {
 				timer := time.NewTimer(time.Until(nextRunUTC))
 				<-timer.C
 				runHotSweep()
+			}
+		}()
+
+		go func() {
+			runRetentionSweep := func() {
+				deleted, err := platformlog.PurgeOlderThan(context.Background(), database.GetDB(), time.Now().UTC().Add(-180*24*time.Hour))
+				if err != nil {
+					log.Printf("Warning: Failed to purge platform event logs: %v", err)
+					return
+				}
+				if deleted > 0 {
+					log.Printf("Purged %d platform event logs older than 180 days", deleted)
+				}
+			}
+
+			runRetentionSweep()
+			for {
+				nowUTC := time.Now().UTC()
+				nextRunUTC := time.Date(nowUTC.Year(), nowUTC.Month(), nowUTC.Day(), 1, 0, 0, 0, time.UTC)
+				if !nowUTC.Before(nextRunUTC) {
+					nextRunUTC = nextRunUTC.Add(24 * time.Hour)
+				}
+				timer := time.NewTimer(time.Until(nextRunUTC))
+				<-timer.C
+				runRetentionSweep()
 			}
 		}()
 	}

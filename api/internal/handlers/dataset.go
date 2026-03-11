@@ -8,6 +8,7 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/models"
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type DatasetHandler struct {
 	db         *sql.DB
 	repo       *repository.DatasetRepository
 	pointsRepo *repository.PointsRepository
+	logger     *platformlog.Logger
 }
 
 // NewDatasetHandler creates a new DatasetHandler
@@ -27,6 +29,7 @@ func NewDatasetHandler() *DatasetHandler {
 		db:         db,
 		repo:       repository.NewDatasetRepository(db),
 		pointsRepo: repository.NewPointsRepository(db),
+		logger:     platformlog.NewLogger(db),
 	}
 }
 
@@ -145,6 +148,19 @@ func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 				return
 			}
 
+			platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+				EventType:    "domain",
+				Module:       "datasets",
+				Action:       "download",
+				Status:       "success",
+				ResourceType: "dataset",
+				ResourceID:   id.String(),
+				RequestSummary: map[string]any{
+					"access_type": dataset.AccessType,
+					"price":       dataset.Price,
+				},
+			})
+
 			filename := dataset.FileName
 			if filename == "" {
 				filename = "dataset"
@@ -153,6 +169,20 @@ func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 			return
 		}
 	}
+
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "datasets",
+		Action:       "download",
+		Status:       "success",
+		ResourceType: "dataset",
+		ResourceID:   id.String(),
+		RequestSummary: map[string]any{
+			"access_type": dataset.AccessType,
+			"price":       dataset.Price,
+			"mode":        "deferred",
+		},
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":   "Dataset download initiated",

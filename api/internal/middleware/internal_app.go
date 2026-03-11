@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/gin-gonic/gin"
 )
 
@@ -99,6 +100,7 @@ func RequireInternalApp() gin.HandlerFunc {
 			return
 		}
 
+		c.Set(platformlog.ContextKeyActorType, platformlog.ActorTypeInternal)
 		c.Next()
 	}
 }

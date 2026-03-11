@@ -11,6 +11,7 @@ import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTranslations } from "next-intl";
 import type { Dataset } from "@/lib/api";
 import { filenameFromContentDisposition, sanitizeFilename } from "@/lib/download";
+import { trackUIEvent } from "@/lib/ui-telemetry";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -83,6 +84,12 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const handleDownload = async () => {
     setDownloading(true);
     setDownloadError(null)
+    void trackUIEvent({
+      screen: "dataset_detail",
+      component: "download_button",
+      event_name: "click",
+      resource_id: id,
+    })
     try {
       const response = await fetch(`/api/datasets/${id}/download`, { method: "POST" });
       if (!response.ok) {
@@ -110,9 +117,24 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
+      void trackUIEvent({
+        screen: "dataset_detail",
+        component: "download_button",
+        event_name: "success",
+        resource_id: id,
+      })
     } catch (error) {
       console.error("Download failed:", error);
       setDownloadError(error instanceof Error ? error.message : tCommon("error"))
+      void trackUIEvent({
+        screen: "dataset_detail",
+        component: "download_button",
+        event_name: "error",
+        resource_id: id,
+        metadata: {
+          message: error instanceof Error ? error.message : tCommon("error"),
+        },
+      })
     } finally {
       setDownloading(false);
     }

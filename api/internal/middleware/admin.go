@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -32,8 +33,7 @@ func RequireAdmin() gin.HandlerFunc {
 				return
 			}
 			if promoted {
-				c.Next()
-				return
+				isAdmin = true
 			}
 		}
 		if !isAdmin {
@@ -41,6 +41,10 @@ func RequireAdmin() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		c.Set(platformlog.ContextKeyActorType, platformlog.ActorTypeAdminUser)
+		c.Set(platformlog.ContextKeyActorUserID, userID.(uuid.UUID))
+		c.Set(platformlog.ContextKeyOwnerUserID, userID.(uuid.UUID))
 
 		c.Next()
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
@@ -19,6 +20,11 @@ import (
 // AuthMiddleware validates JWT tokens from Logto
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/agent-admin") {
+			c.Next()
+			return
+		}
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.Next() // Allow unauthenticated access for public endpoints
@@ -62,6 +68,9 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Set user ID in context
 		c.Set("userID", userID)
 		c.Set("logtoUserID", logtoUserID)
+		c.Set(platformlog.ContextKeyActorType, platformlog.ActorTypeUser)
+		c.Set(platformlog.ContextKeyActorUserID, userID)
+		c.Set(platformlog.ContextKeyOwnerUserID, userID)
 
 		if _, err := policy.NewService(database.GetDB()).ExpireMembershipIfNeeded(context.Background(), userID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to evaluate membership expiry"})

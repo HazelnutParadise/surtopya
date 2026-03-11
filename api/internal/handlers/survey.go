@@ -11,6 +11,7 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/models"
+	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ type SurveyHandler struct {
 	repo       *repository.SurveyRepository
 	policies   *policy.Service
 	pointsRepo *repository.PointsRepository
+	logger     *platformlog.Logger
 }
 
 const activeSurveyLimitReachedError = "Active survey limit reached"
@@ -37,6 +39,7 @@ func NewSurveyHandler() *SurveyHandler {
 		repo:       repository.NewSurveyRepository(db),
 		policies:   policy.NewService(db),
 		pointsRepo: repository.NewPointsRepository(db),
+		logger:     platformlog.NewLogger(db),
 	}
 }
 
@@ -165,6 +168,20 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		survey.Questions = questions
 	}
 
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "create",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   survey.ID.String(),
+		RequestSummary: map[string]any{
+			"visibility":          survey.Visibility,
+			"include_in_datasets": survey.IncludeInDatasets,
+			"points_reward":       survey.PointsReward,
+		},
+	})
+
 	c.JSON(http.StatusCreated, survey)
 }
 
@@ -197,6 +214,20 @@ func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 			return
 		}
 	}
+
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "update",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   survey.ID.String(),
+		RequestSummary: map[string]any{
+			"visibility":          survey.Visibility,
+			"include_in_datasets": survey.IncludeInDatasets,
+			"points_reward":       survey.PointsReward,
+		},
+	})
 
 	c.JSON(http.StatusOK, survey)
 }
@@ -679,6 +710,19 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		return
 	}
 
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "publish",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   survey.ID.String(),
+		RequestSummary: map[string]any{
+			"version_number": nextVersionNumber,
+			"boost_top_up":   boostTopUp,
+		},
+	})
+
 	c.JSON(http.StatusOK, survey)
 }
 
@@ -754,6 +798,15 @@ func (h *SurveyHandler) OpenSurveyResponses(c *gin.Context) {
 		return
 	}
 
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "open_responses",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   survey.ID.String(),
+	})
+
 	c.JSON(http.StatusOK, survey)
 }
 
@@ -799,6 +852,15 @@ func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to close survey responses"})
 		return
 	}
+
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "close_responses",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   survey.ID.String(),
+	})
 
 	c.JSON(http.StatusOK, survey)
 }
@@ -1030,6 +1092,15 @@ func (h *SurveyHandler) DeleteSurvey(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete survey"})
 		return
 	}
+
+	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
+		EventType:    "domain",
+		Module:       "surveys",
+		Action:       "delete",
+		Status:       "success",
+		ResourceType: "survey",
+		ResourceID:   id.String(),
+	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Survey deleted successfully"})
 }

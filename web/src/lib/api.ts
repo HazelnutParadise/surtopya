@@ -1,6 +1,9 @@
 // API client for Surtopya backend
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.PUBLIC_API_URL ||
+  "http://localhost:8080/api/v1";
 
 interface ApiError {
   error: string;
@@ -15,15 +18,16 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     };
 
     if (this.token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
+      (headers as Record<string, string>)["Authorization"] =
+        `Bearer ${this.token}`;
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -32,7 +36,9 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error: ApiError = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const error: ApiError = await response
+        .json()
+        .catch(() => ({ error: "Unknown error" }));
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -41,7 +47,7 @@ class ApiClient {
 
   // Health check
   async health() {
-    return this.request<{ status: string; message: string }>('/health');
+    return this.request<{ status: string; message: string }>("/health");
   }
 
   // Survey endpoints
@@ -50,77 +56,93 @@ class ApiClient {
   }
 
   async getMySurveys() {
-    return this.request<{ surveys: Survey[] }>('/surveys/my');
+    return this.request<{ surveys: Survey[] }>("/surveys/my");
   }
 
   async getPublicSurveys(limit = 20, offset = 0) {
-    return this.request<{ surveys: Survey[] }>(`/surveys/public?limit=${limit}&offset=${offset}`);
+    return this.request<{ surveys: Survey[] }>(
+      `/surveys/public?limit=${limit}&offset=${offset}`,
+    );
   }
 
   async createSurvey(data: CreateSurveyRequest) {
-    return this.request<Survey>('/surveys', {
-      method: 'POST',
+    return this.request<Survey>("/surveys", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async updateSurvey(id: string, data: UpdateSurveyRequest) {
     return this.request<Survey>(`/surveys/${id}`, {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
 
   async deleteSurvey(id: string) {
     return this.request<{ message: string }>(`/surveys/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   }
 
   async publishSurvey(id: string, data: PublishSurveyRequest) {
     return this.request<Survey>(`/surveys/${id}/publish`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
 
   async openSurveyResponses(id: string) {
     return this.request<Survey>(`/surveys/${id}/responses/open`, {
-      method: 'POST',
+      method: "POST",
     });
   }
 
   async closeSurveyResponses(id: string) {
     return this.request<Survey>(`/surveys/${id}/responses/close`, {
-      method: 'POST',
+      method: "POST",
     });
   }
 
   async listSurveyVersions(id: string) {
-    return this.request<{ versions: SurveyVersion[] }>(`/surveys/${id}/versions`)
+    return this.request<{ versions: SurveyVersion[] }>(
+      `/surveys/${id}/versions`,
+    );
   }
 
   async getSurveyVersion(id: string, versionNumber: number) {
-    return this.request<SurveyVersion>(`/surveys/${id}/versions/${versionNumber}`)
+    return this.request<SurveyVersion>(
+      `/surveys/${id}/versions/${versionNumber}`,
+    );
   }
 
   async restoreSurveyVersionDraft(id: string, versionNumber: number) {
-    return this.request<Survey>(`/surveys/${id}/versions/${versionNumber}/restore-draft`, {
-      method: 'POST',
-    })
+    return this.request<Survey>(
+      `/surveys/${id}/versions/${versionNumber}/restore-draft`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   // Response endpoints
   async startResponse(surveyId: string, anonymousId?: string) {
-    return this.request<SurveyResponse>(`/surveys/${surveyId}/responses/start`, {
-      method: 'POST',
-      body: JSON.stringify({ anonymousId }),
-    });
+    return this.request<SurveyResponse>(
+      `/surveys/${surveyId}/responses/start`,
+      {
+        method: "POST",
+        body: JSON.stringify({ anonymousId }),
+      },
+    );
   }
 
-  async submitAnswer(responseId: string, questionId: string, value: AnswerValue) {
+  async submitAnswer(
+    responseId: string,
+    questionId: string,
+    value: AnswerValue,
+  ) {
     return this.request<Answer>(`/responses/${responseId}/answers`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ questionId, value }),
     });
   }
@@ -131,17 +153,19 @@ class ApiClient {
       response: SurveyResponse;
       pointsAwarded: number;
     }>(`/responses/${responseId}/submit`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({ answers }),
     });
   }
 
   async getSurveyResponses(surveyId: string) {
-    return this.request<{ responses: SurveyResponse[] }>(`/surveys/${surveyId}/responses`);
+    return this.request<{ responses: SurveyResponse[] }>(
+      `/surveys/${surveyId}/responses`,
+    );
   }
 
   async getMyDrafts() {
-    return this.request<{ drafts: ResponseDraftSummary[] }>("/drafts/my")
+    return this.request<{ drafts: ResponseDraftSummary[] }>("/drafts/my");
   }
 
   // Dataset endpoints
@@ -154,17 +178,18 @@ class ApiClient {
     offset?: number;
   }) {
     const searchParams = new URLSearchParams();
-    if (params?.category) searchParams.set('category', params.category);
-    if (params?.accessType) searchParams.set('accessType', params.accessType);
-    if (params?.search) searchParams.set('search', params.search);
-    if (params?.sort) searchParams.set('sort', params.sort);
-    if (params?.limit) searchParams.set('limit', params.limit.toString());
-    if (params?.offset) searchParams.set('offset', params.offset.toString());
+    if (params?.category) searchParams.set("category", params.category);
+    if (params?.accessType) searchParams.set("accessType", params.accessType);
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.sort) searchParams.set("sort", params.sort);
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.offset) searchParams.set("offset", params.offset.toString());
 
     const query = searchParams.toString();
-    return this.request<{ datasets: Dataset[]; meta: { limit: number; offset: number } }>(
-      `/datasets${query ? `?${query}` : ''}`
-    );
+    return this.request<{
+      datasets: Dataset[];
+      meta: { limit: number; offset: number };
+    }>(`/datasets${query ? `?${query}` : ""}`);
   }
 
   async getDataset(id: string) {
@@ -174,13 +199,16 @@ class ApiClient {
   async getCategories() {
     return this.request<{
       categories: Array<{ id: string; name: string; description: string }>;
-    }>('/datasets/categories');
+    }>("/datasets/categories");
   }
 
   async downloadDataset(id: string) {
-    return this.request<{ message: string; datasetId: string }>(`/datasets/${id}/download`, {
-      method: 'POST',
-    });
+    return this.request<{ message: string; datasetId: string }>(
+      `/datasets/${id}/download`,
+      {
+        method: "POST",
+      },
+    );
   }
 }
 
@@ -214,7 +242,7 @@ export interface Survey {
   userId?: string;
   title: string;
   description: string;
-  visibility: 'public' | 'non-public';
+  visibility: "public" | "non-public";
   requireLoginToRespond?: boolean;
   isResponseOpen: boolean;
   includeInDatasets: boolean;
@@ -236,35 +264,35 @@ export interface Survey {
 }
 
 export interface SurveyVersion {
-  id: string
-  surveyId: string
-  versionNumber: number
+  id: string;
+  surveyId: string;
+  versionNumber: number;
   snapshot: {
-    title: string
-    description: string
-    visibility: 'public' | 'non-public'
-    includeInDatasets: boolean
-    theme?: SurveyTheme
-    pointsReward: number
-    expiresAt?: string
-    questions: Question[]
-  }
-  pointsReward: number
-  expiresAt?: string
-  publishedAt: string
-  publishedBy?: string
-  createdAt: string
+    title: string;
+    description: string;
+    visibility: "public" | "non-public";
+    includeInDatasets: boolean;
+    theme?: SurveyTheme;
+    pointsReward: number;
+    expiresAt?: string;
+    questions: Question[];
+  };
+  pointsReward: number;
+  expiresAt?: string;
+  publishedAt: string;
+  publishedBy?: string;
+  createdAt: string;
 }
 
 export interface CreateSurveyRequest {
   title: string;
   description: string;
-  visibility: 'public' | 'non-public';
+  visibility: "public" | "non-public";
   requireLoginToRespond?: boolean;
   includeInDatasets: boolean;
   theme?: SurveyTheme;
   pointsReward: number;
-  questions?: Omit<Question, 'surveyId' | 'sortOrder'>[];
+  questions?: Omit<Question, "surveyId" | "sortOrder">[];
 }
 
 export interface UpdateSurveyRequest {
@@ -274,11 +302,11 @@ export interface UpdateSurveyRequest {
   theme?: SurveyTheme;
   pointsReward?: number;
   expiresAt?: string;
-  questions?: Omit<Question, 'surveyId' | 'sortOrder'>[];
+  questions?: Omit<Question, "surveyId" | "sortOrder">[];
 }
 
 export interface PublishSurveyRequest {
-  visibility: 'public' | 'non-public';
+  visibility: "public" | "non-public";
   includeInDatasets: boolean;
   pointsReward: number;
 }
@@ -311,7 +339,7 @@ export interface SurveyResponse {
   surveyVersionNumber: number;
   userId?: string;
   anonymousId?: string;
-  status: 'in_progress' | 'completed' | 'abandoned';
+  status: "in_progress" | "completed" | "abandoned";
   pointsAwarded: number;
   startedAt: string;
   completedAt?: string;
@@ -320,14 +348,14 @@ export interface SurveyResponse {
 }
 
 export interface ResponseDraftSummary {
-  id: string
-  surveyId: string
-  surveyTitle: string
-  surveyVersionId: string
-  surveyVersionNumber: number
-  startedAt: string
-  updatedAt: string
-  canResume: boolean
+  id: string;
+  surveyId: string;
+  surveyTitle: string;
+  surveyVersionId: string;
+  surveyVersionNumber: number;
+  startedAt: string;
+  updatedAt: string;
+  canResume: boolean;
 }
 
 export interface Dataset {
@@ -336,7 +364,7 @@ export interface Dataset {
   title: string;
   description?: string;
   category: string;
-  accessType: 'free' | 'paid';
+  accessType: "free" | "paid";
   price: number;
   downloadCount: number;
   sampleSize: number;
@@ -421,6 +449,45 @@ export interface PolicyWriter {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   canWritePolicy: boolean;
+}
+
+export interface AgentAdminAccount {
+  id: string;
+  owner_user_id: string;
+  owner_display_name?: string;
+  owner_email?: string;
+  owner_is_super_admin?: boolean;
+  name: string;
+  description?: string;
+  is_active: boolean;
+  created_by_user_id: string;
+  last_used_at?: string;
+  created_at: string;
+  updated_at: string;
+  permissions: string[];
+  key_prefix?: string;
+}
+
+export interface PlatformEventLog {
+  id: string;
+  created_at: string;
+  correlation_id: string;
+  event_type: string;
+  module: string;
+  action: string;
+  status: string;
+  actor_type: string;
+  actor_user_id?: string;
+  actor_agent_id?: string;
+  owner_user_id?: string;
+  resource_type?: string;
+  resource_id?: string;
+  resource_owner_user_id?: string;
+  request_summary: Record<string, unknown>;
+  response_summary: Record<string, unknown>;
+  error_code?: string;
+  error_message?: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface PricingBenefit {

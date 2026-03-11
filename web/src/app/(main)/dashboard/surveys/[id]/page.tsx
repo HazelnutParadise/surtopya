@@ -32,6 +32,7 @@ import { useTranslations } from "next-intl";
 import type { SurveyResponse, SurveyVersion } from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
+import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
@@ -324,6 +325,12 @@ export default function SurveyManagementPage() {
     if (!survey) return;
     setPublishing(true);
     setPublishError(null);
+    void trackUIEvent({
+      screen: "survey_admin_detail",
+      component: "publish_toggle",
+      event_name: status ? "open_request" : "close_request",
+      resource_id: surveyId,
+    })
     try {
       const hasPublishedVersion = Boolean(
         survey.settings.currentPublishedVersionNumber &&
@@ -353,9 +360,24 @@ export default function SurveyManagementPage() {
       if (endpoint === "publish") {
         void loadSurveyVersions()
       }
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "publish_toggle",
+        event_name: endpoint === "publish" ? "publish_success" : status ? "open_success" : "close_success",
+        resource_id: surveyId,
+      })
     } catch (error) {
       console.error("Failed to update publish status:", error);
       setPublishError(error instanceof Error ? error.message : tCommon("error"));
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "publish_toggle",
+        event_name: "error",
+        resource_id: surveyId,
+        metadata: {
+          message: error instanceof Error ? error.message : tCommon("error"),
+        },
+      })
     } finally {
       setPublishing(false);
     }
@@ -365,6 +387,13 @@ export default function SurveyManagementPage() {
     setRestoringVersionNumber(versionNumber)
     setVersionError(null)
     setRestoreNotice(null)
+    void trackUIEvent({
+      screen: "survey_admin_detail",
+      component: "restore_version",
+      event_name: "submit",
+      resource_id: surveyId,
+      metadata: { version_number: versionNumber },
+    })
     try {
       const response = await fetch(`/api/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
         method: "POST",
@@ -376,8 +405,22 @@ export default function SurveyManagementPage() {
       const payload = await response.json()
       setSurvey(mapApiSurveyToUi(payload))
       setRestoreNotice(tBuilder("restoredToDraft"))
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "restore_version",
+        event_name: "success",
+        resource_id: surveyId,
+        metadata: { version_number: versionNumber },
+      })
     } catch {
       setVersionError(tBuilder("versionRestoreFailed"))
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "restore_version",
+        event_name: "error",
+        resource_id: surveyId,
+        metadata: { version_number: versionNumber },
+      })
     } finally {
       setRestoringVersionNumber(null)
     }
@@ -394,6 +437,12 @@ export default function SurveyManagementPage() {
     if (!survey) return;
     setSaving(true);
     setSaveError(null);
+    void trackUIEvent({
+      screen: "survey_admin_detail",
+      component: "settings_form",
+      event_name: "submit",
+      resource_id: surveyId,
+    })
 
     const payload = {
       title: formState.title.trim() || survey.title,
@@ -420,9 +469,21 @@ export default function SurveyManagementPage() {
         throw new Error(data?.error || "Failed to save survey settings");
       }
       setSurvey(mapApiSurveyToUi(data));
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "settings_form",
+        event_name: "success",
+        resource_id: surveyId,
+      })
     } catch (error) {
       console.error("Failed to save settings:", error);
       setSaveError(tCommon("error"));
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "settings_form",
+        event_name: "error",
+        resource_id: surveyId,
+      })
     } finally {
       setSaving(false);
     }

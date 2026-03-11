@@ -13,6 +13,9 @@ func SetupRouter() *gin.Engine {
 	// Add CORS middleware
 	r.Use(middleware.CORSMiddleware())
 
+	// Correlation id + structured request logging
+	r.Use(middleware.RequestLoggingMiddleware())
+
 	// Add auth middleware (processes token but doesn't require it)
 	r.Use(middleware.AuthMiddleware())
 
@@ -115,6 +118,7 @@ func SetupRouter() *gin.Engine {
 			// Admin routes
 			admin := v1.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
 			{
+				agentAdminHandler := handlers.NewAgentAdminHandler()
 				admin.GET("/surveys", adminHandler.GetSurveys)
 				admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
 				admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
@@ -141,6 +145,34 @@ func SetupRouter() *gin.Engine {
 				admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
 				admin.GET("/system-settings", adminHandler.GetSystemSettings)
 				admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
+				admin.GET("/agents", agentAdminHandler.ListAccounts)
+				admin.POST("/agents", agentAdminHandler.CreateAccount)
+				admin.GET("/agents/:id", agentAdminHandler.GetAccount)
+				admin.PATCH("/agents/:id", agentAdminHandler.UpdateAccount)
+				admin.POST("/agents/:id/reveal-key", agentAdminHandler.RevealKey)
+				admin.POST("/agents/:id/rotate-key", agentAdminHandler.RotateKey)
+			}
+
+			agentAdminHandler := handlers.NewAgentAdminHandler()
+			v1.POST("/ui-events", agentAdminHandler.IngestUIEvent)
+
+			agentDocs := v1.Group("/agent-admin")
+			{
+				agentDocs.GET("", agentAdminHandler.GetUsageIndex)
+				agentDocs.GET("/openapi.json", agentAdminHandler.GetOpenAPI)
+			}
+
+			agentProtected := v1.Group("/agent-admin", middleware.RequireAgentAdmin())
+			{
+				agentProtected.GET("/me", agentAdminHandler.GetMe)
+				agentProtected.GET("/logs", middleware.RequireAgentPermission("logs.read"), agentAdminHandler.ListLogs)
+				agentProtected.GET("/logs/:id", middleware.RequireAgentPermission("logs.read"), agentAdminHandler.GetLog)
+				agentProtected.GET("/agents", middleware.RequireAgentPermission("agents.read"), agentAdminHandler.ListAccounts)
+				agentProtected.POST("/agents", middleware.RequireAgentPermission("agents.write"), agentAdminHandler.CreateAccount)
+				agentProtected.GET("/agents/:id", middleware.RequireAgentPermission("agents.read"), agentAdminHandler.GetAccount)
+				agentProtected.PATCH("/agents/:id", middleware.RequireAgentPermission("agents.write"), agentAdminHandler.UpdateAccount)
+				agentProtected.POST("/agents/:id/reveal-key", middleware.RequireAgentPermission("agents.write"), agentAdminHandler.RevealKey)
+				agentProtected.POST("/agents/:id/rotate-key", middleware.RequireAgentPermission("agents.write"), agentAdminHandler.RotateKey)
 			}
 		}
 	}
