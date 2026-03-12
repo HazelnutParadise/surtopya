@@ -355,7 +355,7 @@ describe("ResponseAnalyticsPanel", () => {
 
     const pageScroll = screen.getByTestId("response-analytics-page-scroll")
 
-    expect(pageScroll).toHaveClass("max-h-[70vh]")
+    expect(pageScroll).toHaveClass("h-[70vh]")
     expect(pageScroll).toHaveClass("overflow-y-auto")
     expect(screen.getByText("Question 4")).toBeInTheDocument()
   })

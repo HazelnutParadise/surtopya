@@ -41,7 +41,7 @@ import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { ResponseAnalyticsPanel } from "@/components/survey/response-analytics-panel";
 import {
-  SurveyResponsesExportMenu,
+  SurveyResponsesExportDialog,
   type SurveyResponsesExportEncoding,
   type SurveyResponsesExportScope,
 } from "@/components/survey/survey-responses-export-menu";
@@ -814,7 +814,7 @@ export default function SurveyManagementPage() {
                         <CardDescription>{t("responseSummaryDescription")}</CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <SurveyResponsesExportMenu
+                        <SurveyResponsesExportDialog
                           disabled={completedResponseCount === 0}
                           availableVersions={exportVersionOptions}
                           onExport={handleExportCsv}

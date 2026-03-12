@@ -163,7 +163,7 @@ export function ResponseAnalyticsPanel({
             <div
               ref={pageScrollRef}
               data-testid="response-analytics-page-scroll"
-              className="max-h-[70vh] overflow-y-auto pr-1"
+              className="h-[70vh] overflow-y-auto pr-1"
             >
               <div className="grid gap-4 xl:grid-cols-2">
                 {activePage.questions.map((question) => (

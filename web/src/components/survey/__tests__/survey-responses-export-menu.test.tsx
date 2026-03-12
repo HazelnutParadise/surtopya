@@ -1,80 +1,89 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
-import { SurveyResponsesExportMenu } from "@/components/survey/survey-responses-export-menu"
+import { SurveyResponsesExportDialog } from "@/components/survey/survey-responses-export-menu"
 
 const messages = {
   SurveyManagement: {
     exportCsv: "Export CSV",
     exportCsvExcel: "Export CSV (Excel)",
     exportCsvUtf8: "Export CSV (UTF-8)",
+    exportCsvHint: "Exports completed responses only and includes per-question answer columns.",
     responseAnalyticsVersionAll: "All versions",
     responseAnalyticsVersionSingle: "Version {version}",
-    viewSurvey: "View survey",
+  },
+  Common: {
+    cancel: "Cancel",
   },
 }
 
-describe("SurveyResponsesExportMenu", () => {
-  it("renders version-first scope submenus and makes the version list scrollable", () => {
+describe("SurveyResponsesExportDialog", () => {
+  it("renders a modal export flow with a scrollable version list", () => {
     const onExport = vi.fn()
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <SurveyResponsesExportMenu
+        <SurveyResponsesExportDialog
           disabled={false}
           availableVersions={[5, 4, 3, 2, 1]}
           onExport={onExport}
-          defaultOpen
-          expandVersionSubmenus
         />
       </NextIntlClientProvider>
     )
 
-    expect(screen.getByTestId("responses-export-menu-content")).toHaveClass("max-h-96")
-    expect(screen.getByTestId("responses-export-menu-content")).toHaveClass("overflow-y-auto")
-    expect(screen.getByTestId("responses-export-scope-all-trigger")).toHaveTextContent("All versions")
-    expect(screen.getByTestId("responses-export-scope-version-5-trigger")).toHaveTextContent("Version 5")
-    expect(screen.getByTestId("responses-export-all-excel")).toHaveTextContent("Export CSV (Excel)")
-    expect(screen.getByTestId("responses-export-version-5-utf8")).toHaveTextContent("Export CSV (UTF-8)")
+    fireEvent.click(screen.getByTestId("dashboard-responses-export"))
+
+    const dialog = screen.getByRole("dialog")
+
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByText("Export CSV")).toBeInTheDocument()
+    expect(within(dialog).getByText(messages.SurveyManagement.exportCsvHint)).toBeInTheDocument()
+    expect(screen.getByTestId("responses-export-scope-list")).toHaveClass("overflow-y-auto")
+    expect(screen.getByTestId("responses-export-scope-list")).toHaveClass("max-h-64")
+    expect(screen.getByRole("radio", { name: "All versions" })).toHaveAttribute("data-state", "checked")
+    expect(screen.getByRole("radio", { name: "Version 5" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Export CSV (Excel)" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Export CSV (UTF-8)" })).toBeInTheDocument()
   })
 
-  it("emits an all-version excel export request", () => {
+  it("exports all versions as excel and closes the dialog", () => {
     const onExport = vi.fn()
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <SurveyResponsesExportMenu
+        <SurveyResponsesExportDialog
           disabled={false}
           availableVersions={[3, 2]}
           onExport={onExport}
-          defaultOpen
-          expandVersionSubmenus
         />
       </NextIntlClientProvider>
     )
 
-    fireEvent.click(screen.getByTestId("responses-export-all-excel"))
+    fireEvent.click(screen.getByTestId("dashboard-responses-export"))
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV (Excel)" }))
 
     expect(onExport).toHaveBeenCalledWith("all", "excel")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
-  it("emits a specific-version utf8 export request", () => {
+  it("exports a specific version as utf8 and closes the dialog", () => {
     const onExport = vi.fn()
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
-        <SurveyResponsesExportMenu
+        <SurveyResponsesExportDialog
           disabled={false}
           availableVersions={[3, 2]}
           onExport={onExport}
-          defaultOpen
-          expandVersionSubmenus
         />
       </NextIntlClientProvider>
     )
 
-    fireEvent.click(screen.getByTestId("responses-export-version-3-utf8"))
+    fireEvent.click(screen.getByTestId("dashboard-responses-export"))
+    fireEvent.click(screen.getByText("Version 3"))
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV (UTF-8)" }))
 
     expect(onExport).toHaveBeenCalledWith(3, "utf8")
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
