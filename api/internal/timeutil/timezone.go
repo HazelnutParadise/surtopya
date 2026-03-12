@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	_ "time/tzdata"
 )
 
 func LoadLocation(timeZone string) (*time.Location, error) {

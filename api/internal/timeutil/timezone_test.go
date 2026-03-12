@@ -7,6 +7,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLoadLocation(t *testing.T) {
+	testCases := []struct {
+		name     string
+		timeZone string
+		wantErr  bool
+	}{
+		{
+			name:     "valid Asia Taipei",
+			timeZone: "Asia/Taipei",
+			wantErr:  false,
+		},
+		{
+			name:     "valid UTC",
+			timeZone: "UTC",
+			wantErr:  false,
+		},
+		{
+			name:     "invalid timezone",
+			timeZone: "Mars/Olympus",
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			location, err := LoadLocation(tc.timeZone)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, location)
+		})
+	}
+}
+
 func TestParseLocalDateTimeToUTC(t *testing.T) {
 	value, err := ParseLocalDateTimeToUTC("2026-03-11T15:00", "Asia/Taipei")
 	require.NoError(t, err)
