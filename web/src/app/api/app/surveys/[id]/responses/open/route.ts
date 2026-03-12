@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function POST(
   _request: Request,
@@ -11,7 +12,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}/responses/open`, {
+  const response = await fetchInternalApp(`/surveys/${id}/responses/open`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,

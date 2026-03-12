@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(
   _request: Request,
@@ -11,7 +12,7 @@ export async function GET(
   }
 
   const { id } = await params
-  const response = await fetch(`${API_BASE_URL}/admin/surveys/${id}/versions`, {
+  const response = await fetchInternalApp(`/admin/surveys/${id}/versions`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

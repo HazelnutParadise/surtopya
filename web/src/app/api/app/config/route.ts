@@ -1,10 +1,10 @@
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 import { NextResponse } from "next/server"
-import { API_BASE_URL } from "@/lib/api-server"
 
 const DEFAULT_SURVEY_BASE_POINTS = 1
 
 export async function GET() {
-  const response = await fetch(`${API_BASE_URL}/config`, { cache: "no-store" })
+  const response = await fetchInternalApp(`/config`, { cache: "no-store" })
   if (!response.ok) {
     return NextResponse.json({
       surveyBasePoints: DEFAULT_SURVEY_BASE_POINTS,

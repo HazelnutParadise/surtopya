@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +33,14 @@ func signInternalAppRequest(secret string, method string, path string, timestamp
 func TestSetupRouter_InternalAppRouteUsesUnversionedPrefix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("INTERNAL_APP_SIGNING_SECRET", "route-test-secret")
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	mock.ExpectPing()
+	prevDB := database.DB
+	database.DB = db
+	t.Cleanup(func() { database.DB = prevDB })
 
 	r := SetupRouter()
 	body := "{}"
@@ -60,4 +70,58 @@ func TestSetupRouter_InternalAppRouteUsesUnversionedPrefix(t *testing.T) {
 	r.ServeHTTP(oldRes, oldReq)
 
 	require.Equal(t, http.StatusNotFound, oldRes.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSetupRouter_InternalAppContainsMovedFrontendRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("INTERNAL_APP_SIGNING_SECRET", "route-test-secret")
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	mock.ExpectPing()
+	prevDB := database.DB
+	database.DB = db
+	t.Cleanup(func() { database.DB = prevDB })
+
+	r := SetupRouter()
+	body := ""
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+
+	configSignature := signInternalAppRequest(
+		"route-test-secret",
+		http.MethodGet,
+		"/api/app/config",
+		timestamp,
+		body,
+	)
+
+	configReq := httptest.NewRequest(http.MethodGet, "/api/app/config", nil)
+	configReq.Header.Set("X-Surtopya-App-Timestamp", timestamp)
+	configReq.Header.Set("X-Surtopya-App-Signature", configSignature)
+	configRes := httptest.NewRecorder()
+	r.ServeHTTP(configRes, configReq)
+	require.NotEqual(t, http.StatusNotFound, configRes.Code)
+
+	adminSignature := signInternalAppRequest(
+		"route-test-secret",
+		http.MethodGet,
+		"/api/app/admin/users",
+		timestamp,
+		body,
+	)
+
+	adminReq := httptest.NewRequest(http.MethodGet, "/api/app/admin/users", nil)
+	adminReq.Header.Set("X-Surtopya-App-Timestamp", timestamp)
+	adminReq.Header.Set("X-Surtopya-App-Signature", adminSignature)
+	adminRes := httptest.NewRecorder()
+	r.ServeHTTP(adminRes, adminReq)
+	require.Equal(t, http.StatusUnauthorized, adminRes.Code)
+
+	oldReq := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
+	oldRes := httptest.NewRecorder()
+	r.ServeHTTP(oldRes, oldReq)
+	require.Equal(t, http.StatusNotFound, oldRes.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

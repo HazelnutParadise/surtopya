@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 import { getLogtoConfig } from "@/lib/logto"
 import { getLogtoContext } from "@logto/next/server-actions"
 
@@ -30,7 +31,7 @@ export async function GET() {
 
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}/me`, {
+    response = await fetchInternalApp(`/me`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     })
@@ -76,7 +77,7 @@ export async function GET() {
         if (!email && resolvedEmail) updates.email = resolvedEmail
 
         if (Object.keys(updates).length > 0) {
-          await fetch(`${API_BASE_URL}/me`, {
+          await fetchInternalApp(`/me`, {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
@@ -105,7 +106,7 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/me`, {
+  const response = await fetchInternalApp(`/me`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

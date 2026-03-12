@@ -13,6 +13,7 @@ import { getLogtoContext } from "@logto/next/server-actions"
 import { redirect } from "next/navigation"
 import { SiteEffectsLayer } from "@/components/effects"
 import { LOCALE_COOKIE_NAME, TIME_ZONE_COOKIE_NAME } from "@/lib/user-settings"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -85,11 +86,7 @@ export default async function RootLayout({
   const timeZone = normalizePersistedTimeZone(cookieTimeZone, DEFAULT_TIME_ZONE)
 
   const messages = await getMessages(locale);
-  const apiBaseUrl =
-    process.env.INTERNAL_API_URL ||
-    process.env.PUBLIC_API_URL ||
-    "http://api:8080/api/v1"
-  const bootstrapResponse = await fetch(`${apiBaseUrl}/bootstrap`, { cache: "no-store" }).catch(() => null)
+  const bootstrapResponse = await fetchInternalApp(`/bootstrap`, { cache: "no-store" }).catch(() => null)
   const bootstrapPayload = bootstrapResponse?.ok ? await bootstrapResponse.json() : null
   const hasSuperAdmin = Boolean(bootstrapPayload?.hasSuperAdmin)
 

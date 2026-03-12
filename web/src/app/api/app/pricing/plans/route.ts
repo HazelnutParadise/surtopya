@@ -1,11 +1,11 @@
-﻿import { NextResponse } from "next/server"
-import { API_BASE_URL } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
+import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const locale = searchParams.get("locale") || "en"
 
-  const response = await fetch(`${API_BASE_URL}/pricing/plans?locale=${encodeURIComponent(locale)}`, {
+  const response = await fetchInternalApp(`/pricing/plans?locale=${encodeURIComponent(locale)}`, {
     cache: "no-store",
   })
 

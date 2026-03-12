@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 import { defaultLocale, locales } from "@/lib/locale"
 import { DEFAULT_TIME_ZONE, canonicalizeTimeZone, normalizePersistedTimeZone } from "@/lib/date-time"
 import { LOCALE_COOKIE_NAME, TIME_ZONE_COOKIE_NAME } from "@/lib/user-settings"
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
     return createSettingsResponse(getGuestSettings(request))
   }
 
-  const response = await fetch(`${API_BASE_URL}/me/settings`, {
+  const response = await fetchInternalApp(`/me/settings`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -131,7 +132,7 @@ export async function PATCH(request: NextRequest) {
     ...(requestedTimeZone ? { timeZone: requestedTimeZone } : {}),
   }
 
-  const response = await fetch(`${API_BASE_URL}/me/settings`, {
+  const response = await fetchInternalApp(`/me/settings`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function POST(
   _request: Request,
@@ -11,7 +12,7 @@ export async function POST(
   }
 
   const { id } = await params
-  const response = await fetch(`${API_BASE_URL}/admin/agents/${id}/rotate-key`, {
+  const response = await fetchInternalApp(`/admin/agents/${id}/rotate-key`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   })

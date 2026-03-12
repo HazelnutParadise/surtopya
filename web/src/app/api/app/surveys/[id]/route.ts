@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(
   request: Request,
@@ -8,7 +9,7 @@ export async function GET(
   const { id } = await params
   const token = await getAuthToken()
 
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+  const response = await fetchInternalApp(`/surveys/${id}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     cache: "no-store",
   })
@@ -28,7 +29,7 @@ export async function PUT(
   }
 
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+  const response = await fetchInternalApp(`/surveys/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -51,7 +52,7 @@ export async function DELETE(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+  const response = await fetchInternalApp(`/surveys/${id}`, {
     method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,

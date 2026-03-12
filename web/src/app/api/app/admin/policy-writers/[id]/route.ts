@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function PUT(
   request: Request,
@@ -12,7 +13,7 @@ export async function PUT(
 
   const { id } = await params
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/admin/policy-writers/${id}`, {
+  const response = await fetchInternalApp(`/admin/policy-writers/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",

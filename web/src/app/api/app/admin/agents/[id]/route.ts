@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(
   _request: Request,
@@ -11,7 +12,7 @@ export async function GET(
   }
 
   const { id } = await params
-  const response = await fetch(`${API_BASE_URL}/admin/agents/${id}`, {
+  const response = await fetchInternalApp(`/admin/agents/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
@@ -31,7 +32,7 @@ export async function PATCH(
 
   const { id } = await params
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/admin/agents/${id}`, {
+  const response = await fetchInternalApp(`/admin/agents/${id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

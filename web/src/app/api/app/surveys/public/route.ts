@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 import { ANONYMOUS_RESPONDENT_COOKIE } from "@/lib/anonymous-respondent"
 
 export async function GET(request: Request) {
@@ -23,8 +24,8 @@ export async function GET(request: Request) {
         }
       : undefined
 
-  const url = `${API_BASE_URL}/surveys/public${params.toString() ? `?${params}` : ""}`
-  const response = await fetch(url, {
+  const url = `/surveys/public${params.toString() ? `?${params}` : ""}`
+  const response = await fetchInternalApp(url, {
     cache: "no-store",
     headers: outboundHeaders,
   })

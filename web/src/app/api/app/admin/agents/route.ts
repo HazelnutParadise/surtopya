@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(request: Request) {
   const token = await getAuthToken()
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     if (value) params.set(key, value)
   }
 
-  const response = await fetch(`${API_BASE_URL}/admin/agents${params.toString() ? `?${params}` : ""}`, {
+  const response = await fetchInternalApp(`/admin/agents${params.toString() ? `?${params}` : ""}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/admin/agents`, {
+  const response = await fetchInternalApp(`/admin/agents`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

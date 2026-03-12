@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getAuthToken: vi.fn(),
   getLogtoConfig: vi.fn(),
   getLogtoContext: vi.fn(),
+  fetchInternalApp: vi.fn(),
 }))
 
 vi.mock("@/lib/api-server", () => ({
@@ -19,6 +20,10 @@ vi.mock("@logto/next/server-actions", () => ({
   getLogtoContext: mocks.getLogtoContext,
 }))
 
+vi.mock("@/lib/internal-app-fetch", () => ({
+  fetchInternalApp: mocks.fetchInternalApp,
+}))
+
 import { GET } from "@/app/api/app/me/route"
 
 describe("GET /api/app/me route", () => {
@@ -26,6 +31,7 @@ describe("GET /api/app/me route", () => {
     mocks.getAuthToken.mockReset()
     mocks.getLogtoConfig.mockReset()
     mocks.getLogtoContext.mockReset()
+    mocks.fetchInternalApp.mockReset()
   })
 
   afterEach(() => {
@@ -44,20 +50,19 @@ describe("GET /api/app/me route", () => {
 
   it("returns 503 when upstream me endpoint returns 5xx", async () => {
     mocks.getAuthToken.mockResolvedValue("token-1")
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.fetchInternalApp.mockResolvedValue(
       new Response(JSON.stringify({ error: "upstream_failure" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     const response = await GET()
 
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toEqual({ error: "service_unavailable" })
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://api:8080/api/v1/me",
+    expect(mocks.fetchInternalApp).toHaveBeenCalledWith(
+      "/me",
       expect.objectContaining({
         cache: "no-store",
       })
@@ -66,7 +71,7 @@ describe("GET /api/app/me route", () => {
 
   it("returns 503 when upstream me fetch throws", async () => {
     mocks.getAuthToken.mockResolvedValue("token-1")
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")))
+    mocks.fetchInternalApp.mockRejectedValue(new Error("network down"))
 
     const response = await GET()
 
@@ -76,14 +81,11 @@ describe("GET /api/app/me route", () => {
 
   it("keeps upstream 401 status", async () => {
     mocks.getAuthToken.mockResolvedValue("token-1")
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: "unauthorized" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        })
-      )
+    mocks.fetchInternalApp.mockResolvedValue(
+      new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })
     )
 
     const response = await GET()

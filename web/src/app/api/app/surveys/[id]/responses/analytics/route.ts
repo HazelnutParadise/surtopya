@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(
   request: Request,
@@ -13,12 +14,12 @@ export async function GET(
 
   const incomingUrl = new URL(request.url)
   const version = incomingUrl.searchParams.get("version")
-  const upstreamUrl = new URL(`${API_BASE_URL}/surveys/${id}/responses/analytics`)
-  if (version) {
-    upstreamUrl.searchParams.set("version", version)
-  }
+  const path =
+    version && version.length > 0
+      ? `/surveys/${id}/responses/analytics?version=${encodeURIComponent(version)}`
+      : `/surveys/${id}/responses/analytics`
 
-  const response = await fetch(upstreamUrl, {
+  const response = await fetchInternalApp(path, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetupPublicRouter_ExposesV1HealthAndAgentDocs(t *testing.T) {
+func TestSetupPublicRouter_ExposesV1HealthAgentDocsAndDatasetRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupPublicRouter()
@@ -23,9 +23,14 @@ func TestSetupPublicRouter_ExposesV1HealthAndAgentDocs(t *testing.T) {
 	docsRes := httptest.NewRecorder()
 	r.ServeHTTP(docsRes, docsReq)
 	require.Equal(t, http.StatusOK, docsRes.Code)
+
+	datasetsReq := httptest.NewRequest(http.MethodGet, "/api/v1/datasets", nil)
+	datasetsRes := httptest.NewRecorder()
+	r.ServeHTTP(datasetsRes, datasetsReq)
+	require.NotEqual(t, http.StatusNotFound, datasetsRes.Code)
 }
 
-func TestSetupPublicRouter_HidesInternalAndAdminRoutes(t *testing.T) {
+func TestSetupPublicRouter_HidesInternalAndLegacyFrontendRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupPublicRouter()
@@ -44,6 +49,16 @@ func TestSetupPublicRouter_HidesInternalAndAdminRoutes(t *testing.T) {
 	uiEventsRes := httptest.NewRecorder()
 	r.ServeHTTP(uiEventsRes, uiEventsReq)
 	require.Equal(t, http.StatusNotFound, uiEventsRes.Code)
+
+	surveysReq := httptest.NewRequest(http.MethodGet, "/api/v1/surveys/public", nil)
+	surveysRes := httptest.NewRecorder()
+	r.ServeHTTP(surveysRes, surveysReq)
+	require.Equal(t, http.StatusNotFound, surveysRes.Code)
+
+	meReq := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	meRes := httptest.NewRecorder()
+	r.ServeHTTP(meRes, meReq)
+	require.Equal(t, http.StatusNotFound, meRes.Code)
 }
 
 func TestSetupPublicRouter_StillProtectsAgentAuthRoutes(t *testing.T) {

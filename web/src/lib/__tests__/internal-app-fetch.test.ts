@@ -76,4 +76,35 @@ describe("fetchInternalApp", () => {
     const [url] = fetchMock.mock.calls[0] as [string]
     expect(url).toBe("http://api:8080/api/app/responses/forfeit-anonymous-points")
   })
+
+  it("keeps query in target URL but signs pathname only", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { fetchInternalApp } = await import("@/lib/internal-app-fetch")
+
+    await fetchInternalApp("/admin/datasets?search=abc&limit=20", {
+      headers: { Authorization: "Bearer t1" },
+      cache: "no-store",
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe("http://api:8080/api/app/admin/datasets?search=abc&limit=20")
+
+    const headers = new Headers(init.headers)
+    const timestamp = headers.get("X-Surtopya-App-Timestamp") || ""
+    const signature = headers.get("X-Surtopya-App-Signature") || ""
+
+    expect(timestamp).not.toBe("")
+    expect(signature).toBe(
+      signCanonical(
+        "unit-test-secret",
+        "GET",
+        "/api/app/admin/datasets",
+        timestamp,
+        ""
+      )
+    )
+  })
 })

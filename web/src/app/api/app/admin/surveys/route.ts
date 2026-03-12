@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET(request: Request) {
   const token = await getAuthToken()
@@ -21,8 +22,8 @@ export async function GET(request: Request) {
   if (limit) params.set("limit", limit)
   if (offset) params.set("offset", offset)
 
-  const url = `${API_BASE_URL}/admin/surveys${params.toString() ? `?${params}` : ""}`
-  const response = await fetch(url, {
+  const url = `/admin/surveys${params.toString() ? `?${params}` : ""}`
+  const response = await fetchInternalApp(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   })

@@ -1,5 +1,6 @@
-﻿import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { NextResponse } from "next/server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function GET() {
   const token = await getAuthToken()
@@ -7,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const response = await fetch(`${API_BASE_URL}/admin/subscription-plans`, {
+  const response = await fetchInternalApp(`/admin/subscription-plans`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   })
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/admin/subscription-plans`, {
+  const response = await fetchInternalApp(`/admin/subscription-plans`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

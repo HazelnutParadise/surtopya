@@ -10,7 +10,7 @@ import (
 
 const serviceUnavailableErrorCode = "service_unavailable"
 
-// RequireDBReady blocks /api/v1 requests when the database is unavailable.
+// RequireDBReady blocks /api/v1 and /api/app requests when the database is unavailable.
 func RequireDBReady() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -20,12 +20,14 @@ func RequireDBReady() gin.HandlerFunc {
 			return
 		}
 
-		if !strings.HasPrefix(path, "/api/v1/") {
+		isV1Path := strings.HasPrefix(path, "/api/v1/")
+		isAppPath := strings.HasPrefix(path, "/api/app/")
+		if !isV1Path && !isAppPath {
 			c.Next()
 			return
 		}
 
-		if path == "/api/v1/health" || path == "/api/v1/ready" || strings.HasPrefix(path, "/api/v1/agent-admin") {
+		if isV1Path && (path == "/api/v1/health" || path == "/api/v1/ready" || strings.HasPrefix(path, "/api/v1/agent-admin")) {
 			c.Next()
 			return
 		}

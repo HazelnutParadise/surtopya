@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 
 const mocks = vi.hoisted(() => ({
   getAuthToken: vi.fn(),
+  fetchInternalApp: vi.fn(),
 }))
 
 vi.mock("@/lib/api-server", () => ({
@@ -10,11 +11,16 @@ vi.mock("@/lib/api-server", () => ({
   getAuthToken: mocks.getAuthToken,
 }))
 
+vi.mock("@/lib/internal-app-fetch", () => ({
+  fetchInternalApp: mocks.fetchInternalApp,
+}))
+
 import { GET, PATCH } from "@/app/api/app/user-settings/route"
 
 describe("/api/app/user-settings route", () => {
   beforeEach(() => {
     mocks.getAuthToken.mockReset()
+    mocks.fetchInternalApp.mockReset()
   })
 
   afterEach(() => {
@@ -86,14 +92,11 @@ describe("/api/app/user-settings route", () => {
 
   it("mirrors upstream authenticated settings into cookies", async () => {
     mocks.getAuthToken.mockResolvedValue("token-1")
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ locale: "zh-TW", timeZone: "Asia/Taipei", settingsAutoInitialized: false }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        })
-      )
+    mocks.fetchInternalApp.mockResolvedValue(
+      new Response(JSON.stringify({ locale: "zh-TW", timeZone: "Asia/Taipei", settingsAutoInitialized: false }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
     )
 
     const request = new NextRequest("http://localhost/api/app/user-settings", {
@@ -118,13 +121,12 @@ describe("/api/app/user-settings route", () => {
 
   it("canonicalizes authenticated patch aliases before proxying upstream", async () => {
     mocks.getAuthToken.mockResolvedValue("token-1")
-    const fetchMock = vi.fn().mockResolvedValue(
+    mocks.fetchInternalApp.mockResolvedValue(
       new Response(JSON.stringify({ locale: "en", timeZone: "America/Los_Angeles", settingsAutoInitialized: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       })
     )
-    vi.stubGlobal("fetch", fetchMock)
 
     const request = new NextRequest("http://localhost/api/app/user-settings", {
       method: "PATCH",
@@ -136,8 +138,8 @@ describe("/api/app/user-settings route", () => {
 
     const response = await PATCH(request)
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://api:8080/api/v1/me/settings",
+    expect(mocks.fetchInternalApp).toHaveBeenCalledWith(
+      "/me/settings",
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ locale: "en", timeZone: "America/Los_Angeles" }),

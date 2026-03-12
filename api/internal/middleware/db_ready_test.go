@@ -77,3 +77,44 @@ func TestRequireDBReady_AllowsReadyDatabase(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestRequireDBReady_BlocksUnavailableAppRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	prev := database.DB
+	database.DB = nil
+	t.Cleanup(func() { database.DB = prev })
+
+	r := gin.New()
+	r.Use(RequireDBReady())
+	r.GET("/api/app/surveys/public", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/app/surveys/public", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.Contains(t, w.Body.String(), serviceUnavailableErrorCode)
+}
+
+func TestRequireDBReady_AllowsAgentAdminWhenUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	prev := database.DB
+	database.DB = nil
+	t.Cleanup(func() { database.DB = prev })
+
+	r := gin.New()
+	r.Use(RequireDBReady())
+	r.GET("/api/v1/agent-admin", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}

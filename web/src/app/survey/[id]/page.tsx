@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { SurveyClientPage } from "./survey-client-page";
-import { API_BASE_URL } from "@/lib/api-server";
+import { fetchInternalApp } from "@/lib/internal-app-fetch";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import type { Survey as ApiSurvey } from "@/lib/api";
 import { redirect } from "next/navigation";
@@ -27,7 +27,7 @@ const fetchSurvey = async (paramId: string): Promise<SurveyDisplay | null> => {
   const id = normalizeSurveyId(paramId);
   if (id === "preview") return null;
 
-  const response = await fetch(`${API_BASE_URL}/surveys/${id}`, {
+  const response = await fetchInternalApp(`/surveys/${id}`, {
     cache: "no-store",
   });
 
@@ -42,7 +42,7 @@ const fetchSurvey = async (paramId: string): Promise<SurveyDisplay | null> => {
 const DEFAULT_SURVEY_BASE_POINTS = 1
 
 const fetchSurveyBasePoints = async (): Promise<number> => {
-  const response = await fetch(`${API_BASE_URL}/config`, {
+  const response = await fetchInternalApp(`/config`, {
     cache: "no-store",
   })
   if (!response.ok) {

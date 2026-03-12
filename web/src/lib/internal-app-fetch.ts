@@ -16,7 +16,30 @@ const signInternalCanonical = (secret: string, canonical: string) =>
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "")
 
-const normalizeInternalPath = (path: string) => (path.startsWith("/") ? path : `/${path}`)
+const normalizeInternalPath = (path: string | URL) => {
+  if (path instanceof URL) {
+    return `${path.pathname}${path.search}`
+  }
+  return path.startsWith("/") ? path : `/${path}`
+}
+
+const splitInternalPath = (path: string | URL) => {
+  const normalized = normalizeInternalPath(path)
+
+  try {
+    const parsed = new URL(normalized, "http://internal.surtopya.local")
+    return {
+      pathname: parsed.pathname,
+      search: parsed.search,
+    }
+  } catch {
+    const [pathname, ...queryParts] = normalized.split("?")
+    return {
+      pathname: pathname || "/",
+      search: queryParts.length > 0 ? `?${queryParts.join("?")}` : "",
+    }
+  }
+}
 
 const resolveInternalAppBaseUrl = (apiBaseUrl: string) => {
   const trimmed = trimTrailingSlash(apiBaseUrl)
@@ -58,18 +81,18 @@ export const buildInternalAppHeaders = (args: {
   return headers
 }
 
-export const fetchInternalApp = (path: string, init: RequestInit = {}) => {
-  const normalizedPath = normalizeInternalPath(path)
+export const fetchInternalApp = (path: string | URL, init: RequestInit = {}) => {
+  const { pathname, search } = splitInternalPath(path)
   const method = (init.method || "GET").toUpperCase()
   const body = typeof init.body === "string" ? init.body : ""
   const signedHeaders = buildInternalAppHeaders({
     method,
-    path: `/api/app${normalizedPath}`,
+    path: `/api/app${pathname}`,
     body,
     headers: init.headers,
   })
 
-  return fetch(`${INTERNAL_APP_BASE_URL}${normalizedPath}`, {
+  return fetch(`${INTERNAL_APP_BASE_URL}${pathname}${search}`, {
     ...init,
     method,
     headers: signedHeaders,

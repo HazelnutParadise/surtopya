@@ -8,16 +8,12 @@ import (
 
 type setupOptions struct {
 	includeInternalApp bool
-	includeAdmin       bool
-	includeUIEvents    bool
 }
 
 // SetupRouter configures the full internal API routes.
 func SetupRouter() *gin.Engine {
 	return setupRouter(setupOptions{
 		includeInternalApp: true,
-		includeAdmin:       true,
-		includeUIEvents:    true,
 	})
 }
 
@@ -25,8 +21,6 @@ func SetupRouter() *gin.Engine {
 func SetupPublicRouter() *gin.Engine {
 	return setupRouter(setupOptions{
 		includeInternalApp: false,
-		includeAdmin:       false,
-		includeUIEvents:    false,
 	})
 }
 
@@ -48,106 +42,72 @@ func setupRouter(options setupOptions) *gin.Engine {
 	api := r.Group("/api")
 	{
 		responseHandler := handlers.NewResponseHandler()
+		surveyHandler := handlers.NewSurveyHandler()
+		datasetHandler := handlers.NewDatasetHandler()
 		agentAdminHandler := handlers.NewAgentAdminHandler()
 		adminHandler := handlers.NewAdminHandler()
+		userSettingsHandler := handlers.NewUserSettingsHandler()
+		userHandler := handlers.NewUserHandler()
 
-		// App-internal write routes for survey response flow.
+		// App-internal routes for frontend/BFF.
 		if options.includeInternalApp {
 			app := api.Group("/app", middleware.RequireInternalApp())
 			{
+				surveys := app.Group("/surveys")
+				{
+					// Public survey endpoints still require app-internal signature.
+					surveys.GET("/public", surveyHandler.GetPublicSurveys)
+					surveys.GET("/:id", surveyHandler.GetSurvey)
+
+					// Authenticated endpoints.
+					surveys.POST("", middleware.RequireAuth(), surveyHandler.CreateSurvey)
+					surveys.GET("/my", middleware.RequireAuth(), surveyHandler.GetMySurveys)
+					surveys.PUT("/:id", middleware.RequireAuth(), surveyHandler.UpdateSurvey)
+					surveys.DELETE("/:id", middleware.RequireAuth(), surveyHandler.DeleteSurvey)
+					surveys.POST("/:id/publish", middleware.RequireAuth(), surveyHandler.PublishSurvey)
+					surveys.POST("/:id/responses/open", middleware.RequireAuth(), surveyHandler.OpenSurveyResponses)
+					surveys.POST("/:id/responses/close", middleware.RequireAuth(), surveyHandler.CloseSurveyResponses)
+					surveys.GET("/:id/versions", middleware.RequireAuth(), surveyHandler.ListSurveyVersions)
+					surveys.GET("/:id/versions/:versionNumber", middleware.RequireAuth(), surveyHandler.GetSurveyVersion)
+					surveys.POST("/:id/versions/:versionNumber/restore-draft", middleware.RequireAuth(), surveyHandler.RestoreSurveyVersionDraft)
+				}
+
 				appResponses := app.Group("/responses")
 				{
+					appResponses.GET("/:id", responseHandler.GetResponse)
 					appResponses.POST("/:id/answers", responseHandler.SubmitAnswer)
 					appResponses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
 					appResponses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
 					appResponses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
 				}
 
+				app.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
+				app.GET("/surveys/:id/responses/analytics", middleware.RequireAuth(), responseHandler.GetSurveyResponseAnalytics)
 				app.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
 				app.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
 				app.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
 
 				appDrafts := app.Group("/drafts", middleware.RequireAuth())
 				{
+					appDrafts.GET("/my", responseHandler.GetMyDrafts)
 					appDrafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
 					appDrafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
 					appDrafts.POST("/:id/submit", responseHandler.SubmitDraft)
 				}
-			}
-		}
 
-		v1 := api.Group("/v1")
-		{
-			// Health check
-			v1.GET("/health", handlers.HealthHandler)
-			v1.GET("/ready", handlers.ReadyHandler)
+				app.GET("/bootstrap", adminHandler.GetBootstrapStatus)
+				app.GET("/config", adminHandler.GetPublicConfig)
+				app.GET("/pricing/plans", adminHandler.GetPricingPlans)
 
-			// Survey routes
-			surveyHandler := handlers.NewSurveyHandler()
-			surveys := v1.Group("/surveys")
-			{
-				// Public endpoints
-				surveys.GET("/public", surveyHandler.GetPublicSurveys)
-				surveys.GET("/:id", surveyHandler.GetSurvey)
+				me := app.Group("/me", middleware.RequireAuth())
+				{
+					me.GET("", userHandler.GetProfile)
+					me.PATCH("", userHandler.UpdateProfile)
+					me.GET("/settings", userSettingsHandler.GetSettings)
+					me.PATCH("/settings", userSettingsHandler.UpdateSettings)
+				}
 
-				// Authenticated endpoints
-				surveys.POST("", middleware.RequireAuth(), surveyHandler.CreateSurvey)
-				surveys.GET("/my", middleware.RequireAuth(), surveyHandler.GetMySurveys)
-				surveys.PUT("/:id", middleware.RequireAuth(), surveyHandler.UpdateSurvey)
-				surveys.DELETE("/:id", middleware.RequireAuth(), surveyHandler.DeleteSurvey)
-				surveys.POST("/:id/publish", middleware.RequireAuth(), surveyHandler.PublishSurvey)
-				surveys.POST("/:id/responses/open", middleware.RequireAuth(), surveyHandler.OpenSurveyResponses)
-				surveys.POST("/:id/responses/close", middleware.RequireAuth(), surveyHandler.CloseSurveyResponses)
-				surveys.GET("/:id/versions", middleware.RequireAuth(), surveyHandler.ListSurveyVersions)
-				surveys.GET("/:id/versions/:versionNumber", middleware.RequireAuth(), surveyHandler.GetSurveyVersion)
-				surveys.POST("/:id/versions/:versionNumber/restore-draft", middleware.RequireAuth(), surveyHandler.RestoreSurveyVersionDraft)
-			}
-
-			// Response routes
-			responses := v1.Group("/responses")
-			{
-				responses.GET("/:id", responseHandler.GetResponse)
-			}
-
-			// Survey response read routes (nested under surveys)
-			v1.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
-			v1.GET("/surveys/:id/responses/analytics", middleware.RequireAuth(), responseHandler.GetSurveyResponseAnalytics)
-
-			// Authenticated draft read routes
-			drafts := v1.Group("/drafts", middleware.RequireAuth())
-			{
-				drafts.GET("/my", responseHandler.GetMyDrafts)
-			}
-
-			// Dataset routes
-			datasetHandler := handlers.NewDatasetHandler()
-			datasets := v1.Group("/datasets")
-			{
-				datasets.GET("", datasetHandler.GetDatasets)
-				datasets.GET("/categories", datasetHandler.GetCategories)
-				datasets.GET("/:id", datasetHandler.GetDataset)
-				datasets.POST("/:id/download", datasetHandler.DownloadDataset)
-			}
-
-			// Bootstrap status
-			v1.GET("/bootstrap", adminHandler.GetBootstrapStatus)
-			v1.GET("/config", adminHandler.GetPublicConfig)
-			v1.GET("/pricing/plans", adminHandler.GetPricingPlans)
-
-			// User profile and settings routes
-			userSettingsHandler := handlers.NewUserSettingsHandler()
-			userHandler := handlers.NewUserHandler()
-			me := v1.Group("/me", middleware.RequireAuth())
-			{
-				me.GET("", userHandler.GetProfile)
-				me.PATCH("", userHandler.UpdateProfile)
-				me.GET("/settings", userSettingsHandler.GetSettings)
-				me.PATCH("/settings", userSettingsHandler.UpdateSettings)
-			}
-
-			// Admin routes
-			if options.includeAdmin {
-				admin := v1.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
+				admin := app.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
 				{
 					admin.GET("/surveys", adminHandler.GetSurveys)
 					admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
@@ -182,10 +142,24 @@ func setupRouter(options setupOptions) *gin.Engine {
 					admin.POST("/agents/:id/reveal-key", agentAdminHandler.RevealKey)
 					admin.POST("/agents/:id/rotate-key", agentAdminHandler.RotateKey)
 				}
-			}
 
-			if options.includeUIEvents {
-				v1.POST("/ui-events", agentAdminHandler.IngestUIEvent)
+				app.POST("/ui-events", agentAdminHandler.IngestUIEvent)
+			}
+		}
+
+		v1 := api.Group("/v1")
+		{
+			// Health check
+			v1.GET("/health", handlers.HealthHandler)
+			v1.GET("/ready", handlers.ReadyHandler)
+
+			// Dataset routes
+			datasets := v1.Group("/datasets")
+			{
+				datasets.GET("", datasetHandler.GetDatasets)
+				datasets.GET("/categories", datasetHandler.GetCategories)
+				datasets.GET("/:id", datasetHandler.GetDataset)
+				datasets.POST("/:id/download", datasetHandler.DownloadDataset)
 			}
 
 			agentDocs := v1.Group("/agent-admin")

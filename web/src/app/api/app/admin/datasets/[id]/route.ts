@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function PATCH(
   request: Request,
@@ -12,7 +13,7 @@ export async function PATCH(
 
   const { id } = await params
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/admin/datasets/${id}`, {
+  const response = await fetchInternalApp(`/admin/datasets/${id}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -35,7 +36,7 @@ export async function DELETE(
   }
 
   const { id } = await params
-  const response = await fetch(`${API_BASE_URL}/admin/datasets/${id}`, {
+  const response = await fetchInternalApp(`/admin/datasets/${id}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   })

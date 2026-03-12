@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
+import { getAuthToken } from "@/lib/api-server"
+import { fetchInternalApp } from "@/lib/internal-app-fetch"
 
 export async function POST(request: Request) {
   const token = await getAuthToken()
@@ -8,7 +9,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const response = await fetch(`${API_BASE_URL}/surveys`, {
+  const response = await fetchInternalApp(`/surveys`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
