@@ -18,10 +18,6 @@ import {
   Copy,
   Check,
   ExternalLink,
-  Users,
-  MessageSquare,
-  TrendingUp,
-  Calendar,
   Lock,
   Unlock,
   Send,
@@ -40,6 +36,7 @@ import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, is
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { ResponseAnalyticsPanel } from "@/components/survey/response-analytics-panel";
+import { SurveyResponseSummaryCards } from "@/components/survey/survey-response-summary-cards";
 import {
   SurveyResponsesExportDialog,
   type SurveyResponsesExportEncoding,
@@ -55,7 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatUtcDateTime, utcToDatetimeLocal } from "@/lib/date-time";
+import { formatUtcDateTime, formatUtcDateTimeLines, utcToDatetimeLocal } from "@/lib/date-time";
 
 const downloadCsv = (filename: string, rows: string[][], includeBom: boolean) => {
   const content = buildCsvContent(rows, {
@@ -276,22 +273,6 @@ export default function SurveyManagementPage() {
     });
   }, [survey, timeZone]);
 
-  const completionRate = useMemo(() => {
-    if (responses.length === 0) return 0;
-    const completed = responses.filter((response) => response.status === "completed").length;
-    return Math.round((completed / responses.length) * 100);
-  }, [responses]);
-
-  const lastResponse = useMemo(() => {
-    if (responses.length === 0) return "";
-    const latest = responses.reduce((latest, response) => {
-      const candidate = response.completedAt || response.createdAt;
-      if (!latest) return candidate;
-      return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
-    }, "");
-    return formatUtcDateTime(latest, { locale, timeZone });
-  }, [locale, responses, timeZone]);
-
   const responseRows = useMemo(() => {
     return [...responses].sort((a, b) => {
       const aTime = new Date(a.completedAt || a.createdAt).getTime()
@@ -303,6 +284,16 @@ export default function SurveyManagementPage() {
   const completedResponseCount = useMemo(
     () => responseRows.filter((response) => response.status === "completed").length,
     [responseRows]
+  )
+
+  const lastResponseAt = useMemo(() => {
+    if (responseRows.length === 0) return ""
+    return responseRows[0]?.completedAt || responseRows[0]?.createdAt || ""
+  }, [responseRows])
+
+  const lastResponse = useMemo(
+    () => formatUtcDateTimeLines(lastResponseAt, { locale, timeZone }),
+    [lastResponseAt, locale, timeZone]
   )
 
   const exportVersionOptions = useMemo(() => {
@@ -736,53 +727,13 @@ export default function SurveyManagementPage() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400">
-                  <Users className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{t("totalResponses")}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{survey.responseCount}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
-                  <TrendingUp className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{t("completionRate")}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{completionRate}%</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
-                  <Calendar className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{t("lastResponse")}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{lastResponse || "--"}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400">
-                  <MessageSquare className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{t("questions")}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {survey.questions.filter((q) => q.type !== "section").length}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="lg:col-span-3">
+            <SurveyResponseSummaryCards
+              totalResponses={survey.responseCount}
+              lastResponseDate={lastResponse?.date}
+              lastResponseTime={lastResponse?.time}
+              questionCount={survey.questions.filter((q) => q.type !== "section").length}
+            />
           </div>
 
           <div className="lg:col-span-2">

@@ -641,6 +641,7 @@
     "backToDashboard": "Back to Dashboard",
     "createdOn": "Created on {date}",
     "totalResponses": "Total Responses",
+    "completedResponses": "Completed Responses",
     "completionRate": "Completion Rate",
     "lastResponse": "Last Response",
     "questions": "Questions",

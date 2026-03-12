@@ -641,6 +641,7 @@
     "backToDashboard": "ダッシュボードに戻る",
     "createdOn": "{date} に作成",
     "totalResponses": "総回答数",
+    "completedResponses": "完了済み回答",
     "completionRate": "完了率",
     "lastResponse": "最終回答",
     "questions": "質問数",

@@ -641,6 +641,7 @@
     "backToDashboard": "回到儀表板",
     "createdOn": "建立於 {date}",
     "totalResponses": "總回應數",
+    "completedResponses": "已完成回應",
     "completionRate": "完成率",
     "lastResponse": "最近回應",
     "questions": "題目",

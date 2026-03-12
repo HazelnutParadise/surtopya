@@ -141,6 +141,31 @@ export const formatUtcDateTime = (value?: string | null, options: DateFormatOpti
   }).format(date)
 }
 
+export const formatUtcDateTimeLines = (value?: string | null, options: DateFormatOptions = {}) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return {
+      date: value,
+      time: "",
+    }
+  }
+
+  return {
+    date: new Intl.DateTimeFormat(options.locale || undefined, {
+      timeZone: toValidTimeZone(options.timeZone),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date),
+    time: new Intl.DateTimeFormat(options.locale || undefined, {
+      timeZone: toValidTimeZone(options.timeZone),
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date),
+  }
+}
+
 export const formatUtcDateOnly = (value?: string | null, options: DateFormatOptions = {}) => {
   if (!value) return ""
   const date = new Date(value)

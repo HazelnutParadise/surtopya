@@ -163,13 +163,16 @@ export function ResponseAnalyticsPanel({
             <div
               ref={pageScrollRef}
               data-testid="response-analytics-page-scroll"
-              className="h-[70vh] overflow-y-auto pr-1"
+              className="h-[85vh] overflow-y-auto pr-1"
             >
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div
+                data-testid="response-analytics-page-grid"
+                className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3"
+              >
                 {activePage.questions.map((question) => (
                   <Card
                     key={question.questionId}
-                    className="flex h-[26rem] flex-col overflow-hidden border-gray-200/80 dark:border-gray-800"
+                    className="flex h-[22rem] flex-col overflow-hidden border-gray-200/80 dark:border-gray-800"
                   >
                     <CardHeader className="gap-3">
                       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
