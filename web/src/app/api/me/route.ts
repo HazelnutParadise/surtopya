@@ -19,24 +19,28 @@ const getRecordString = (record: UnknownRecord, key: string): string | null => {
   return typeof value === "string" ? value : null
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url)
-  const optional = url.searchParams.get("optional") === "1"
+export async function GET() {
   const token = await getAuthToken()
   if (!token) {
-    if (optional) {
-      return NextResponse.json(null, { status: 200 })
-    }
     return NextResponse.json(
       { error: "unauthorized" },
       { status: 401 }
     )
   }
 
-  const response = await fetch(`${API_BASE_URL}/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+  } catch {
+    return NextResponse.json({ error: "service_unavailable" }, { status: 503 })
+  }
+
+  if (response.status >= 500) {
+    return NextResponse.json({ error: "service_unavailable" }, { status: 503 })
+  }
 
   const payload = await response.json().catch(() => ({}))
 

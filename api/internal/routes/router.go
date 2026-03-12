@@ -16,6 +16,9 @@ func SetupRouter() *gin.Engine {
 	// Correlation id + structured request logging
 	r.Use(middleware.RequestLoggingMiddleware())
 
+	// Guard v1 APIs that require an available database.
+	r.Use(middleware.RequireDBReady())
+
 	// Add auth middleware (processes token but doesn't require it)
 	r.Use(middleware.AuthMiddleware())
 

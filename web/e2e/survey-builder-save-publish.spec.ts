@@ -9,7 +9,7 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
   let publishCalls = 0
   let lastCreatePayload: Record<string, unknown> | null = null
 
-  await page.route("**/api/me?*", async (route) => {
+  await page.route("**/api/me*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

@@ -114,7 +114,7 @@ bun run build        # Production build
 
 # Backend dev (inside api container)
 go run cmd/server/main.go
-go build -o bin/server cmd/server/main.go
+go build -o bin/server ./cmd/server
 
 # Database migrations
 # Auto-executed on first postgres container start via docker-entrypoint-initdb.d

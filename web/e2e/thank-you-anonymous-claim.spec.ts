@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test"
 
 test("thank-you page lets guests forfeit anonymous points", async ({ page }) => {
-  await page.route("**/api/me?optional=1", async (route) => {
+  await page.route("**/api/me", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -37,7 +37,7 @@ test("thank-you page lets guests forfeit anonymous points", async ({ page }) => 
 })
 
 test("thank-you page auto-claims anonymous points after sign-in", async ({ page }) => {
-  await page.route("**/api/me?optional=1", async (route) => {
+  await page.route("**/api/me", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",

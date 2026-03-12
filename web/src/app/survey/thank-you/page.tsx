@@ -52,7 +52,7 @@ export default function ThankYouPage() {
     const loadAuth = async () => {
       setAuthLoading(true)
       try {
-        const response = await fetch("/api/me?optional=1", {
+        const response = await fetch("/api/me", {
           cache: "no-store",
           signal: controller.signal,
         })

@@ -11,8 +11,8 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the application
-RUN go build -o main ./cmd/server/main.go
+# Build the application (compile package, not single file)
+RUN go build -o main ./cmd/server
 
 # Final stage
 FROM alpine:latest

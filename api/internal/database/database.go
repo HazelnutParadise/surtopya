@@ -1,15 +1,18 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
 var DB *sql.DB
+var dbMu sync.RWMutex
 
 // Config holds database configuration
 type Config struct {
@@ -40,20 +43,29 @@ func Connect(cfg Config) error {
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	var err error
-	DB, err = sql.Open("postgres", connStr)
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
 	// Configure connection pool
-	DB.SetMaxOpenConns(25)
-	DB.SetMaxIdleConns(10)
-	DB.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	// Verify connection
-	if err = DB.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
+		_ = db.Close()
 		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	dbMu.Lock()
+	prev := DB
+	DB = db
+	dbMu.Unlock()
+
+	if prev != nil && prev != db {
+		_ = prev.Close()
 	}
 
 	return nil
@@ -61,15 +73,35 @@ func Connect(cfg Config) error {
 
 // Close closes the database connection
 func Close() error {
-	if DB != nil {
-		return DB.Close()
+	dbMu.Lock()
+	db := DB
+	DB = nil
+	dbMu.Unlock()
+
+	if db != nil {
+		return db.Close()
 	}
 	return nil
 }
 
 // GetDB returns the database connection
 func GetDB() *sql.DB {
+	dbMu.RLock()
+	defer dbMu.RUnlock()
 	return DB
+}
+
+// IsReady reports whether the current database handle is available.
+func IsReady() bool {
+	db := GetDB()
+	if db == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	return db.PingContext(ctx) == nil
 }
 
 func getEnv(key, defaultValue string) string {
