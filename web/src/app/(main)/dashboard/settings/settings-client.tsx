@@ -11,9 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DEFAULT_TIME_ZONE,
+  canonicalizeTimeZone,
   detectBrowserTimeZone,
   getSupportedTimeZones,
-  isValidIanaTimeZone,
+  normalizePersistedTimeZone,
 } from "@/lib/date-time"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { TIME_ZONE_COOKIE_NAME, type UserSettings } from "@/lib/user-settings"
@@ -28,6 +29,7 @@ export default function SettingsClient() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentTimeZone = useTimeZone()
+  const normalizedCurrentTimeZone = normalizePersistedTimeZone(currentTimeZone, DEFAULT_TIME_ZONE)
   const t = useTranslations("Settings")
   const tCommon = useTranslations("Common")
   const localeOptions = [
@@ -38,11 +40,11 @@ export default function SettingsClient() {
   const activeLocale = getLocaleFromPath(pathname)
   const [initialSettings, setInitialSettings] = useState<UserSettings>({
     locale: activeLocale,
-    timeZone: currentTimeZone || DEFAULT_TIME_ZONE,
+    timeZone: normalizedCurrentTimeZone,
   })
   const [form, setForm] = useState<UserSettings>({
     locale: activeLocale,
-    timeZone: currentTimeZone || DEFAULT_TIME_ZONE,
+    timeZone: normalizedCurrentTimeZone,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -70,12 +72,12 @@ export default function SettingsClient() {
         }
 
         const detectedTimeZone = detectBrowserTimeZone()
-        const fetchedTimeZone = isValidIanaTimeZone(data?.timeZone) ? data.timeZone : DEFAULT_TIME_ZONE
+        const fetchedTimeZone = normalizePersistedTimeZone(data?.timeZone, DEFAULT_TIME_ZONE)
         const resolvedTimeZone =
           !hasTimeZoneCookie() && fetchedTimeZone === DEFAULT_TIME_ZONE ? detectedTimeZone : fetchedTimeZone
         const nextSettings = {
           locale: data.locale,
-          timeZone: resolvedTimeZone,
+          timeZone: normalizePersistedTimeZone(resolvedTimeZone, DEFAULT_TIME_ZONE),
         }
 
         setInitialSettings(nextSettings)
@@ -99,13 +101,14 @@ export default function SettingsClient() {
     }
   }, [activeLocale, buildLocalizedUrl, router])
 
-  const normalizedTimeZone = form.timeZone.trim()
+  const normalizedTimeZone = canonicalizeTimeZone(form.timeZone)
   const hasChanges =
-    form.locale !== initialSettings.locale || normalizedTimeZone !== initialSettings.timeZone
-  const isTimeZoneValid = normalizedTimeZone.length > 0 && isValidIanaTimeZone(normalizedTimeZone)
+    form.locale !== initialSettings.locale ||
+    (normalizedTimeZone || form.timeZone.trim()) !== initialSettings.timeZone
+  const isTimeZoneValid = Boolean(normalizedTimeZone)
 
   const handleSave = async () => {
-    if (!isTimeZoneValid) {
+    if (!normalizedTimeZone) {
       setError(t("timeZoneInvalid"))
       return
     }
@@ -132,7 +135,7 @@ export default function SettingsClient() {
 
       const nextSettings = {
         locale: localeOptions.some((option) => option.value === data?.locale) ? data.locale : form.locale,
-        timeZone: isValidIanaTimeZone(data?.timeZone) ? data.timeZone : normalizedTimeZone,
+        timeZone: normalizePersistedTimeZone(data?.timeZone, normalizedTimeZone),
       }
       setInitialSettings(nextSettings)
       setForm(nextSettings)
@@ -142,7 +145,7 @@ export default function SettingsClient() {
         return
       }
 
-      if (nextSettings.timeZone !== currentTimeZone) {
+      if (nextSettings.timeZone !== normalizedCurrentTimeZone) {
         router.refresh()
       }
     } catch (saveError) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { API_BASE_URL, getAuthToken } from "@/lib/api-server"
 import { defaultLocale, locales } from "@/lib/locale"
-import { DEFAULT_TIME_ZONE, isValidIanaTimeZone } from "@/lib/date-time"
+import { DEFAULT_TIME_ZONE, canonicalizeTimeZone, normalizePersistedTimeZone } from "@/lib/date-time"
 import { LOCALE_COOKIE_NAME, TIME_ZONE_COOKIE_NAME } from "@/lib/user-settings"
 import type { NextRequest } from "next/server"
 
@@ -22,11 +22,7 @@ const getCookieLocale = (request: NextRequest) => {
 
 const getCookieTimeZone = (request: NextRequest) => {
   const cookieTimeZone = request.cookies.get(TIME_ZONE_COOKIE_NAME)?.value
-  if (typeof cookieTimeZone === "string" && isValidIanaTimeZone(cookieTimeZone)) {
-    return cookieTimeZone
-  }
-
-  return DEFAULT_TIME_ZONE
+  return normalizePersistedTimeZone(cookieTimeZone, DEFAULT_TIME_ZONE)
 }
 
 const getGuestSettings = (request: NextRequest): RouteUserSettings => ({
@@ -44,10 +40,10 @@ const normalizeUpstreamSettings = (
   const localeValue = source.locale
   return {
     locale: isSupportedLocale(localeValue) ? localeValue : getCookieLocale(request),
-    timeZone:
-      typeof timeZoneValue === "string" && isValidIanaTimeZone(timeZoneValue)
-        ? timeZoneValue
-        : getCookieTimeZone(request),
+    timeZone: normalizePersistedTimeZone(
+      typeof timeZoneValue === "string" ? timeZoneValue : null,
+      getCookieTimeZone(request)
+    ),
     settingsAutoInitialized:
       typeof source.settingsAutoInitialized === "boolean" ? source.settingsAutoInitialized : false,
   }
@@ -66,10 +62,16 @@ const setSettingsCookies = (response: NextResponse, locale: string, timeZone: st
   })
 }
 
+const createSettingsResponse = (settings: RouteUserSettings, status = 200) => {
+  const response = NextResponse.json(settings, { status })
+  setSettingsCookies(response, settings.locale, settings.timeZone)
+  return response
+}
+
 export async function GET(request: NextRequest) {
   const token = await getAuthToken()
   if (!token) {
-    return NextResponse.json(getGuestSettings(request))
+    return createSettingsResponse(getGuestSettings(request))
   }
 
   const response = await fetch(`${API_BASE_URL}/me/settings`, {
@@ -81,7 +83,7 @@ export async function GET(request: NextRequest) {
 
   const payload = await response.json().catch(() => ({}))
   if (response.status === 401) {
-    return NextResponse.json(getGuestSettings(request))
+    return createSettingsResponse(getGuestSettings(request))
   }
   const settings = normalizeUpstreamSettings(payload, request)
   const nextResponse = NextResponse.json({ ...payload, ...settings }, { status: response.status })
@@ -93,10 +95,12 @@ export async function PATCH(request: NextRequest) {
   const token = await getAuthToken()
   const body = await request.json().catch(() => ({}))
   const requestedLocale = isSupportedLocale(body?.locale) ? body.locale : null
-  const requestedTimeZone = isValidIanaTimeZone(body?.timeZone) ? body.timeZone : null
+  const requestedTimeZone = canonicalizeTimeZone(body?.timeZone)
+  const hasInvalidLocale = body?.locale != null && !requestedLocale
+  const hasInvalidTimeZone = body?.timeZone != null && !requestedTimeZone
 
   if (!token) {
-    if ((body?.locale != null && !requestedLocale) || (body?.timeZone != null && !requestedTimeZone)) {
+    if (hasInvalidLocale || hasInvalidTimeZone) {
       return NextResponse.json(
         { error: "locale/timeZone is invalid" },
         { status: 400 }
@@ -113,13 +117,27 @@ export async function PATCH(request: NextRequest) {
     setSettingsCookies(response, nextLocale, nextTimeZone)
     return response
   }
+
+  if (hasInvalidLocale || hasInvalidTimeZone) {
+    return NextResponse.json(
+      { error: "locale/timeZone is invalid" },
+      { status: 400 }
+    )
+  }
+
+  const normalizedBody = {
+    ...body,
+    ...(requestedLocale ? { locale: requestedLocale } : {}),
+    ...(requestedTimeZone ? { timeZone: requestedTimeZone } : {}),
+  }
+
   const response = await fetch(`${API_BASE_URL}/me/settings`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(normalizedBody),
   })
 
   const payload = await response.json().catch(() => ({}))

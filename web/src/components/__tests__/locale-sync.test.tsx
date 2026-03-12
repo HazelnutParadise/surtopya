@@ -130,4 +130,42 @@ describe("LocaleSync", () => {
     expect(mocks.routerReplace).not.toHaveBeenCalled()
     expect(mocks.routerRefresh).not.toHaveBeenCalled()
   })
+
+  it("canonicalizes detected alias time zones before sending the autoInitialize patch", async () => {
+    mocks.detectBrowserTimeZone.mockReturnValue("US/Pacific")
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          locale: "en",
+          timeZone: "UTC",
+          settingsAutoInitialized: false,
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({
+          locale: "en",
+          timeZone: "America/Los_Angeles",
+          settingsAutoInitialized: true,
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<LocaleSync />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      locale: "en",
+      timeZone: "America/Los_Angeles",
+      autoInitialize: true,
+    })
+  })
 })

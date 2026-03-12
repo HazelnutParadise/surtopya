@@ -7,7 +7,7 @@ import path from "path"
 import { readFile } from "fs/promises"
 import { I18nProvider } from "@/components/i18n-provider"
 import { defaultLocale, locales } from "@/lib/locale"
-import { DEFAULT_TIME_ZONE, isValidIanaTimeZone } from "@/lib/date-time"
+import { DEFAULT_TIME_ZONE, normalizePersistedTimeZone } from "@/lib/date-time"
 import { getLogtoConfig } from "@/lib/logto"
 import { getLogtoContext } from "@logto/next/server-actions"
 import { redirect } from "next/navigation"
@@ -82,10 +82,7 @@ export default async function RootLayout({
       : cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])
         ? cookieLocale
         : defaultLocale
-  const timeZone =
-    cookieTimeZone && isValidIanaTimeZone(cookieTimeZone)
-      ? cookieTimeZone
-      : DEFAULT_TIME_ZONE
+  const timeZone = normalizePersistedTimeZone(cookieTimeZone, DEFAULT_TIME_ZONE)
 
   const messages = await getMessages(locale);
   const apiBaseUrl =

@@ -1,3 +1,5 @@
+import { normalizePersistedTimeZone } from "@/lib/date-time"
+
 export const LOCALE_COOKIE_NAME = "NEXT_LOCALE"
 export const TIME_ZONE_COOKIE_NAME = "SURTOPYA_TIMEZONE"
 
@@ -35,7 +37,7 @@ export const determineAutoDetectedSettingsPatch = ({
 
   return {
     locale: initialCookieLocale || detectedLocale,
-    timeZone: initialCookieTimeZone || detectedTimeZone,
+    timeZone: normalizePersistedTimeZone(initialCookieTimeZone || detectedTimeZone),
     autoInitialize: true,
   }
 }

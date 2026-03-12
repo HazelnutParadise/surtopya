@@ -76,6 +76,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --scrollbar-track: color-mix(in oklab, var(--muted) 72%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, var(--primary) 42%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--primary) 54%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--primary) 64%, transparent);
 }
 
 .dark {
@@ -110,6 +114,10 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --scrollbar-track: color-mix(in oklab, var(--muted) 48%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, var(--primary) 46%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--primary) 58%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--primary) 70%, transparent);
 }
 
 @layer base {
@@ -118,6 +126,38 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  body * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  body *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  body *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 9999px;
+  }
+
+  body *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  body *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+    background-clip: padding-box;
+  }
+
+  body *::-webkit-scrollbar-thumb:active {
+    background: var(--scrollbar-thumb-active);
+    background-clip: padding-box;
   }
 }
 

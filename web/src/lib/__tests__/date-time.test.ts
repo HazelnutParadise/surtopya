@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  canonicalizeTimeZone,
   formatUtcDateOnly,
   formatUtcDateTime,
   isValidIanaTimeZone,
   localDatetimeToUtcISOString,
+  normalizePersistedTimeZone,
   utcToDateOnly,
   utcToDatetimeLocal,
 } from "@/lib/date-time"
@@ -13,6 +15,17 @@ describe("date-time helpers", () => {
   it("validates IANA time zones", () => {
     expect(isValidIanaTimeZone("Asia/Taipei")).toBe(true)
     expect(isValidIanaTimeZone("Mars/Olympus")).toBe(false)
+  })
+
+  it("canonicalizes supported aliases to backend-safe time zones", () => {
+    expect(canonicalizeTimeZone("US/Pacific")).toBe("America/Los_Angeles")
+    expect(canonicalizeTimeZone("Asia/Calcutta")).toBe("Asia/Kolkata")
+    expect(canonicalizeTimeZone("Etc/UTC")).toBe("UTC")
+  })
+
+  it("falls back when a time zone cannot be canonicalized", () => {
+    expect(canonicalizeTimeZone("Mars/Olympus")).toBeNull()
+    expect(normalizePersistedTimeZone("Mars/Olympus", "Asia/Taipei")).toBe("Asia/Taipei")
   })
 
   it("converts UTC timestamps to datetime-local values", () => {

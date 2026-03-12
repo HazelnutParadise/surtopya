@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useTimeZone } from "next-intl"
 import { detectBrowserLocale, getLocaleFromPath, matchSupportedLocale, withLocale } from "@/lib/locale"
-import { DEFAULT_TIME_ZONE, detectBrowserTimeZone, isValidIanaTimeZone } from "@/lib/date-time"
+import { DEFAULT_TIME_ZONE, canonicalizeTimeZone, detectBrowserTimeZone, normalizePersistedTimeZone } from "@/lib/date-time"
 import {
   determineAutoDetectedSettingsPatch,
   LOCALE_COOKIE_NAME,
@@ -41,9 +41,7 @@ export function LocaleSync() {
       try {
         const initialCookieLocale = matchSupportedLocale(readClientCookie(LOCALE_COOKIE_NAME))
         const rawInitialCookieTimeZone = readClientCookie(TIME_ZONE_COOKIE_NAME)
-        const initialCookieTimeZone = isValidIanaTimeZone(rawInitialCookieTimeZone)
-          ? rawInitialCookieTimeZone
-          : null
+        const initialCookieTimeZone = canonicalizeTimeZone(rawInitialCookieTimeZone)
         const detectedLocale = detectBrowserLocale()
         const detectedTimeZone = detectBrowserTimeZone()
 
@@ -59,7 +57,7 @@ export function LocaleSync() {
 
         const currentSettings: UserSettingsResponse = {
           locale: matchSupportedLocale(data?.locale) || getLocaleFromPath(pathname),
-          timeZone: isValidIanaTimeZone(data?.timeZone) ? data.timeZone : DEFAULT_TIME_ZONE,
+          timeZone: normalizePersistedTimeZone(data?.timeZone, DEFAULT_TIME_ZONE),
           settingsAutoInitialized: Boolean(data?.settingsAutoInitialized),
         }
         const autoDetectedPatch = determineAutoDetectedSettingsPatch({
@@ -92,9 +90,8 @@ export function LocaleSync() {
           return
         }
 
-        const nextTimeZone =
-          isValidIanaTimeZone(data?.timeZone) ? data.timeZone : DEFAULT_TIME_ZONE
-        if (nextTimeZone !== currentTimeZone) {
+        const nextTimeZone = normalizePersistedTimeZone(data?.timeZone, DEFAULT_TIME_ZONE)
+        if (nextTimeZone !== normalizePersistedTimeZone(currentTimeZone, DEFAULT_TIME_ZONE)) {
           router.refresh()
         }
       } catch {

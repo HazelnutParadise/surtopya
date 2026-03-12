@@ -41,6 +41,26 @@ describe("/api/user-settings route", () => {
     })
   })
 
+  it("normalizes guest cookie aliases before returning settings", async () => {
+    mocks.getAuthToken.mockResolvedValue(null)
+
+    const request = new NextRequest("http://localhost/api/user-settings", {
+      headers: {
+        cookie: "NEXT_LOCALE=en; SURTOPYA_TIMEZONE=US%2FPacific",
+      },
+    })
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      locale: "en",
+      timeZone: "America/Los_Angeles",
+      settingsAutoInitialized: true,
+    })
+    expect(response.cookies.get("SURTOPYA_TIMEZONE")?.value).toBe("America/Los_Angeles")
+  })
+
   it("ignores autoInitialize for guest updates and only persists cookies", async () => {
     mocks.getAuthToken.mockResolvedValue(null)
 
@@ -94,5 +114,60 @@ describe("/api/user-settings route", () => {
     })
     expect(response.cookies.get("NEXT_LOCALE")?.value).toBe("zh-TW")
     expect(response.cookies.get("SURTOPYA_TIMEZONE")?.value).toBe("Asia/Taipei")
+  })
+
+  it("canonicalizes authenticated patch aliases before proxying upstream", async () => {
+    mocks.getAuthToken.mockResolvedValue("token-1")
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ locale: "en", timeZone: "America/Los_Angeles", settingsAutoInitialized: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const request = new NextRequest("http://localhost/api/user-settings", {
+      method: "PATCH",
+      body: JSON.stringify({ locale: "en", timeZone: "US/Pacific" }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+
+    const response = await PATCH(request)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://api:8080/api/v1/me/settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ locale: "en", timeZone: "America/Los_Angeles" }),
+      })
+    )
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      locale: "en",
+      timeZone: "America/Los_Angeles",
+      settingsAutoInitialized: true,
+    })
+    expect(response.cookies.get("SURTOPYA_TIMEZONE")?.value).toBe("America/Los_Angeles")
+  })
+
+  it("still rejects clearly invalid guest time zones", async () => {
+    mocks.getAuthToken.mockResolvedValue(null)
+
+    const request = new NextRequest("http://localhost/api/user-settings", {
+      method: "PATCH",
+      body: JSON.stringify({ locale: "en", timeZone: "Mars/Olympus" }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+
+    const response = await PATCH(request)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "locale/timeZone is invalid",
+    })
   })
 })

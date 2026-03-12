@@ -1,5 +1,14 @@
 export const DEFAULT_TIME_ZONE = "Asia/Taipei"
 
+const timeZoneAliasMap: Record<string, string> = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "US/Pacific": "America/Los_Angeles",
+  "US/Mountain": "America/Denver",
+  "US/Central": "America/Chicago",
+  "US/Eastern": "America/New_York",
+  "Etc/UTC": "UTC",
+}
+
 type DateFormatOptions = {
   locale?: string
   timeZone?: string
@@ -9,11 +18,55 @@ const pad = (value: number) => String(value).padStart(2, "0")
 
 const localDateTimePattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/
 
-const toValidTimeZone = (timeZone?: string) => {
-  if (isValidIanaTimeZone(timeZone)) {
-    return timeZone
+const getIntlSupportedTimeZones = () => {
+  if (typeof Intl.supportedValuesOf === "function") {
+    try {
+      return Intl.supportedValuesOf("timeZone")
+    } catch {
+      return null
+    }
   }
-  return DEFAULT_TIME_ZONE
+
+  return null
+}
+
+export const canonicalizeTimeZone = (value?: string | null) => {
+  if (!value || typeof value !== "string") return null
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  if (timeZoneAliasMap[trimmed]) {
+    return timeZoneAliasMap[trimmed]
+  }
+
+  if (!isValidIanaTimeZone(trimmed)) {
+    return null
+  }
+
+  const supportedTimeZones = getIntlSupportedTimeZones()
+  if (supportedTimeZones?.includes(trimmed)) {
+    return trimmed
+  }
+
+  try {
+    const resolved = new Intl.DateTimeFormat(undefined, { timeZone: trimmed }).resolvedOptions().timeZone
+    if (typeof resolved === "string" && resolved.trim().length > 0) {
+      return timeZoneAliasMap[resolved] || resolved
+    }
+  } catch {
+    return null
+  }
+
+  return trimmed
+}
+
+export const normalizePersistedTimeZone = (value?: string | null, fallback = DEFAULT_TIME_ZONE) => {
+  return canonicalizeTimeZone(value) || fallback
+}
+
+const toValidTimeZone = (timeZone?: string) => {
+  return normalizePersistedTimeZone(timeZone, DEFAULT_TIME_ZONE)
 }
 
 const formatParts = (value: string, timeZone?: string) => {
@@ -180,22 +233,7 @@ export const formatUtcDateOnly = (value?: string | null, options: DateFormatOpti
 }
 
 export const getSupportedTimeZones = () => {
-  if (typeof Intl.supportedValuesOf === "function") {
-    try {
-      return Intl.supportedValuesOf("timeZone")
-    } catch {
-      return [
-        DEFAULT_TIME_ZONE,
-        "Asia/Tokyo",
-        "UTC",
-        "America/Los_Angeles",
-        "America/New_York",
-        "Europe/London",
-      ]
-    }
-  }
-
-  return [
+  const fallbackTimeZones = [
     DEFAULT_TIME_ZONE,
     "Asia/Tokyo",
     "UTC",
@@ -203,11 +241,26 @@ export const getSupportedTimeZones = () => {
     "America/New_York",
     "Europe/London",
   ]
+  const supportedTimeZones = getIntlSupportedTimeZones()
+  const unique = new Set<string>()
+
+  ;(supportedTimeZones || fallbackTimeZones).forEach((timeZone) => {
+    const normalized = canonicalizeTimeZone(timeZone)
+    if (normalized) {
+      unique.add(normalized)
+    }
+  })
+
+  fallbackTimeZones.forEach((timeZone) => {
+    unique.add(timeZone)
+  })
+
+  return [...unique]
 }
 
 export const detectBrowserTimeZone = () => {
   const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
-  return isValidIanaTimeZone(detected) ? detected : DEFAULT_TIME_ZONE
+  return normalizePersistedTimeZone(detected, DEFAULT_TIME_ZONE)
 }
 
 export const formatDateInputValue = (date: Date) => {
