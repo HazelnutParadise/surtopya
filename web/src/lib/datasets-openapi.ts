@@ -9,7 +9,7 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
 
   const servers: Array<{ url: string; description: string }> = [
     {
-      url: "/api",
+      url: "/api/app",
       description: "Same-origin proxy (recommended for interactive try-out)",
     },
   ]

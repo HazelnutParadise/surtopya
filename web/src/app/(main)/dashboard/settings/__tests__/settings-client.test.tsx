@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
@@ -31,9 +31,9 @@ vi.mock("next-intl", () => ({
         appearanceDescription: "Appearance description",
         language: "Language",
         languageDescription: "Language description",
-        languageZhTw: "繁體中文",
+        languageZhTw: "Traditional Chinese",
         languageEn: "English",
-        languageJa: "日本語",
+        languageJa: "Japanese",
         timeZone: "Time zone",
         timeZoneDescription: "Time zone description",
         timeZonePlaceholder: "Time zone",
@@ -105,7 +105,7 @@ describe("SettingsClient", () => {
 
     await waitFor(() => {
       const patchCalls = fetchMock.mock.calls.filter(
-        ([url, options]) => url === "/api/user-settings" && options?.method === "PATCH"
+        ([url, options]) => url === "/api/app/user-settings" && options?.method === "PATCH"
       )
       expect(patchCalls).toHaveLength(1)
       expect(patchCalls[0]?.[1]).toMatchObject({
@@ -140,7 +140,7 @@ describe("SettingsClient", () => {
     expect(screen.getByText("Invalid time zone")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
     const patchCalls = fetchMock.mock.calls.filter(
-      ([url, options]) => url === "/api/user-settings" && options?.method === "PATCH"
+      ([url, options]) => url === "/api/app/user-settings" && options?.method === "PATCH"
     )
     expect(patchCalls).toHaveLength(0)
   })

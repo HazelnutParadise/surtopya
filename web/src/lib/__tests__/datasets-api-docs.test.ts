@@ -12,21 +12,21 @@ const messages = {
 
 describe("dataset docs interceptor", () => {
   it("detects dataset download URL and extracts dataset id", () => {
-    expect(extractDatasetIdFromDownloadUrl("/api/datasets/abc-123/download")).toBe("abc-123")
-    expect(extractDatasetIdFromDownloadUrl("https://example.com/api/datasets/abc-123/download")).toBe("abc-123")
-    expect(extractDatasetIdFromDownloadUrl("/api/datasets/abc-123")).toBeNull()
+    expect(extractDatasetIdFromDownloadUrl("/api/app/datasets/abc-123/download")).toBe("abc-123")
+    expect(extractDatasetIdFromDownloadUrl("https://example.com/api/app/datasets/abc-123/download")).toBe("abc-123")
+    expect(extractDatasetIdFromDownloadUrl("/api/app/datasets/abc-123")).toBeNull()
 
     expect(
       isDatasetDownloadRequest({
         method: "POST",
-        url: "/api/datasets/abc-123/download",
+        url: "/api/app/datasets/abc-123/download",
       })
     ).toBe(true)
 
     expect(
       isDatasetDownloadRequest({
         method: "GET",
-        url: "/api/datasets/abc-123/download",
+        url: "/api/app/datasets/abc-123/download",
       })
     ).toBe(false)
   })
@@ -39,7 +39,7 @@ describe("dataset docs interceptor", () => {
 
     const request = {
       method: "POST",
-      url: "/api/datasets/free-id/download",
+      url: "/api/app/datasets/free-id/download",
     }
 
     const result = await interceptor(request)
@@ -59,7 +59,7 @@ describe("dataset docs interceptor", () => {
     await expect(
       interceptor({
         method: "POST",
-        url: "/api/datasets/paid-id/download",
+        url: "/api/app/datasets/paid-id/download",
       })
     ).rejects.toThrow("paid")
 
@@ -77,7 +77,7 @@ describe("dataset docs interceptor", () => {
     await expect(
       interceptor({
         method: "POST",
-        url: "/api/datasets/unknown/download",
+        url: "/api/app/datasets/unknown/download",
       })
     ).rejects.toThrow("lookup-failed")
 
@@ -95,7 +95,7 @@ describe("dataset docs interceptor", () => {
     await expect(
       interceptor({
         method: "POST",
-        url: "/api/datasets//download",
+        url: "/api/app/datasets//download",
       })
     ).rejects.toThrow("invalid")
 
@@ -114,7 +114,7 @@ describe("dataset docs interceptor", () => {
 
     const request = {
       method: "GET",
-      url: "/api/datasets",
+      url: "/api/app/datasets",
     }
 
     const result = await interceptor(request)

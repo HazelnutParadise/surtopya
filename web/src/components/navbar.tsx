@@ -62,7 +62,7 @@ export function Navbar() {
     }
 
     try {
-      const response = await fetch("/api/me", { cache: "no-store" });
+      const response = await fetch("/api/app/me", { cache: "no-store" });
       if (requestVersion !== requestVersionRef.current || !mountedRef.current) {
         return;
       }

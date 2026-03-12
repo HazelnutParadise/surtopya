@@ -6,8 +6,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupRouter configures the API routes
+type setupOptions struct {
+	includeInternalApp bool
+	includeAdmin       bool
+	includeUIEvents    bool
+}
+
+// SetupRouter configures the full internal API routes.
 func SetupRouter() *gin.Engine {
+	return setupRouter(setupOptions{
+		includeInternalApp: true,
+		includeAdmin:       true,
+		includeUIEvents:    true,
+	})
+}
+
+// SetupPublicRouter configures the externally exposed API routes.
+func SetupPublicRouter() *gin.Engine {
+	return setupRouter(setupOptions{
+		includeInternalApp: false,
+		includeAdmin:       false,
+		includeUIEvents:    false,
+	})
+}
+
+func setupRouter(options setupOptions) *gin.Engine {
 	r := gin.Default()
 
 	// Add CORS middleware
@@ -25,27 +48,31 @@ func SetupRouter() *gin.Engine {
 	api := r.Group("/api")
 	{
 		responseHandler := handlers.NewResponseHandler()
+		agentAdminHandler := handlers.NewAgentAdminHandler()
+		adminHandler := handlers.NewAdminHandler()
 
 		// App-internal write routes for survey response flow.
-		app := api.Group("/app", middleware.RequireInternalApp())
-		{
-			appResponses := app.Group("/responses")
+		if options.includeInternalApp {
+			app := api.Group("/app", middleware.RequireInternalApp())
 			{
-				appResponses.POST("/:id/answers", responseHandler.SubmitAnswer)
-				appResponses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
-				appResponses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
-				appResponses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
-			}
+				appResponses := app.Group("/responses")
+				{
+					appResponses.POST("/:id/answers", responseHandler.SubmitAnswer)
+					appResponses.POST("/:id/submit", responseHandler.SubmitAllAnswers)
+					appResponses.POST("/claim-anonymous-points", middleware.RequireAuth(), responseHandler.ClaimAnonymousPoints)
+					appResponses.POST("/forfeit-anonymous-points", responseHandler.ForfeitAnonymousPoints)
+				}
 
-			app.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
-			app.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
-			app.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
+				app.POST("/surveys/:id/responses/start", responseHandler.StartResponse)
+				app.POST("/surveys/:id/responses/submit-anonymous", responseHandler.SubmitAnonymousResponse)
+				app.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), responseHandler.StartDraft)
 
-			appDrafts := app.Group("/drafts", middleware.RequireAuth())
-			{
-				appDrafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
-				appDrafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
-				appDrafts.POST("/:id/submit", responseHandler.SubmitDraft)
+				appDrafts := app.Group("/drafts", middleware.RequireAuth())
+				{
+					appDrafts.POST("/:id/answers", responseHandler.SaveDraftAnswer)
+					appDrafts.POST("/:id/answers/bulk", responseHandler.SaveDraftAnswersBulk)
+					appDrafts.POST("/:id/submit", responseHandler.SubmitDraft)
+				}
 			}
 		}
 
@@ -103,7 +130,6 @@ func SetupRouter() *gin.Engine {
 			}
 
 			// Bootstrap status
-			adminHandler := handlers.NewAdminHandler()
 			v1.GET("/bootstrap", adminHandler.GetBootstrapStatus)
 			v1.GET("/config", adminHandler.GetPublicConfig)
 			v1.GET("/pricing/plans", adminHandler.GetPricingPlans)
@@ -120,45 +146,47 @@ func SetupRouter() *gin.Engine {
 			}
 
 			// Admin routes
-			admin := v1.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
-			{
-				agentAdminHandler := handlers.NewAgentAdminHandler()
-				admin.GET("/surveys", adminHandler.GetSurveys)
-				admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
-				admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
-				admin.POST("/surveys/:id/responses/open", adminHandler.OpenSurveyResponses)
-				admin.POST("/surveys/:id/responses/close", adminHandler.CloseSurveyResponses)
-				admin.GET("/surveys/:id/versions", adminHandler.ListSurveyVersions)
-				admin.GET("/surveys/:id/versions/:versionNumber", adminHandler.GetSurveyVersion)
-				admin.POST("/surveys/:id/versions/:versionNumber/restore-draft", adminHandler.RestoreSurveyVersionDraft)
-				admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
-				admin.GET("/datasets", adminHandler.GetDatasets)
-				admin.POST("/datasets", adminHandler.CreateDataset)
-				admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
-				admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
-				admin.GET("/users", adminHandler.GetUsers)
-				admin.PATCH("/users/:id", adminHandler.UpdateUser)
-				admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
-				admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
-				admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
-				admin.DELETE("/subscription-plans/:id", adminHandler.DeactivateSubscriptionPlan)
-				admin.GET("/policies", adminHandler.GetPolicies)
-				admin.PATCH("/policies", adminHandler.UpdatePolicies)
-				admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
-				admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
-				admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
-				admin.GET("/system-settings", adminHandler.GetSystemSettings)
-				admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
-				admin.GET("/agents", agentAdminHandler.ListAccounts)
-				admin.POST("/agents", agentAdminHandler.CreateAccount)
-				admin.GET("/agents/:id", agentAdminHandler.GetAccount)
-				admin.PATCH("/agents/:id", agentAdminHandler.UpdateAccount)
-				admin.POST("/agents/:id/reveal-key", agentAdminHandler.RevealKey)
-				admin.POST("/agents/:id/rotate-key", agentAdminHandler.RotateKey)
+			if options.includeAdmin {
+				admin := v1.Group("/admin", middleware.RequireAuth(), middleware.RequireAdmin())
+				{
+					admin.GET("/surveys", adminHandler.GetSurveys)
+					admin.PATCH("/surveys/:id", adminHandler.UpdateSurvey)
+					admin.POST("/surveys/:id/publish", adminHandler.PublishSurveyVersion)
+					admin.POST("/surveys/:id/responses/open", adminHandler.OpenSurveyResponses)
+					admin.POST("/surveys/:id/responses/close", adminHandler.CloseSurveyResponses)
+					admin.GET("/surveys/:id/versions", adminHandler.ListSurveyVersions)
+					admin.GET("/surveys/:id/versions/:versionNumber", adminHandler.GetSurveyVersion)
+					admin.POST("/surveys/:id/versions/:versionNumber/restore-draft", adminHandler.RestoreSurveyVersionDraft)
+					admin.DELETE("/surveys/:id", adminHandler.DeleteSurvey)
+					admin.GET("/datasets", adminHandler.GetDatasets)
+					admin.POST("/datasets", adminHandler.CreateDataset)
+					admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
+					admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
+					admin.GET("/users", adminHandler.GetUsers)
+					admin.PATCH("/users/:id", adminHandler.UpdateUser)
+					admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
+					admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)
+					admin.PATCH("/subscription-plans/:id", adminHandler.UpdateSubscriptionPlan)
+					admin.DELETE("/subscription-plans/:id", adminHandler.DeactivateSubscriptionPlan)
+					admin.GET("/policies", adminHandler.GetPolicies)
+					admin.PATCH("/policies", adminHandler.UpdatePolicies)
+					admin.PATCH("/capabilities/:id", adminHandler.UpdateCapability)
+					admin.GET("/policy-writers", adminHandler.GetPolicyWriters)
+					admin.PUT("/policy-writers/:id", adminHandler.UpdatePolicyWriter)
+					admin.GET("/system-settings", adminHandler.GetSystemSettings)
+					admin.PATCH("/system-settings", adminHandler.UpdateSystemSettings)
+					admin.GET("/agents", agentAdminHandler.ListAccounts)
+					admin.POST("/agents", agentAdminHandler.CreateAccount)
+					admin.GET("/agents/:id", agentAdminHandler.GetAccount)
+					admin.PATCH("/agents/:id", agentAdminHandler.UpdateAccount)
+					admin.POST("/agents/:id/reveal-key", agentAdminHandler.RevealKey)
+					admin.POST("/agents/:id/rotate-key", agentAdminHandler.RotateKey)
+				}
 			}
 
-			agentAdminHandler := handlers.NewAgentAdminHandler()
-			v1.POST("/ui-events", agentAdminHandler.IngestUIEvent)
+			if options.includeUIEvents {
+				v1.POST("/ui-events", agentAdminHandler.IngestUIEvent)
+			}
 
 			agentDocs := v1.Group("/agent-admin")
 			{

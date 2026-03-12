@@ -61,7 +61,7 @@ export default function SettingsClient() {
 
     const loadSettings = async () => {
       try {
-        const response = await fetch("/api/user-settings", { cache: "no-store" })
+        const response = await fetch("/api/app/user-settings", { cache: "no-store" })
         if (!response.ok) {
           return
         }
@@ -117,7 +117,7 @@ export default function SettingsClient() {
     setError(null)
 
     try {
-      const response = await fetch("/api/user-settings", {
+      const response = await fetch("/api/app/user-settings", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

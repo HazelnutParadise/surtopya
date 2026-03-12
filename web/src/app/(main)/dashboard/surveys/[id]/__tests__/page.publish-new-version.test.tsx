@@ -172,11 +172,11 @@ describe("SurveyManagementPage publish new version", () => {
       const url = typeof input === "string" ? input : input.toString()
       const fetchMock = global.fetch as ReturnType<typeof vi.fn>
 
-      if (url === "/api/surveys/survey-1" && !init?.method) {
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
         return Promise.resolve(buildJsonResponse(buildSurveyPayload()))
       }
 
-      if (url === "/api/surveys/survey-1/responses" && !init?.method) {
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
         return Promise.resolve(
           buildJsonResponse({
             responses: [
@@ -197,19 +197,19 @@ describe("SurveyManagementPage publish new version", () => {
         )
       }
 
-      if (url === "/api/me") {
+      if (url === "/api/app/me") {
         return Promise.resolve(buildJsonResponse({ capabilities: {} }))
       }
 
-      if (url === "/api/surveys/survey-1/versions" && !init?.method) {
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
         const callCount = fetchMock.mock.calls.filter(
           ([calledUrl, calledInit]) =>
-            calledUrl === "/api/surveys/survey-1/versions" && !(calledInit as RequestInit | undefined)?.method
+            calledUrl === "/api/app/surveys/survey-1/versions" && !(calledInit as RequestInit | undefined)?.method
         ).length
         return Promise.resolve(buildJsonResponse(buildVersionsPayload(callCount > 1 ? [4, 3] : [3])))
       }
 
-      if (url === "/api/surveys/survey-1/responses/analytics") {
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
         return Promise.resolve(
           buildJsonResponse({
             selectedVersion: "all",
@@ -225,7 +225,7 @@ describe("SurveyManagementPage publish new version", () => {
         )
       }
 
-      if (url === "/api/surveys/survey-1/publish" && init?.method === "POST") {
+      if (url === "/api/app/surveys/survey-1/publish" && init?.method === "POST") {
         return Promise.resolve(
           buildJsonResponse(
             buildSurveyPayload({
@@ -249,7 +249,7 @@ describe("SurveyManagementPage publish new version", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/surveys/survey-1/publish",
+        "/api/app/surveys/survey-1/publish",
         expect.objectContaining({
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -260,7 +260,7 @@ describe("SurveyManagementPage publish new version", () => {
     await waitFor(() => {
       const versionCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
         ([url, init]) =>
-          url === "/api/surveys/survey-1/versions" && !(init as RequestInit | undefined)?.method
+          url === "/api/app/surveys/survey-1/versions" && !(init as RequestInit | undefined)?.method
       )
       expect(versionCalls).toHaveLength(2)
     })

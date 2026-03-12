@@ -10,9 +10,9 @@ vi.mock("@/lib/api-server", () => ({
   getAuthToken: mocks.getAuthToken,
 }))
 
-import { GET, PATCH } from "@/app/api/user-settings/route"
+import { GET, PATCH } from "@/app/api/app/user-settings/route"
 
-describe("/api/user-settings route", () => {
+describe("/api/app/user-settings route", () => {
   beforeEach(() => {
     mocks.getAuthToken.mockReset()
   })
@@ -25,7 +25,7 @@ describe("/api/user-settings route", () => {
   it("returns locale and time zone from cookies when unauthenticated", async () => {
     mocks.getAuthToken.mockResolvedValue(null)
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       headers: {
         cookie: "NEXT_LOCALE=ja; SURTOPYA_TIMEZONE=Asia%2FTokyo",
       },
@@ -44,7 +44,7 @@ describe("/api/user-settings route", () => {
   it("normalizes guest cookie aliases before returning settings", async () => {
     mocks.getAuthToken.mockResolvedValue(null)
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       headers: {
         cookie: "NEXT_LOCALE=en; SURTOPYA_TIMEZONE=US%2FPacific",
       },
@@ -64,7 +64,7 @@ describe("/api/user-settings route", () => {
   it("ignores autoInitialize for guest updates and only persists cookies", async () => {
     mocks.getAuthToken.mockResolvedValue(null)
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       method: "PATCH",
       body: JSON.stringify({ locale: "en", timeZone: "Asia/Taipei", autoInitialize: true }),
       headers: {
@@ -96,7 +96,7 @@ describe("/api/user-settings route", () => {
       )
     )
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       method: "PATCH",
       body: JSON.stringify({ locale: "zh-TW", timeZone: "Asia/Taipei" }),
       headers: {
@@ -126,7 +126,7 @@ describe("/api/user-settings route", () => {
     )
     vi.stubGlobal("fetch", fetchMock)
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       method: "PATCH",
       body: JSON.stringify({ locale: "en", timeZone: "US/Pacific" }),
       headers: {
@@ -155,7 +155,7 @@ describe("/api/user-settings route", () => {
   it("still rejects clearly invalid guest time zones", async () => {
     mocks.getAuthToken.mockResolvedValue(null)
 
-    const request = new NextRequest("http://localhost/api/user-settings", {
+    const request = new NextRequest("http://localhost/api/app/user-settings", {
       method: "PATCH",
       body: JSON.stringify({ locale: "en", timeZone: "Mars/Olympus" }),
       headers: {

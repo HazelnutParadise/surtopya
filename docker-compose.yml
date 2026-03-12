@@ -29,8 +29,10 @@ services:
       context: ./api
       dockerfile: Dockerfile
     ports:
-      - "8000:8080"
+      - "8000:8081"
     environment:
+      - INTERNAL_PORT=${INTERNAL_PORT:-8080}
+      - PUBLIC_PORT=${PUBLIC_PORT:-8081}
       - GIN_MODE=release
       - SURTOPYA_ENV=${SURTOPYA_ENV:-development}
       - DB_HOST=postgres

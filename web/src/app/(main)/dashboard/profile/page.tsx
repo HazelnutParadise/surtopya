@@ -33,7 +33,7 @@ export default function ProfilePage() {
     const loadProfile = async () => {
       setLoading(true)
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/app/me", { cache: "no-store" })
         if (!response.ok) {
           if (isMounted) {
             setProfile(null)
@@ -80,7 +80,7 @@ export default function ProfilePage() {
     setSaving(true)
     setError(null)
     try {
-      const response = await fetch("/api/me", {
+      const response = await fetch("/api/app/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

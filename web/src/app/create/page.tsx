@@ -18,7 +18,7 @@ export default function CreatePage() {
 
     const loadAuthState = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/app/me", { cache: "no-store" })
         if (!response.ok) {
           if (isMounted) setAuthStatus("unauthenticated")
           return

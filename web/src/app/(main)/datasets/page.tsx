@@ -92,7 +92,7 @@ function DatasetsContent() {
         params.set("limit", PAGE_SIZE.toString());
         params.set("offset", offset.toString());
 
-        const response = await fetch(`/api/datasets?${params.toString()}`, {
+        const response = await fetch(`/api/app/datasets?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
         });

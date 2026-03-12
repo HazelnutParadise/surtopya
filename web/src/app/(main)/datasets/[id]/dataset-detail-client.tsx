@@ -44,7 +44,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
     const fetchDataset = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/datasets/${id}`, {
+        const response = await fetch(`/api/app/datasets/${id}`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -87,7 +87,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       resource_id: id,
     })
     try {
-      const response = await fetch(`/api/datasets/${id}/download`, { method: "POST" });
+      const response = await fetch(`/api/app/datasets/${id}/download`, { method: "POST" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Download failed");

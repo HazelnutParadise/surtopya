@@ -218,7 +218,7 @@ export default function AdminPage() {
     let isMounted = true;
     const loadProfile = async () => {
       try {
-        const response = await fetch("/api/me", {
+        const response = await fetch("/api/app/me", {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -246,7 +246,7 @@ export default function AdminPage() {
         params.set("offset", "0");
 
         const response = await fetch(
-          `/api/admin/surveys?${params.toString()}`,
+          `/api/app/admin/surveys?${params.toString()}`,
           { cache: "no-store" },
         );
         if (!response.ok) {
@@ -289,7 +289,7 @@ export default function AdminPage() {
         params.set("offset", "0");
 
         const response = await fetch(
-          `/api/admin/datasets?${params.toString()}`,
+          `/api/app/admin/datasets?${params.toString()}`,
           { cache: "no-store" },
         );
         if (!response.ok) {
@@ -329,7 +329,7 @@ export default function AdminPage() {
         params.set("limit", PAGE_SIZE.toString());
         params.set("offset", "0");
 
-        const response = await fetch(`/api/admin/users?${params.toString()}`, {
+        const response = await fetch(`/api/app/admin/users?${params.toString()}`, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -372,7 +372,7 @@ export default function AdminPage() {
         params.set("limit", PAGE_SIZE.toString());
         params.set("offset", "0");
 
-        const response = await fetch(`/api/admin/agents?${params.toString()}`, {
+        const response = await fetch(`/api/app/admin/agents?${params.toString()}`, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -471,9 +471,9 @@ export default function AdminPage() {
       setError(null);
       const [policiesResult, writersResult, settingsResult] =
         await Promise.allSettled([
-          fetch("/api/admin/policies", { cache: "no-store" }),
-          fetch("/api/admin/policy-writers", { cache: "no-store" }),
-          fetch("/api/admin/system-settings", { cache: "no-store" }),
+          fetch("/api/app/admin/policies", { cache: "no-store" }),
+          fetch("/api/app/admin/policy-writers", { cache: "no-store" }),
+          fetch("/api/app/admin/system-settings", { cache: "no-store" }),
         ]);
 
       if (!isMounted) return;
@@ -577,7 +577,7 @@ export default function AdminPage() {
   const loadSurveyVersions = async (surveyId: string) => {
     setSurveyVersionsLoading(true);
     try {
-      const response = await fetch(`/api/admin/surveys/${surveyId}/versions`, {
+      const response = await fetch(`/api/app/admin/surveys/${surveyId}/versions`, {
         cache: "no-store",
       });
       if (!response.ok) {
@@ -619,7 +619,7 @@ export default function AdminPage() {
     setSavingSurvey(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/surveys/${editingSurvey.id}`, {
+      const response = await fetch(`/api/app/admin/surveys/${editingSurvey.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -652,7 +652,7 @@ export default function AdminPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/admin/surveys/${editingSurvey.id}/publish`,
+        `/api/app/admin/surveys/${editingSurvey.id}/publish`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -686,7 +686,7 @@ export default function AdminPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/admin/surveys/${editingSurvey.id}/responses/${open ? "open" : "close"}`,
+        `/api/app/admin/surveys/${editingSurvey.id}/responses/${open ? "open" : "close"}`,
         { method: "POST" },
       );
       if (!response.ok) {
@@ -711,7 +711,7 @@ export default function AdminPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/admin/surveys/${editingSurvey.id}/versions/${versionNumber}/restore-draft`,
+        `/api/app/admin/surveys/${editingSurvey.id}/versions/${versionNumber}/restore-draft`,
         { method: "POST" },
       );
       if (!response.ok) {
@@ -735,7 +735,7 @@ export default function AdminPage() {
     setSavingDataset(true);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/datasets/${editingDataset.id}`, {
+      const response = await fetch(`/api/app/admin/datasets/${editingDataset.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -782,7 +782,7 @@ export default function AdminPage() {
       formData.append("sampleSize", String(uploadForm.sampleSize));
       formData.append("file", uploadFile);
 
-      const response = await fetch("/api/admin/datasets", {
+      const response = await fetch("/api/app/admin/datasets", {
         method: "POST",
         body: formData,
       });
@@ -813,7 +813,7 @@ export default function AdminPage() {
   const deleteSurvey = async (survey: Survey) => {
     if (!window.confirm(tAdmin("deleteSurveyConfirm"))) return;
     try {
-      const response = await fetch(`/api/admin/surveys/${survey.id}`, {
+      const response = await fetch(`/api/app/admin/surveys/${survey.id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -829,7 +829,7 @@ export default function AdminPage() {
   const deleteDataset = async (dataset: Dataset) => {
     if (!window.confirm(tAdmin("deleteDatasetConfirm"))) return;
     try {
-      const response = await fetch(`/api/admin/datasets/${dataset.id}`, {
+      const response = await fetch(`/api/app/admin/datasets/${dataset.id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -894,8 +894,8 @@ export default function AdminPage() {
       };
       const response = await fetch(
         editingAgent
-          ? `/api/admin/agents/${editingAgent.id}`
-          : "/api/admin/agents",
+          ? `/api/app/admin/agents/${editingAgent.id}`
+          : "/api/app/admin/agents",
         {
           method: editingAgent ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
@@ -940,7 +940,7 @@ export default function AdminPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/admin/agents/${account.id}/reveal-key`,
+        `/api/app/admin/agents/${account.id}/reveal-key`,
         { method: "POST" },
       );
       const body = await response.json().catch(() => ({}));
@@ -992,7 +992,7 @@ export default function AdminPage() {
     setError(null);
     try {
       const response = await fetch(
-        `/api/admin/agents/${account.id}/rotate-key`,
+        `/api/app/admin/agents/${account.id}/rotate-key`,
         { method: "POST" },
       );
       const body = await response.json().catch(() => ({}));
@@ -1038,7 +1038,7 @@ export default function AdminPage() {
     setSavingUserId(user.id);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/users/${user.id}`, {
+      const response = await fetch(`/api/app/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isAdmin: nextValue }),
@@ -1091,7 +1091,7 @@ export default function AdminPage() {
     setSavingUserId(user.id);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/users/${user.id}`, {
+      const response = await fetch(`/api/app/admin/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1157,7 +1157,7 @@ export default function AdminPage() {
     setPolicySaving(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/policies", {
+      const response = await fetch("/api/app/admin/policies", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates: matrix }),
@@ -1177,7 +1177,7 @@ export default function AdminPage() {
     setSavingPlanId(plan.id);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/subscription-plans/${plan.id}`, {
+      const response = await fetch(`/api/app/admin/subscription-plans/${plan.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1211,7 +1211,7 @@ export default function AdminPage() {
     setCreatingPlan(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/subscription-plans", {
+      const response = await fetch("/api/app/admin/subscription-plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newPlan),
@@ -1249,7 +1249,7 @@ export default function AdminPage() {
         0,
         Math.floor(Number(surveyBasePointsDraft) || 0),
       );
-      const response = await fetch("/api/admin/system-settings", {
+      const response = await fetch("/api/app/admin/system-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ surveyBasePoints }),
@@ -1313,7 +1313,7 @@ export default function AdminPage() {
     setDeactivatingPlanId(plan.id);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/subscription-plans/${plan.id}`, {
+      const response = await fetch(`/api/app/admin/subscription-plans/${plan.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1344,7 +1344,7 @@ export default function AdminPage() {
     setSavingCapabilityId(capability.id);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/capabilities/${capability.id}`, {
+      const response = await fetch(`/api/app/admin/capabilities/${capability.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1372,7 +1372,7 @@ export default function AdminPage() {
     setSavingPolicyWriterId(userId);
     setError(null);
     try {
-      const response = await fetch(`/api/admin/policy-writers/${userId}`, {
+      const response = await fetch(`/api/app/admin/policy-writers/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),

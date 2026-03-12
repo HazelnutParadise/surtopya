@@ -45,7 +45,7 @@ export function LocaleSync() {
         const detectedLocale = detectBrowserLocale()
         const detectedTimeZone = detectBrowserTimeZone()
 
-        const response = await fetch("/api/user-settings", { cache: "no-store" })
+        const response = await fetch("/api/app/user-settings", { cache: "no-store" })
         if (!response.ok) {
           return
         }
@@ -69,7 +69,7 @@ export function LocaleSync() {
         })
 
         if (autoDetectedPatch) {
-          const patchResponse = await fetch("/api/user-settings", {
+          const patchResponse = await fetch("/api/app/user-settings", {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",

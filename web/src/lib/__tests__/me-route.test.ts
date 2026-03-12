@@ -19,9 +19,9 @@ vi.mock("@logto/next/server-actions", () => ({
   getLogtoContext: mocks.getLogtoContext,
 }))
 
-import { GET } from "@/app/api/me/route"
+import { GET } from "@/app/api/app/me/route"
 
-describe("GET /api/me route", () => {
+describe("GET /api/app/me route", () => {
   beforeEach(() => {
     mocks.getAuthToken.mockReset()
     mocks.getLogtoConfig.mockReset()

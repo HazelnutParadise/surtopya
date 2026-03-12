@@ -92,8 +92,8 @@ describe("LocaleSync", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/user-settings")
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/user-settings")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/app/user-settings")
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/app/user-settings")
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
       method: "PATCH",
       headers: {
@@ -126,7 +126,7 @@ describe("LocaleSync", () => {
     render(<LocaleSync />)
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/user-settings")
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/app/user-settings")
     expect(mocks.routerReplace).not.toHaveBeenCalled()
     expect(mocks.routerRefresh).not.toHaveBeenCalled()
   })

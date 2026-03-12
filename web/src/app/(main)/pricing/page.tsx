@@ -27,8 +27,8 @@ export default function PricingPage() {
       setLoading(true)
       try {
         const [meRes, plansRes] = await Promise.all([
-          fetch("/api/me", { cache: "no-store" }),
-          fetch(`/api/pricing/plans?locale=${encodeURIComponent(locale)}`, { cache: "no-store" }),
+          fetch("/api/app/me", { cache: "no-store" }),
+          fetch(`/api/app/pricing/plans?locale=${encodeURIComponent(locale)}`, { cache: "no-store" }),
         ])
 
         const mePayload = await meRes.json().catch(() => null)

@@ -8,7 +8,7 @@ describe("datasets openapi spec", () => {
     expect(spec.info.title).toBe("Surtopya Dataset API")
     expect(spec.servers).toEqual([
       {
-        url: "/api",
+        url: "/api/app",
         description: "Same-origin proxy (recommended for interactive try-out)",
       },
       {

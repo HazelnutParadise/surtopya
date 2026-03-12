@@ -72,7 +72,7 @@ function ExploreContent() {
     const fetchSurveys = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/surveys/public?limit=${PAGE_SIZE}&offset=0`, {
+        const response = await fetch(`/api/app/surveys/public?limit=${PAGE_SIZE}&offset=0`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -115,7 +115,7 @@ function ExploreContent() {
 
     setLoadingMore(true)
     try {
-      const response = await fetch(`/api/surveys/public?limit=${PAGE_SIZE}&offset=${offset}`, {
+      const response = await fetch(`/api/app/surveys/public?limit=${PAGE_SIZE}&offset=${offset}`, {
         cache: "no-store",
       })
       if (!response.ok) {

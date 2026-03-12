@@ -45,11 +45,11 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         const [surveysResponse, draftsResponse] = await Promise.all([
-          fetch("/api/surveys/my", {
+          fetch("/api/app/surveys/my", {
             cache: "no-store",
             signal: controller.signal,
           }),
-          fetch("/api/drafts/my", {
+          fetch("/api/app/drafts/my", {
             cache: "no-store",
             signal: controller.signal,
           }),

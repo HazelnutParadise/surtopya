@@ -232,7 +232,7 @@ export function SurveyBuilder() {
     let isActive = true
     const loadCapabilities = async () => {
       try {
-        const response = await fetch("/api/me", { cache: "no-store" })
+        const response = await fetch("/api/app/me", { cache: "no-store" })
         const payload = await response.json().catch(() => ({}))
         if (isActive && response.ok) {
           setCapabilities(payload.capabilities || {})
@@ -675,7 +675,7 @@ export function SurveyBuilder() {
     setVersionsLoading(true)
     setVersionError(null)
     try {
-      const response = await fetch(`/api/surveys/${id}/versions`, { cache: "no-store" })
+      const response = await fetch(`/api/app/surveys/${id}/versions`, { cache: "no-store" })
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}))
         throw new Error(errorPayload?.error || "Failed to load survey versions")
@@ -703,7 +703,7 @@ export function SurveyBuilder() {
     const loadSurvey = async () => {
       setLoadingSurvey(true)
       try {
-        const response = await fetch(`/api/surveys/${editId}`, { cache: "no-store" })
+        const response = await fetch(`/api/app/surveys/${editId}`, { cache: "no-store" })
         if (!response.ok) {
           return
         }
@@ -736,7 +736,7 @@ export function SurveyBuilder() {
     setVersionError(null)
     setRestoreNotice(null)
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
         method: "POST",
       })
       if (!response.ok) {
@@ -784,7 +784,7 @@ export function SurveyBuilder() {
         questions: buildQuestionsPayload(),
       };
 
-      const response = await fetch(surveyId ? `/api/surveys/${surveyId}` : "/api/surveys", {
+      const response = await fetch(surveyId ? `/api/app/surveys/${surveyId}` : "/api/app/surveys", {
         method: surveyId ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -831,7 +831,7 @@ export function SurveyBuilder() {
         throw new Error("Missing survey id");
       }
 
-      const response = await fetch(`/api/surveys/${currentId}/publish`, {
+      const response = await fetch(`/api/app/surveys/${currentId}/publish`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -963,7 +963,7 @@ export function SurveyBuilder() {
                         placeholder={tBuilder("untitledSurvey")}
                     />
                     <span className="text-[10px] text-gray-400 capitalize px-1">
-                      {isPublished ? tDashboard("published") : tDashboard("draft")} • {tBuilder("questionCount", { count: questionCount })}
+                      {isPublished ? tDashboard("published") : tDashboard("draft")} ??{tBuilder("questionCount", { count: questionCount })}
                     </span>
                 </div>
            </div>

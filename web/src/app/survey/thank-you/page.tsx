@@ -52,7 +52,7 @@ export default function ThankYouPage() {
     const loadAuth = async () => {
       setAuthLoading(true)
       try {
-        const response = await fetch("/api/me", {
+        const response = await fetch("/api/app/me", {
           cache: "no-store",
           signal: controller.signal,
         })
@@ -100,7 +100,7 @@ export default function ThankYouPage() {
     setClaimLoading(true)
     setClaimError(null)
     try {
-      const response = await fetch("/api/responses/claim-anonymous-points", {
+      const response = await fetch("/api/app/responses/claim-anonymous-points", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ claimToken: claimContext.claimToken }),
@@ -135,7 +135,7 @@ export default function ThankYouPage() {
     setClaimLoading(true)
     setClaimError(null)
     try {
-      const response = await fetch("/api/responses/forfeit-anonymous-points", {
+      const response = await fetch("/api/app/responses/forfeit-anonymous-points", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ claimToken: claimContext.claimToken }),

@@ -7,7 +7,7 @@ let cached: RuntimeConfig | null = null
 export const getRuntimeConfig = async (): Promise<RuntimeConfig> => {
   if (cached) return cached
 
-  const res = await fetch("/api/config", { cache: "no-store" })
+  const res = await fetch("/api/app/config", { cache: "no-store" })
   if (!res.ok) {
     cached = { surveyBasePoints: 0 }
     return cached

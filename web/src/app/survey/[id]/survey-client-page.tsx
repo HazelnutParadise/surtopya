@@ -376,7 +376,7 @@ export function SurveyClientPage({
       }
 
       const body = JSON.stringify({ answers })
-      const endpoint = `/api/drafts/${targetDraftId}/answers/bulk`
+      const endpoint = `/api/app/drafts/${targetDraftId}/answers/bulk`
 
       if (options?.bestEffort) {
         let queued = false
@@ -496,7 +496,7 @@ export function SurveyClientPage({
     draftId: string | null
     requiresMergeDecision: boolean
   }> => {
-    const response = await fetch(`/api/surveys/${surveyId}/drafts/start`, {
+    const response = await fetch(`/api/app/surveys/${surveyId}/drafts/start`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -706,13 +706,13 @@ export function SurveyClientPage({
             throw new Error("Missing response draft")
           }
 
-          response = await fetch(`/api/drafts/${targetDraftId}/submit`, {
+          response = await fetch(`/api/app/drafts/${targetDraftId}/submit`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(submitPayload),
           })
         } else {
-          response = await fetch(`/api/surveys/${surveyId}/responses/submit-anonymous`, {
+          response = await fetch(`/api/app/surveys/${surveyId}/responses/submit-anonymous`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(submitPayload),
@@ -814,7 +814,7 @@ export function SurveyClientPage({
     const loadAuth = async () => {
       setAuthLoading(true)
       try {
-        const response = await fetch("/api/me", {
+        const response = await fetch("/api/app/me", {
           cache: "no-store",
           signal: controller.signal,
         })

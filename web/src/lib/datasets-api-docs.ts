@@ -107,7 +107,7 @@ export const createDatasetDocsRequestInterceptor = ({
 }
 
 export const fetchDatasetAccessTypeForDocs = async (datasetId: string) => {
-  const response = await fetch(`/api/datasets/${encodeURIComponent(datasetId)}`, {
+  const response = await fetch(`/api/app/datasets/${encodeURIComponent(datasetId)}`, {
     method: "GET",
     cache: "no-store",
     credentials: "include",

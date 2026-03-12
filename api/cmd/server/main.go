@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -14,6 +17,14 @@ import (
 )
 
 const dbReconnectInterval = 3 * time.Second
+
+func getEnvOrDefault(key string, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
 
 func startDatabaseWorkers() {
 	go func() {
@@ -138,17 +149,37 @@ func main() {
 		},
 	)
 
-	// Setup router
-	router := routes.SetupRouter()
-
-	// Get port from environment or default to 8080
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	internalPort := getEnvOrDefault("INTERNAL_PORT", "")
+	if internalPort == "" {
+		internalPort = getEnvOrDefault("PORT", "8080")
+	}
+	publicPort := getEnvOrDefault("PUBLIC_PORT", "8081")
+	if internalPort == publicPort {
+		log.Fatalf("INTERNAL_PORT and PUBLIC_PORT must be different, got %s", internalPort)
 	}
 
-	log.Printf("Starting Surtopya API server on :%s...", port)
-	if err := router.Run(":" + port); err != nil {
+	internalRouter := routes.SetupRouter()
+	publicRouter := routes.SetupPublicRouter()
+	errCh := make(chan error, 2)
+
+	startServer := func(name string, port string, handler http.Handler) {
+		go func() {
+			addr := ":" + port
+			log.Printf("Starting Surtopya %s API server on %s...", name, addr)
+			server := &http.Server{
+				Addr:    addr,
+				Handler: handler,
+			}
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- fmt.Errorf("%s server: %w", name, err)
+			}
+		}()
+	}
+
+	startServer("internal", internalPort, internalRouter)
+	startServer("public", publicPort, publicRouter)
+
+	if err := <-errCh; err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

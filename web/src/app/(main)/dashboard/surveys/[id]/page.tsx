@@ -120,7 +120,7 @@ export default function SurveyManagementPage() {
     setVersionsLoading(true)
     setVersionError(null)
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/versions`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}/versions`, {
         cache: "no-store",
       })
       if (!response.ok) {
@@ -150,7 +150,7 @@ export default function SurveyManagementPage() {
     const fetchSurvey = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/surveys/${surveyId}`, {
+        const response = await fetch(`/api/app/surveys/${surveyId}`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -174,7 +174,7 @@ export default function SurveyManagementPage() {
 
     const fetchResponses = async () => {
       try {
-        const response = await fetch(`/api/surveys/${surveyId}/responses`, {
+        const response = await fetch(`/api/app/surveys/${surveyId}/responses`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -192,7 +192,7 @@ export default function SurveyManagementPage() {
 
     const fetchCapabilities = async () => {
       try {
-        const response = await fetch("/api/me", {
+        const response = await fetch("/api/app/me", {
           cache: "no-store",
           signal: controller.signal,
         })
@@ -228,7 +228,7 @@ export default function SurveyManagementPage() {
 
       try {
         const query = analyticsVersion === "all" ? "" : `?version=${encodeURIComponent(analyticsVersion)}`
-        const response = await fetch(`/api/surveys/${surveyId}/responses/analytics${query}`, {
+        const response = await fetch(`/api/app/surveys/${surveyId}/responses/analytics${query}`, {
           cache: "no-store",
           signal: controller.signal,
         })
@@ -363,7 +363,7 @@ export default function SurveyManagementPage() {
     setDeleteError(null)
     setDeleting(true)
     try {
-      const response = await fetch(`/api/surveys/${surveyId}`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}`, {
         method: "DELETE",
       })
       if (!response.ok) {
@@ -405,7 +405,7 @@ export default function SurveyManagementPage() {
       resource_id: surveyId,
     })
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/publish`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: getPublishRequestBody(),
@@ -460,7 +460,7 @@ export default function SurveyManagementPage() {
     })
     try {
       const endpoint = nextOpen ? "responses/open" : "responses/close"
-      const response = await fetch(`/api/surveys/${surveyId}/${endpoint}`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}/${endpoint}`, {
         method: "POST",
       });
       const payload = await response.json();
@@ -503,7 +503,7 @@ export default function SurveyManagementPage() {
       metadata: { version_number: versionNumber },
     })
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}/versions/${versionNumber}/restore-draft`, {
         method: "POST",
       })
       if (!response.ok) {
@@ -568,7 +568,7 @@ export default function SurveyManagementPage() {
     };
 
     try {
-      const response = await fetch(`/api/surveys/${surveyId}`, {
+      const response = await fetch(`/api/app/surveys/${surveyId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
