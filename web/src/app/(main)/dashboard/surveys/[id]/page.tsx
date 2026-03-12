@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,11 +29,17 @@ import {
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { useTimeZone, useTranslations } from "next-intl";
-import type { SurveyResponse, SurveyVersion } from "@/lib/api";
+import {
+  normalizeSurveyResponseAnalytics,
+  type SurveyResponse,
+  type SurveyResponseAnalytics,
+  type SurveyVersion,
+} from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
+import { ResponseAnalyticsPanel } from "@/components/survey/response-analytics-panel";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
 import {
@@ -77,6 +83,10 @@ export default function SurveyManagementPage() {
 
   const [survey, setSurvey] = useState<SurveyDisplay | null>(null);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [analytics, setAnalytics] = useState<SurveyResponseAnalytics | null>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(true)
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
+  const [analyticsVersion, setAnalyticsVersion] = useState("all")
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -206,6 +216,49 @@ export default function SurveyManagementPage() {
   }, [loadSurveyVersions, surveyId]);
 
   useEffect(() => {
+    let isMounted = true
+    const controller = new AbortController()
+
+    const fetchAnalytics = async () => {
+      setAnalyticsLoading(true)
+      setAnalyticsError(null)
+
+      try {
+        const query = analyticsVersion === "all" ? "" : `?version=${encodeURIComponent(analyticsVersion)}`
+        const response = await fetch(`/api/surveys/${surveyId}/responses/analytics${query}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        const payload = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+          throw new Error(payload?.message || payload?.error || tCommon("error"))
+        }
+
+        if (isMounted) {
+          setAnalytics(normalizeSurveyResponseAnalytics(payload, analyticsVersion))
+        }
+      } catch (error) {
+        if (!isMounted || controller.signal.aborted) return
+        console.error("Failed to load response analytics:", error)
+        setAnalytics(null)
+        setAnalyticsError(error instanceof Error ? error.message : tCommon("error"))
+      } finally {
+        if (isMounted && !controller.signal.aborted) {
+          setAnalyticsLoading(false)
+        }
+      }
+    }
+
+    void fetchAnalytics()
+
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
+  }, [analyticsVersion, surveyId, tCommon])
+
+  useEffect(() => {
     if (!survey) return;
     setFormState({
       title: survey.title,
@@ -262,6 +315,12 @@ export default function SurveyManagementPage() {
     })
     downloadCsv(`responses-${surveyId}.csv`, rows, encoding === "excel")
   }
+
+  const handleAnalyticsVersionChange = useCallback((value: string) => {
+    startTransition(() => {
+      setAnalyticsVersion(value)
+    })
+  }, [])
 
   const handlePreview = () => {
     if (survey) {
@@ -728,7 +787,14 @@ export default function SurveyManagementPage() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="responses" className="mt-6">
+              <TabsContent value="responses" className="mt-6 space-y-6">
+                <ResponseAnalyticsPanel
+                  analytics={analytics}
+                  loading={analyticsLoading}
+                  error={analyticsError}
+                  selectedVersion={analyticsVersion}
+                  onVersionChange={handleAnalyticsVersionChange}
+                />
                 <Card>
                   <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

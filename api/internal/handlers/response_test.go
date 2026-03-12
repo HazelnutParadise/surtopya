@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
@@ -423,5 +424,182 @@ func TestResponseHandler_GetSurveyResponses_IncludesAnswers(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"responses"`)
 	require.Contains(t, w.Body.String(), `"answers":[`)
 	require.Contains(t, w.Body.String(), `"text":"foo"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_GetSurveyResponseAnalytics_RejectsInvalidVersionQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+
+	r := gin.New()
+	r.GET("/api/v1/surveys/:id/responses/analytics", func(c *gin.Context) {
+		c.Set("userID", uuid.New())
+		h.GetSurveyResponseAnalytics(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/surveys/"+surveyID.String()+"/responses/analytics?version=zero", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Invalid version query")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_GetSurveyResponseAnalytics_ReturnsOwnerAnalytics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+	mock.MatchExpectationsInOrder(false)
+
+	surveyID := uuid.New()
+	ownerID := uuid.New()
+	versionID := uuid.New()
+	responseID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, true, versionID, 1)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, survey_id, survey_version_id, survey_version_number, user_id, anonymous_id, status, points_awarded,
+			started_at, completed_at, created_at
+		FROM responses WHERE survey_id = $1
+		ORDER BY created_at DESC
+	`)).
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 1, ownerID, nil, "completed", 0, now, now, now))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, response_id, question_id, value, created_at
+		FROM answers
+		WHERE response_id IN ($1)
+		ORDER BY created_at ASC
+	`)).
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}).AddRow(
+			uuid.New(), responseID, questionID, []byte(`{"text":"owner visible text"}`), now,
+		))
+
+	snapshot, err := json.Marshal(map[string]any{
+		"title":             "Survey",
+		"description":       "Desc",
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      0,
+		"questions": []map[string]any{
+			{
+				"id":        questionID,
+				"type":      "text",
+				"title":     "Comment",
+				"required":  false,
+				"sortOrder": 0,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, survey_id, version_number, snapshot, points_reward,
+			expires_at, published_at, published_by, created_at
+		FROM survey_versions
+		WHERE survey_id = $1
+		ORDER BY version_number DESC
+	`)).
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(versionID, surveyID, 1, snapshot, 0, nil, now, ownerID, now))
+
+	r := gin.New()
+	r.GET("/api/v1/surveys/:id/responses/analytics", func(c *gin.Context) {
+		c.Set("userID", ownerID)
+		h.GetSurveyResponseAnalytics(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/surveys/"+surveyID.String()+"/responses/analytics", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"selectedVersion":"all"`)
+	require.Contains(t, w.Body.String(), `"questionType":"text"`)
+	require.Contains(t, w.Body.String(), `"textResponses":["owner visible text"]`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_GetSurveyResponseAnalytics_ReturnsStableEmptyArrays(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+	mock.MatchExpectationsInOrder(false)
+
+	surveyID := uuid.New()
+	ownerID := uuid.New()
+	versionID := uuid.New()
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, false, versionID, 0)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, survey_id, survey_version_id, survey_version_number, user_id, anonymous_id, status, points_awarded,
+			started_at, completed_at, created_at
+		FROM responses WHERE survey_id = $1
+		ORDER BY created_at DESC
+	`)).
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}))
+
+	mock.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, survey_id, version_number, snapshot, points_reward,
+			expires_at, published_at, published_by, created_at
+		FROM survey_versions
+		WHERE survey_id = $1
+		ORDER BY version_number DESC
+	`)).
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}))
+
+	r := gin.New()
+	r.GET("/api/v1/surveys/:id/responses/analytics", func(c *gin.Context) {
+		c.Set("userID", ownerID)
+		h.GetSurveyResponseAnalytics(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/surveys/"+surveyID.String()+"/responses/analytics", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"availableVersions":[]`)
+	require.Contains(t, w.Body.String(), `"questions":[]`)
+	require.Contains(t, w.Body.String(), `"warnings":[]`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

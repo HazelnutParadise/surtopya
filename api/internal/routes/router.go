@@ -84,6 +84,7 @@ func SetupRouter() *gin.Engine {
 
 			// Survey response read routes (nested under surveys)
 			v1.GET("/surveys/:id/responses", middleware.RequireAuth(), responseHandler.GetSurveyResponses)
+			v1.GET("/surveys/:id/responses/analytics", middleware.RequireAuth(), responseHandler.GetSurveyResponseAnalytics)
 
 			// Authenticated draft read routes
 			drafts := v1.Group("/drafts", middleware.RequireAuth())
@@ -170,6 +171,7 @@ func SetupRouter() *gin.Engine {
 				agentProtected.GET("/me", agentAdminHandler.GetMe)
 				agentProtected.GET("/logs", middleware.RequireAgentPermission("logs.read"), agentAdminHandler.ListLogs)
 				agentProtected.GET("/logs/:id", middleware.RequireAgentPermission("logs.read"), agentAdminHandler.GetLog)
+				agentProtected.GET("/surveys/:id/responses/analytics", middleware.RequireAgentPermission("surveys.read"), agentAdminHandler.GetSurveyResponseAnalytics)
 				agentProtected.GET("/agents", middleware.RequireAgentPermission("agents.read"), agentAdminHandler.ListAccounts)
 				agentProtected.POST("/agents", middleware.RequireAgentPermission("agents.write"), agentAdminHandler.CreateAccount)
 				agentProtected.GET("/agents/:id", middleware.RequireAgentPermission("agents.read"), agentAdminHandler.GetAccount)

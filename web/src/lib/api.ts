@@ -356,6 +356,148 @@ export interface SurveyResponse {
   answers?: Answer[];
 }
 
+export interface SurveyResponseAnalyticsOptionCount {
+  label: string
+  count: number
+  percentage: number
+}
+
+export interface SurveyResponseAnalyticsQuestion {
+  questionId: string
+  title: string
+  description?: string
+  questionType: "single" | "select" | "multi" | "rating" | "date" | "text" | "short" | "long"
+  responseCount: number
+  optionCounts: SurveyResponseAnalyticsOptionCount[]
+  averageRating?: number
+  maxRating?: number
+  textResponses: string[]
+  hasMoreResponses?: boolean
+}
+
+export interface SurveyResponseAnalyticsSummary {
+  totalCompletedResponses: number
+  questionCount: number
+  generatedAt: string
+}
+
+export interface SurveyResponseAnalytics {
+  selectedVersion: string
+  availableVersions: number[]
+  summary: SurveyResponseAnalyticsSummary
+  questions: SurveyResponseAnalyticsQuestion[]
+  warnings: string[]
+}
+
+const surveyAnalyticsQuestionTypes = new Set<SurveyResponseAnalyticsQuestion["questionType"]>([
+  "single",
+  "select",
+  "multi",
+  "rating",
+  "date",
+  "text",
+  "short",
+  "long",
+])
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+  if (typeof value !== "object" || value == null) return null
+  return value as Record<string, unknown>
+}
+
+const asString = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback)
+
+const asOptionalString = (value: unknown) =>
+  typeof value === "string" && value.length > 0 ? value : undefined
+
+const asNumber = (value: unknown, fallback = 0) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback
+
+const asOptionalNumber = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined
+
+const asBoolean = (value: unknown, fallback = false) =>
+  typeof value === "boolean" ? value : fallback
+
+const asStringArray = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+
+const asNumberArray = (value: unknown) =>
+  Array.isArray(value)
+    ? value.filter((item): item is number => typeof item === "number" && Number.isFinite(item))
+    : []
+
+const normalizeSurveyResponseAnalyticsQuestionType = (
+  value: unknown
+): SurveyResponseAnalyticsQuestion["questionType"] =>
+  typeof value === "string" && surveyAnalyticsQuestionTypes.has(value as SurveyResponseAnalyticsQuestion["questionType"])
+    ? (value as SurveyResponseAnalyticsQuestion["questionType"])
+    : "text"
+
+const normalizeSurveyResponseAnalyticsOptionCount = (
+  value: unknown
+): SurveyResponseAnalyticsOptionCount | null => {
+  const record = asRecord(value)
+  if (!record) return null
+
+  return {
+    label: asString(record.label),
+    count: asNumber(record.count),
+    percentage: asNumber(record.percentage),
+  }
+}
+
+const normalizeSurveyResponseAnalyticsQuestion = (
+  value: unknown
+): SurveyResponseAnalyticsQuestion | null => {
+  const record = asRecord(value)
+  if (!record) return null
+
+  const optionCounts = Array.isArray(record.optionCounts)
+    ? record.optionCounts
+        .map(normalizeSurveyResponseAnalyticsOptionCount)
+        .filter((item): item is SurveyResponseAnalyticsOptionCount => item !== null)
+    : []
+
+  return {
+    questionId: asString(record.questionId),
+    title: asString(record.title),
+    description: asOptionalString(record.description),
+    questionType: normalizeSurveyResponseAnalyticsQuestionType(record.questionType),
+    responseCount: asNumber(record.responseCount),
+    optionCounts,
+    averageRating: asOptionalNumber(record.averageRating),
+    maxRating: asOptionalNumber(record.maxRating),
+    textResponses: asStringArray(record.textResponses),
+    hasMoreResponses: asBoolean(record.hasMoreResponses),
+  }
+}
+
+export const normalizeSurveyResponseAnalytics = (
+  value: unknown,
+  selectedVersionFallback = "all"
+): SurveyResponseAnalytics => {
+  const record = asRecord(value)
+  const summary = asRecord(record?.summary)
+  const questions = Array.isArray(record?.questions)
+    ? record.questions
+        .map(normalizeSurveyResponseAnalyticsQuestion)
+        .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
+    : []
+
+  return {
+    selectedVersion: asString(record?.selectedVersion, selectedVersionFallback),
+    availableVersions: asNumberArray(record?.availableVersions),
+    summary: {
+      totalCompletedResponses: asNumber(summary?.totalCompletedResponses),
+      questionCount: asNumber(summary?.questionCount, questions.length),
+      generatedAt: asString(summary?.generatedAt),
+    },
+    questions,
+    warnings: asStringArray(record?.warnings),
+  }
+}
+
 export interface ResponseDraftSummary {
   id: string;
   surveyId: string;

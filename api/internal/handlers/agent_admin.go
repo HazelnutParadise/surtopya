@@ -61,7 +61,7 @@ func (h *AgentAdminHandler) GetUsageIndex(c *gin.Context) {
 			"logs.read":      []string{"GET /api/v1/agent-admin/logs", "GET /api/v1/agent-admin/logs/:id"},
 			"agents.read":    []string{"GET /api/v1/agent-admin/agents", "GET /api/v1/agent-admin/agents/:id"},
 			"agents.write":   []string{"POST /api/v1/agent-admin/agents", "PATCH /api/v1/agent-admin/agents/:id", "POST /api/v1/agent-admin/agents/:id/reveal-key", "POST /api/v1/agent-admin/agents/:id/rotate-key"},
-			"surveys.read":   []string{},
+			"surveys.read":   []string{"GET /api/v1/agent-admin/surveys/:id/responses/analytics"},
 			"surveys.write":  []string{},
 			"datasets.read":  []string{},
 			"datasets.write": []string{},
@@ -86,6 +86,7 @@ func (h *AgentAdminHandler) GetUsageIndex(c *gin.Context) {
 			{"method": "GET", "path": "/api/v1/agent-admin/me", "purpose": "current agent identity"},
 			{"method": "GET", "path": "/api/v1/agent-admin/logs", "purpose": "list logs"},
 			{"method": "GET", "path": "/api/v1/agent-admin/logs/:id", "purpose": "get log detail"},
+			{"method": "GET", "path": "/api/v1/agent-admin/surveys/:id/responses/analytics", "purpose": "get survey response analytics"},
 			{"method": "GET", "path": "/api/v1/agent-admin/agents", "purpose": "list accessible agent accounts"},
 			{"method": "POST", "path": "/api/v1/agent-admin/agents", "purpose": "create agent account"},
 			{"method": "GET", "path": "/api/v1/agent-admin/agents/:id", "purpose": "get agent account"},
@@ -146,6 +147,9 @@ func (h *AgentAdminHandler) GetOpenAPI(c *gin.Context) {
 			},
 			"/logs": gin.H{
 				"get": gin.H{"summary": "List accessible logs"},
+			},
+			"/surveys/{id}/responses/analytics": gin.H{
+				"get": gin.H{"summary": "Get survey response analytics"},
 			},
 			"/agents": gin.H{
 				"get":  gin.H{"summary": "List accessible agent accounts"},

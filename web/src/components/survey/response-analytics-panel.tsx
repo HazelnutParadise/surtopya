@@ -1,0 +1,182 @@
+"use client"
+
+import { AlertTriangle, BarChart3 } from "lucide-react"
+import { useTranslations } from "next-intl"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { normalizeSurveyResponseAnalytics, type SurveyResponseAnalytics } from "@/lib/api"
+
+interface ResponseAnalyticsPanelProps {
+  analytics: SurveyResponseAnalytics | null
+  loading: boolean
+  error: string | null
+  selectedVersion: string
+  onVersionChange: (value: string) => void
+}
+
+const roundPercent = (value: number) => `${Math.round(value)}%`
+
+export function ResponseAnalyticsPanel({
+  analytics,
+  loading,
+  error,
+  selectedVersion,
+  onVersionChange,
+}: ResponseAnalyticsPanelProps) {
+  const t = useTranslations("SurveyManagement")
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+        {t("responseAnalyticsLoading")}
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">{t("responseAnalyticsError")}</p>
+            <p className="mt-1 text-xs opacity-90">{error}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!analytics) {
+    return null
+  }
+
+  const safeAnalytics = normalizeSurveyResponseAnalytics(analytics, selectedVersion)
+  const versionOptions = [
+    { value: "all", label: t("responseAnalyticsVersionAll") },
+    ...safeAnalytics.availableVersions.map((version) => ({
+      value: String(version),
+      label: t("responseAnalyticsVersionSingle", { version }),
+    })),
+  ]
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t("responseAnalyticsTitle")}</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("responseAnalyticsDescription")}</p>
+        </div>
+        <label className="flex flex-col gap-1 text-sm text-gray-600 dark:text-gray-300">
+          <span>{t("responseAnalyticsVersionLabel")}</span>
+          <select
+            data-testid="response-analytics-version-select"
+            value={selectedVersion}
+            onChange={(event) => onVersionChange(event.target.value)}
+            className="min-w-[180px] rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-purple-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            {versionOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {safeAnalytics.warnings.length > 0 ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium">{t("responseAnalyticsWarningsTitle")}</p>
+              {safeAnalytics.warnings.map((warning) => (
+                <p key={warning} className="text-xs opacity-90">
+                  {warning}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {safeAnalytics.summary.totalCompletedResponses === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+          {t("responseAnalyticsNoResponses")}
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {safeAnalytics.questions.map((question) => (
+            <Card key={question.questionId} className="overflow-hidden border-gray-200/80 dark:border-gray-800">
+              <CardHeader className="gap-3">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <CardTitle className="text-base">{question.title}</CardTitle>
+                    {question.description ? (
+                      <CardDescription className="mt-1">{question.description}</CardDescription>
+                    ) : null}
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    {question.questionType}
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  {t("responseAnalyticsResponsesCount", { count: question.responseCount })}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {question.averageRating != null ? (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-sm font-medium text-purple-700 dark:bg-purple-950/30 dark:text-purple-200">
+                    <span>{t("responseAnalyticsAverageLabel")}</span>
+                    <span>{question.averageRating.toFixed(1)}</span>
+                  </div>
+                ) : null}
+
+                {question.optionCounts.length > 0 ? (
+                  <div className="space-y-3">
+                    {question.optionCounts.map((option) => (
+                      <div key={`${question.questionId}-${option.label}`} className="space-y-1">
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="truncate text-gray-700 dark:text-gray-200">{option.label}</span>
+                          <span className="shrink-0 text-gray-500 dark:text-gray-400">
+                            {option.count} · {roundPercent(option.percentage)}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-900">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400 transition-[width]"
+                            style={{ width: `${Math.max(option.percentage, 0)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {question.textResponses.length > 0 ? (
+                  <div className="space-y-2">
+                    {question.textResponses.map((response, index) => (
+                      <div
+                        key={`${question.questionId}-${index}`}
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+                      >
+                        {response}
+                      </div>
+                    ))}
+                    {question.hasMoreResponses ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("responseAnalyticsMoreResponses", {
+                          count: Math.max(question.responseCount - question.textResponses.length, 0),
+                        })}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
