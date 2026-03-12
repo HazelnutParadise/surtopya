@@ -7,6 +7,7 @@ import { cookies, headers } from "next/headers";
 import { defaultLocale, locales, withLocale } from "@/lib/locale";
 import { getServerTranslator } from "@/lib/i18n-server";
 import { MotionReveal, PageMotionShell } from "@/components/motion";
+import { SiteFooter } from "@/components/site-footer";
 
 export default async function Home() {
   const headerStore = await headers();
@@ -18,7 +19,6 @@ export default async function Home() {
       ? headerLocale
       : localeFromCookie;
   const t = await getServerTranslator("Home");
-  const currentYear = new Date().getFullYear();
   return (
     <PageMotionShell className="flex min-h-screen flex-col">
       <Navbar />
@@ -88,20 +88,58 @@ export default async function Home() {
             </div>
           </div>
         </MotionReveal>
+        <MotionReveal className="w-full bg-white py-12 md:py-16 dark:bg-gray-950" delayMs={150}>
+          <div className="container px-4 md:px-6">
+            <div className="space-y-8 rounded-3xl border border-gray-200 bg-gray-50 p-6 md:p-10 dark:border-gray-800 dark:bg-gray-900/70">
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-600 dark:text-cyan-400">
+                  {t("gameplayTag")}
+                </p>
+                <h2 className="text-2xl font-bold text-gray-900 md:text-3xl dark:text-white">
+                  {t("gameplaySectionTitle")}
+                </h2>
+                <p className="max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                  {t("gameplaySectionDescription")}
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <article className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-xs font-semibold tracking-[0.18em] text-purple-500">01</p>
+                  <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepOneTitle")}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepOneDescription")}</p>
+                </article>
+                <article className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-xs font-semibold tracking-[0.18em] text-pink-500">02</p>
+                  <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepTwoTitle")}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepTwoDescription")}</p>
+                </article>
+                <article className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
+                  <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">03</p>
+                  <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepThreeTitle")}</h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepThreeDescription")}</p>
+                </article>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <article className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800/70 dark:bg-indigo-950/40">
+                  <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">{t("roleResearchersTitle")}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-indigo-800 dark:text-indigo-200">
+                    {t("roleResearchersDescription")}
+                  </p>
+                </article>
+                <article className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-800/70 dark:bg-emerald-950/40">
+                  <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100">{t("roleParticipantsTitle")}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-emerald-800 dark:text-emerald-200">
+                    {t("roleParticipantsDescription")}
+                  </p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </MotionReveal>
       </main>
-      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {t("footerCopyright", { year: currentYear })}
-        </p>
-        <nav className="sm:ml-auto flex gap-4 sm:gap-6">
-          <Link className="text-xs hover:underline underline-offset-4" href={withLocale("/terms", locale)}>
-            {t("footerTerms")}
-          </Link>
-          <Link className="text-xs hover:underline underline-offset-4" href={withLocale("/privacy", locale)}>
-            {t("footerPrivacy")}
-          </Link>
-        </nav>
-      </footer>
+      <SiteFooter />
     </PageMotionShell>
   );
 }

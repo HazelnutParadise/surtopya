@@ -31,10 +31,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function Navbar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isPointsModalOpen, setIsPointsModalOpen] = useState(false)
+  const [countdownMs, setCountdownMs] = useState<number | null>(null)
   const locale = getLocaleFromPath(pathname);
   const withLocalePath = (href: string) => withLocale(href, locale);
   const t = useTranslations("Navigation");
@@ -120,6 +129,16 @@ export function Navbar() {
   const isAuthenticated = !!user;
   const userLabel = user?.displayName || user?.email || "";
   const pointsBalanceText = Number(user?.pointsBalance || 0).toLocaleString();
+  const monthlyPointsGrant = Number(user?.monthlyPointsGrant || 0)
+  const monthlyPointsGrantText = monthlyPointsGrant.toLocaleString()
+  const nextMonthlyPointsGrantAtMs = (() => {
+    const value = user?.nextMonthlyPointsGrantAt
+    if (!value) return null
+    const parsed = Date.parse(value)
+    return Number.isFinite(parsed) ? parsed : null
+  })()
+  const hasMonthlyGrantCountdown =
+    monthlyPointsGrant > 0 && nextMonthlyPointsGrantAtMs !== null
 
   const navItems = [
     { name: t("explore"), href: "/explore", icon: Compass },
@@ -135,6 +154,34 @@ export function Navbar() {
   const handleLogout = () => {
     window.location.assign("/api/logto/sign-out");
   };
+
+  useEffect(() => {
+    if (!isPointsModalOpen || !hasMonthlyGrantCountdown || nextMonthlyPointsGrantAtMs === null) {
+      setCountdownMs(null)
+      return
+    }
+
+    const update = () => {
+      setCountdownMs(Math.max(0, nextMonthlyPointsGrantAtMs - Date.now()))
+    }
+
+    update()
+    const timer = window.setInterval(update, 1000)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [hasMonthlyGrantCountdown, isPointsModalOpen, nextMonthlyPointsGrantAtMs])
+
+  const countdownParts = (() => {
+    if (countdownMs === null) return null
+    const totalSeconds = Math.floor(countdownMs / 1000)
+    const days = Math.floor(totalSeconds / 86400)
+    const hours = Math.floor((totalSeconds % 86400) / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    return { days, hours, minutes, seconds }
+  })()
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 shadow-sm backdrop-blur-md transition-all duration-300 dark:border-gray-800 dark:bg-gray-950/80">
@@ -163,13 +210,16 @@ export function Navbar() {
           <div className="ml-4 flex items-center gap-4">
             {authLoading ? null : isAuthenticated ? (
               <>
-                <div
+                <button
+                  type="button"
                   data-testid="navbar-points-desktop"
-                  className="inline-flex min-w-24 flex-col rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
+                  aria-label={tDashboard("pointsModalOpen")}
+                  className="inline-flex min-w-24 cursor-pointer flex-col rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-left text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200 dark:hover:bg-purple-900/40"
+                  onClick={() => setIsPointsModalOpen(true)}
                 >
                   <span className="text-[10px] font-medium leading-none">{tDashboard("pointsBalance")}</span>
                   <span className="mt-1 text-sm font-semibold leading-none tabular-nums">{pointsBalanceText}</span>
-                </div>
+                </button>
 
                 <Button asChild variant="ghost" className="transform-gpu text-gray-600 transition-all duration-200 ease-out hover:-translate-y-0.5 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400">
                   <Link href={withLocalePath("/create")}>{t("create")}</Link>
@@ -246,14 +296,17 @@ export function Navbar() {
         {/* Mobile Menu Toggle */}
         <div className="flex items-center gap-2 md:hidden">
           {!authLoading && isAuthenticated ? (
-            <div
+            <button
+              type="button"
               data-testid="navbar-points-mobile"
               title={`${tDashboard("pointsBalance")}: ${pointsBalanceText}`}
-              className="inline-flex min-w-[74px] flex-col rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-purple-700 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200"
+              aria-label={tDashboard("pointsModalOpen")}
+              className="inline-flex min-w-[74px] cursor-pointer flex-col rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-left text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-800/70 dark:bg-purple-900/30 dark:text-purple-200 dark:hover:bg-purple-900/40"
+              onClick={() => setIsPointsModalOpen(true)}
             >
               <span className="text-[9px] font-medium leading-none">{tDashboard("pointsBalance")}</span>
               <span className="mt-1 text-xs font-semibold leading-none tabular-nums">{pointsBalanceText}</span>
-            </div>
+            </button>
           ) : null}
           <button
             className="rounded-md p-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -322,6 +375,64 @@ export function Navbar() {
           </div>
         </div>
       )}
+
+      <Dialog open={isPointsModalOpen} onOpenChange={setIsPointsModalOpen}>
+        <DialogContent data-testid="navbar-points-modal" className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{tDashboard("pointsModalTitle")}</DialogTitle>
+            <DialogDescription>{tDashboard("pointsModalDescription")}</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-800/60 dark:bg-purple-900/20">
+              <p className="text-xs font-medium text-purple-700 dark:text-purple-300">{tDashboard("pointsBalance")}</p>
+              <p className="mt-1 text-2xl font-semibold text-purple-900 tabular-nums dark:text-purple-100">{pointsBalanceText}</p>
+            </div>
+
+            {hasMonthlyGrantCountdown && countdownParts ? (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-700 dark:text-gray-200">
+                  {tDashboard("pointsModalMonthlyGrant", { points: monthlyPointsGrantText })}
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="rounded-lg border bg-gray-50 p-2 text-center dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-lg font-semibold tabular-nums">{countdownParts.days}</p>
+                    <p className="text-[10px] text-gray-500">{tDashboard("pointsModalCountdownDays")}</p>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-2 text-center dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-lg font-semibold tabular-nums">{countdownParts.hours}</p>
+                    <p className="text-[10px] text-gray-500">{tDashboard("pointsModalCountdownHours")}</p>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-2 text-center dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-lg font-semibold tabular-nums">{countdownParts.minutes}</p>
+                    <p className="text-[10px] text-gray-500">{tDashboard("pointsModalCountdownMinutes")}</p>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 p-2 text-center dark:border-gray-800 dark:bg-gray-900">
+                    <p className="text-lg font-semibold tabular-nums">{countdownParts.seconds}</p>
+                    <p className="text-[10px] text-gray-500">{tDashboard("pointsModalCountdownSeconds")}</p>
+                  </div>
+                </div>
+                {countdownMs === 0 ? (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">{tDashboard("pointsModalGrantingSoon")}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p data-testid="navbar-points-modal-no-grant" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                {tDashboard("pointsModalNoMonthlyGrant")}
+              </p>
+            )}
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{tDashboard("pointsModalWhatForTitle")}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+                <li>{tDashboard("pointsModalUseBoost")}</li>
+                <li>{tDashboard("pointsModalUseDataset")}</li>
+                <li>{tDashboard("pointsModalUseEarn")}</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }

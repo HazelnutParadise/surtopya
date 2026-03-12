@@ -580,6 +580,8 @@ export interface UserProfile {
   bio?: string;
   location?: string;
   pointsBalance: number;
+  nextMonthlyPointsGrantAt?: string;
+  monthlyPointsGrant: number;
   membershipTier: string;
   membershipPeriodEndAt?: string;
   membershipIsPermanent?: boolean;

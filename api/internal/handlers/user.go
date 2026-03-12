@@ -29,6 +29,8 @@ type UserProfileResponse struct {
 	Bio                   *string         `json:"bio,omitempty"`
 	Location              *string         `json:"location,omitempty"`
 	PointsBalance         int             `json:"pointsBalance"`
+	NextMonthlyGrantAt    *time.Time      `json:"nextMonthlyPointsGrantAt,omitempty"`
+	MonthlyPointsGrant    int             `json:"monthlyPointsGrant"`
 	MembershipTier        string          `json:"membershipTier"`
 	MembershipPeriodEndAt *time.Time      `json:"membershipPeriodEndAt,omitempty"`
 	MembershipIsPermanent bool            `json:"membershipIsPermanent"`
@@ -63,12 +65,12 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 	err := db.QueryRow(`
 		SELECT email, display_name, avatar_url, phone, bio, location,
-			points_balance, is_admin, is_super_admin, locale, created_at
+			points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale, created_at
 		FROM users WHERE id = $1
 	`, profile.ID).Scan(
 		&profile.Email, &profile.DisplayName, &profile.AvatarURL,
 		&profile.Phone, &profile.Bio, &profile.Location,
-		&profile.PointsBalance, &profile.IsAdmin, &profile.IsSuperAdmin,
+		&profile.PointsBalance, &profile.NextMonthlyGrantAt, &profile.IsAdmin, &profile.IsSuperAdmin,
 		&profile.Locale, &profile.CreatedAt,
 	)
 	if err != nil {
@@ -110,6 +112,19 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	profile.MembershipPeriodEndAt = grant.MembershipPeriodEndAt
 	profile.MembershipIsPermanent = grant.MembershipIsPermanent
 	profile.Capabilities = capabilities
+
+	if err := db.QueryRow(`
+		SELECT COALESCE(monthly_points_grant, 0)
+		FROM membership_tiers
+		WHERE code = $1
+	`, grant.TierCode).Scan(&profile.MonthlyPointsGrant); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get monthly points grant"})
+		return
+	}
+
+	if profile.MonthlyPointsGrant <= 0 {
+		profile.NextMonthlyGrantAt = nil
+	}
 
 	c.JSON(http.StatusOK, profile)
 }
