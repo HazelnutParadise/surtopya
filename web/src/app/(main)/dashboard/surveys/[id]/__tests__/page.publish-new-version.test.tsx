@@ -13,76 +13,30 @@ const {
   surveyBuilderTranslator,
 } = vi.hoisted(() => {
   const commonMessages: Record<string, string> = {
-    publish: "發布",
-    openResponses: "開啟回應",
-    closeResponses: "關閉回應",
-    error: "發生錯誤",
-    loading: "載入中",
-    saving: "儲存中",
-    cancel: "取消",
+    publish: "Publish",
+    openResponses: "Open responses",
+    closeResponses: "Close responses",
+    error: "Error",
+    loading: "Loading",
+    saving: "Saving",
+    cancel: "Cancel",
   }
 
   const surveyManagementMessages: Record<string, string> = {
-    publishNewVersion: "發布新版本",
-    previewSurvey: "預覽問卷",
-    editSurvey: "編輯問卷",
-    openSurveyPage: "開啟問卷頁面",
-    deleteSurvey: "刪除問卷",
-    responses: "回應",
-    settings: "設定",
-    shareLink: "分享連結",
-    quickActions: "快速操作",
-    responsesTableId: "ID",
-    responsesTableStatus: "狀態",
-    responsesTableRespondent: "作答者",
-    responsesTablePoints: "點數",
-    responsesTableStartedAt: "開始時間",
-    responsesTableSubmittedAt: "提交時間",
-    deleteSurveyConfirm: "確認刪除",
-    visibilityLabel: "可見性",
-    public: "公開",
-    nonPublic: "不公開",
-    visibilityPublicDescription: "公開",
-    visibilityNonPublicDescription: "不公開",
-    datasetProgramLabel: "資料集",
-    datasetProgramPublicDescription: "公開描述",
-    datasetProgramNonPublicDescription: "非公開描述",
-    settingsLockedAfterPublish: "已鎖定",
-    expirationDate: "到期時間",
-    expirationHint: "提示",
-    pointsReward: "點數獎勵",
-    pointsRewardDescription: "點數說明",
-    notPublishedYet: "尚未發布",
-    responseStatusHint: "發布會建立新版本；開啟/關閉回應是獨立操作。",
+    publishNewVersion: "Publish new version",
   }
 
   const surveyBuilderMessages: Record<string, string> = {
-    versionHistory: "版本紀錄",
-    versionEmpty: "沒有版本",
-    versionLoadFailed: "載入版本失敗",
-    viewVersion: "查看版本",
-    restoreToDraft: "還原到草稿",
-    restoredToDraft: "已還原到草稿",
-    versionRestoreFailed: "還原失敗",
-    restoreDraftConfirmTitle: "確認還原",
-    restoreDraftConfirmDescription: "確認還原描述",
-    restoreDraftConfirmAction: "確認還原",
-    surveyTitle: "問卷標題",
-    description: "描述",
-    descriptionPlaceholder: "描述",
-    supportsMarkdown: "支援 Markdown",
-    requireLoginToRespondLabel: "需登入",
-    requireLoginToRespondDescription: "需要登入才能作答",
-    formatBold: "粗體",
-    formatItalic: "斜體",
-    formatLink: "連結",
-    formatBulletList: "清單",
-    linkPrompt: "輸入連結",
-    linkText: "連結",
-    publishErrorActiveSurveyLimitReached: "超過上限",
-    noChangesToPublish: "沒有變更可發布",
-    responsesClosed: "回應已關閉",
-    publishedVersionExpired: "版本已過期",
+    versionHistory: "Version history",
+    versionEmpty: "No versions",
+    versionLoadFailed: "Failed to load versions",
+    viewVersion: "View version",
+    restoreToDraft: "Restore to draft",
+    restoredToDraft: "Restored to draft",
+    versionRestoreFailed: "Failed to restore version",
+    restoreDraftConfirmTitle: "Restore version?",
+    restoreDraftConfirmDescription: "This will overwrite your draft.",
+    restoreDraftConfirmAction: "Restore",
   }
 
   return {
@@ -94,7 +48,7 @@ const {
     surveyManagementTranslator: (key: string) => surveyManagementMessages[key] ?? key,
     surveyBuilderTranslator: (key: string, values?: Record<string, unknown>) =>
       key === "versionLabel" && values && typeof values.version === "number"
-        ? `版本 ${values.version}`
+        ? `Version ${values.version}`
         : surveyBuilderMessages[key] ?? key,
   }
 })
@@ -148,7 +102,9 @@ vi.mock("@/lib/ui-telemetry", () => ({
 }))
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Dialog: ({ children, open = false }: { children: ReactNode; open?: boolean }) => (
+    <div>{open ? children : null}</div>
+  ),
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -159,14 +115,14 @@ vi.mock("@/components/ui/dialog", () => ({
 const baseQuestion = {
   id: "q-1",
   type: "short",
-  title: "問題 1",
+  title: "Question 1",
   required: true,
 }
 
 const buildSurveyPayload = (overrides?: Record<string, unknown>) => ({
   id: "survey-1",
-  title: "問卷",
-  description: "描述",
+  title: "Survey",
+  description: "Description",
   visibility: "non-public",
   requireLoginToRespond: false,
   isResponseOpen: true,
@@ -189,8 +145,8 @@ const buildVersionsPayload = (versionNumbers: number[]) => ({
     surveyId: "survey-1",
     versionNumber,
     snapshot: {
-      title: "問卷",
-      description: "描述",
+      title: "Survey",
+      description: "Description",
       visibility: "non-public",
       includeInDatasets: false,
       pointsReward: 0,
@@ -288,7 +244,7 @@ describe("SurveyManagementPage publish new version", () => {
   it("publishes a new version and reloads versions after success", async () => {
     render(<SurveyManagementPage />)
 
-    const publishButton = await screen.findByRole("button", { name: "發布新版本" })
+    const publishButton = await screen.findByRole("button", { name: "Publish new version" })
     fireEvent.click(publishButton)
 
     await waitFor(() => {
@@ -310,7 +266,20 @@ describe("SurveyManagementPage publish new version", () => {
     })
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "發布新版本" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Publish new version" })).not.toBeInTheDocument()
     })
+  })
+
+  it("opens version preview dialog and keeps version list scrollable", async () => {
+    render(<SurveyManagementPage />)
+
+    const versionList = await screen.findByTestId("survey-version-history-list")
+    expect(versionList).toHaveClass("max-h-[22rem]")
+    expect(versionList).toHaveClass("overflow-y-auto")
+    expect(screen.queryByTestId("version-document-preview")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId("survey-version-view-3"))
+
+    expect(await screen.findByTestId("version-document-preview")).toBeInTheDocument()
   })
 })

@@ -33,6 +33,39 @@ func TestParseSurveyExpiresAt_RejectsInvalidTimeZone(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateSurveyExpiresAtTransition_RejectsNewPastValue(t *testing.T) {
+	now := time.Date(2026, 3, 11, 8, 0, 0, 0, time.UTC)
+	next := time.Date(2026, 3, 11, 7, 0, 0, 0, time.UTC)
+
+	err := validateSurveyExpiresAtTransition(nil, &next, now)
+	require.EqualError(t, err, expirationDatePastError)
+}
+
+func TestValidateSurveyExpiresAtTransition_RejectsChangedToPastValue(t *testing.T) {
+	now := time.Date(2026, 3, 11, 8, 0, 0, 0, time.UTC)
+	current := time.Date(2026, 3, 11, 9, 0, 0, 0, time.UTC)
+	next := time.Date(2026, 3, 11, 7, 0, 0, 0, time.UTC)
+
+	err := validateSurveyExpiresAtTransition(&current, &next, now)
+	require.EqualError(t, err, expirationDatePastError)
+}
+
+func TestValidateSurveyExpiresAtTransition_AllowsClearValue(t *testing.T) {
+	now := time.Date(2026, 3, 11, 8, 0, 0, 0, time.UTC)
+	current := time.Date(2026, 3, 11, 9, 0, 0, 0, time.UTC)
+
+	err := validateSurveyExpiresAtTransition(&current, nil, now)
+	require.NoError(t, err)
+}
+
+func TestValidateSurveyExpiresAtTransition_AllowsUnchangedLegacyPastValue(t *testing.T) {
+	now := time.Date(2026, 3, 11, 8, 0, 0, 0, time.UTC)
+	legacyPast := time.Date(2026, 3, 11, 7, 0, 0, 0, time.UTC)
+
+	err := validateSurveyExpiresAtTransition(&legacyPast, &legacyPast, now)
+	require.NoError(t, err)
+}
+
 func stringPtr(value string) *string {
 	return &value
 }

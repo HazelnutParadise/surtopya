@@ -123,6 +123,7 @@ export function SurveyBuilder() {
   const [versions, setVersions] = useState<SurveyVersion[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null);
+  const [isVersionPreviewOpen, setIsVersionPreviewOpen] = useState(false);
   const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null);
   const [confirmRestoreVersionNumber, setConfirmRestoreVersionNumber] = useState<number | null>(null);
   const [versionError, setVersionError] = useState<string | null>(null);
@@ -216,6 +217,12 @@ export function SurveyBuilder() {
     }),
     [title, description, isPublic, capabilities, includeInDatasets, pointsReward, expiresAtLocal, questions, timeZone]
   )
+  const minExpiresAtLocal = React.useMemo(() => utcToDatetimeLocal(new Date().toISOString(), timeZone), [timeZone])
+
+  const handleViewVersion = React.useCallback((version: SurveyVersion) => {
+    setSelectedVersion(version)
+    setIsVersionPreviewOpen(true)
+  }, [])
 
   React.useEffect(() => {
     setMounted(true);
@@ -1171,6 +1178,7 @@ export function SurveyBuilder() {
                                 <Input 
                                     type="datetime-local"
                                     value={settingsDraft?.expiresAtLocal || ""}
+                                    min={minExpiresAtLocal || undefined}
                                     className="dark:bg-gray-800"
                                     onChange={(e) =>
                                       setSettingsDraft(prev =>
@@ -1393,21 +1401,27 @@ export function SurveyBuilder() {
                              <HistoryIcon className="h-3.5 w-3.5" />
                              {tBuilder("versionHistory")}
                            </div>
-                           {versionsLoading ? (
-                             <p className="text-xs text-gray-500">{tCommon("loading")}</p>
-                           ) : versions.length === 0 ? (
-                             <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
-                           ) : (
-                             <div className="space-y-2">
-                               {versions.map((version) => (
-                                 <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
-                                   <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
-                                     {tBuilder("versionLabel", { version: version.versionNumber })}
-                                   </div>
-                                   <div className="mt-1 flex items-center gap-1">
-                                     <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
-                                       {tBuilder("viewVersion")}
-                                     </Button>
+                            {versionsLoading ? (
+                              <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                            ) : versions.length === 0 ? (
+                              <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                            ) : (
+                              <div data-testid="builder-version-history-list-mobile" className="max-h-[22rem] overflow-y-auto pr-1 space-y-2">
+                                {versions.map((version) => (
+                                  <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
+                                    <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                                      {tBuilder("versionLabel", { version: version.versionNumber })}
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 px-2 text-[11px]"
+                                        data-testid={`builder-version-view-mobile-${version.versionNumber}`}
+                                        onClick={() => handleViewVersion(version)}
+                                      >
+                                        {tBuilder("viewVersion")}
+                                      </Button>
                                      <Button
                                        size="sm"
                                        variant="outline"
@@ -1421,16 +1435,11 @@ export function SurveyBuilder() {
                                  </div>
                                ))}
                              </div>
-                           )}
-                           {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
-                           {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
-                           <VersionDocumentPreview
-                             version={selectedVersion}
-                             draftSnapshot={draftSnapshot}
-                             className="max-h-[460px] overflow-y-auto"
-                           />
-                         </section>
-                       ) : null}
+                            )}
+                            {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
+                            {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                          </section>
+                        ) : null}
                     </div>
                   </main>
                   {surveyId ? (
@@ -1444,14 +1453,20 @@ export function SurveyBuilder() {
                       ) : versions.length === 0 ? (
                         <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
                       ) : (
-                        <div className="space-y-2">
+                        <div data-testid="builder-version-history-list-desktop" className="max-h-[22rem] overflow-y-auto pr-1 space-y-2">
                           {versions.map((version) => (
                             <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
                               <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
                                 {tBuilder("versionLabel", { version: version.versionNumber })}
                               </div>
                               <div className="mt-1 flex items-center gap-1">
-                                <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-[11px]"
+                                  data-testid={`builder-version-view-desktop-${version.versionNumber}`}
+                                  onClick={() => handleViewVersion(version)}
+                                >
                                   {tBuilder("viewVersion")}
                                 </Button>
                                 <Button
@@ -1470,11 +1485,6 @@ export function SurveyBuilder() {
                       )}
                       {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
                       {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
-                      <VersionDocumentPreview
-                        version={selectedVersion}
-                        draftSnapshot={draftSnapshot}
-                        className="overflow-y-auto"
-                      />
                     </aside>
                   ) : null}
                 </div>
@@ -1698,6 +1708,16 @@ export function SurveyBuilder() {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
+            </Dialog>
+
+            <Dialog open={isVersionPreviewOpen} onOpenChange={setIsVersionPreviewOpen}>
+              <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-hidden">
+                <VersionDocumentPreview
+                  version={selectedVersion}
+                  draftSnapshot={draftSnapshot}
+                  className="max-h-[70vh] overflow-y-auto pr-1"
+                />
+              </DialogContent>
             </Dialog>
 
             <Dialog open={confirmRestoreVersionNumber != null} onOpenChange={(open) => !open && setConfirmRestoreVersionNumber(null)}>

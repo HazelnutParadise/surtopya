@@ -100,6 +100,7 @@ export default function SurveyManagementPage() {
   const [surveyVersions, setSurveyVersions] = useState<SurveyVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null)
+  const [isVersionPreviewOpen, setIsVersionPreviewOpen] = useState(false)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
   const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null)
@@ -585,7 +586,7 @@ export default function SurveyManagementPage() {
       })
     } catch (error) {
       console.error("Failed to save settings:", error);
-      setSaveError(tCommon("error"));
+      setSaveError(error instanceof Error ? error.message : tCommon("error"));
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "settings_form",
@@ -654,6 +655,13 @@ export default function SurveyManagementPage() {
       })),
     }
   }, [survey])
+
+  const minExpiresAtLocal = useMemo(() => utcToDatetimeLocal(new Date().toISOString(), timeZone), [timeZone])
+
+  const handleViewVersion = useCallback((version: SurveyVersion) => {
+    setSelectedVersion(version)
+    setIsVersionPreviewOpen(true)
+  }, [])
 
   if (loading) {
     return (
@@ -1105,6 +1113,7 @@ export default function SurveyManagementPage() {
                           id="expires"
                           type="datetime-local"
                           value={formState.expiresAtLocal}
+                          min={minExpiresAtLocal || undefined}
                           className="max-w-[200px]"
                           onChange={(event) =>
                             setFormState((prev) => ({ ...prev, expiresAtLocal: event.target.value }))
@@ -1197,14 +1206,20 @@ export default function SurveyManagementPage() {
                 ) : surveyVersions.length === 0 ? (
                   <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div data-testid="survey-version-history-list" className="max-h-[22rem] overflow-y-auto pr-1 space-y-2">
                     {surveyVersions.map((version) => (
                       <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
                         <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
                           {tBuilder("versionLabel", { version: version.versionNumber })}
                         </div>
                         <div className="mt-1 flex items-center gap-1">
-                          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => setSelectedVersion(version)}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-[11px]"
+                            data-testid={`survey-version-view-${version.versionNumber}`}
+                            onClick={() => handleViewVersion(version)}
+                          >
                             {tBuilder("viewVersion")}
                           </Button>
                           <Button
@@ -1223,11 +1238,6 @@ export default function SurveyManagementPage() {
                 )}
                 {versionError ? <p className="text-xs text-red-600">{versionError}</p> : null}
                 {restoreNotice ? <p className="text-xs text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
-                <VersionDocumentPreview
-                  version={selectedVersion}
-                  draftSnapshot={draftSnapshot}
-                  className="max-h-[460px] overflow-y-auto"
-                />
               </CardContent>
             </Card>
           </div>
@@ -1252,6 +1262,15 @@ export default function SurveyManagementPage() {
               {tBuilder("restoreDraftConfirmAction")}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isVersionPreviewOpen} onOpenChange={setIsVersionPreviewOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-hidden">
+          <VersionDocumentPreview
+            version={selectedVersion}
+            draftSnapshot={draftSnapshot}
+            className="max-h-[70vh] overflow-y-auto pr-1"
+          />
         </DialogContent>
       </Dialog>
     </div>

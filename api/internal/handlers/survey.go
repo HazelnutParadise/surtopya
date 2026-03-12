@@ -32,6 +32,7 @@ type SurveyHandler struct {
 const activeSurveyLimitReachedError = "Active survey limit reached"
 const noChangesToPublishError = "No changes to publish"
 const publishedVersionExpiredError = "Published version expired"
+const expirationDatePastError = "Expiration date cannot be in the past"
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
@@ -113,6 +114,10 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	expiresAt, err := parseSurveyExpiresAt(req.ExpiresAtLocal, req.TimeZone)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
+		return
+	}
+	if err := validateSurveyExpiresAtTransition(nil, expiresAt, time.Now()); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -430,6 +435,10 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
 			return
 		}
+		if err := validateSurveyExpiresAtTransition(survey.ExpiresAt, parsedExpiresAt, time.Now()); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if surveyExpiresAtChanged(survey.ExpiresAt, parsedExpiresAt) {
 			hasDraftChanges = true
 		}
@@ -507,6 +516,19 @@ func surveyExpiresAtChanged(current *time.Time, next *time.Time) bool {
 	default:
 		return !current.Equal(*next)
 	}
+}
+
+func validateSurveyExpiresAtTransition(current *time.Time, next *time.Time, now time.Time) error {
+	if !surveyExpiresAtChanged(current, next) {
+		return nil
+	}
+	if next == nil {
+		return nil
+	}
+	if !next.After(now) {
+		return fmt.Errorf(expirationDatePastError)
+	}
+	return nil
 }
 
 // PublishSurveyRequest represents the request body for publishing
