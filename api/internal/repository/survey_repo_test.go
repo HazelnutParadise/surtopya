@@ -74,6 +74,115 @@ func TestSurveyRepository_GetPublicSurveys_FiltersDeletedSurveys(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestSurveyRepository_GetByIDForViewer_UsesUserContextForHasResponded(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("WHERE s.id = \\$1\\s+AND s.deleted_at IS NULL").
+		WithArgs(surveyID, userID, nil).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"expires_at", "response_count", "created_at", "updated_at", "published_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
+		}).AddRow(
+			surveyID, userID, "Survey", "Desc", "public", false, true,
+			true, true, 1, []byte("{}"), 0,
+			nil, 3, now, now, now,
+			nil, nil, false, true, nil,
+		))
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		}))
+
+	survey, err := repo.GetByIDForViewer(surveyID, &userID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, survey)
+	require.True(t, survey.HasResponded)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetByIDForViewer_UsesAnonymousContextForHasResponded(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	anonymousID := "anon-123"
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("WHERE s.id = \\$1\\s+AND s.deleted_at IS NULL").
+		WithArgs(surveyID, nil, anonymousID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"expires_at", "response_count", "created_at", "updated_at", "published_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
+		}).AddRow(
+			surveyID, userID, "Survey", "Desc", "public", false, true,
+			true, true, 1, []byte("{}"), 0,
+			nil, 3, now, now, now,
+			nil, nil, false, true, nil,
+		))
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		}))
+
+	survey, err := repo.GetByIDForViewer(surveyID, nil, &anonymousID)
+	require.NoError(t, err)
+	require.NotNil(t, survey)
+	require.True(t, survey.HasResponded)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetByIDForViewer_NoViewerDefaultsHasRespondedFalse(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("WHERE s.id = \\$1\\s+AND s.deleted_at IS NULL").
+		WithArgs(surveyID, nil, nil).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"expires_at", "response_count", "created_at", "updated_at", "published_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
+		}).AddRow(
+			surveyID, userID, "Survey", "Desc", "public", false, true,
+			true, true, 1, []byte("{}"), 0,
+			nil, 3, now, now, now,
+			nil, nil, false, false, nil,
+		))
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		}))
+
+	survey, err := repo.GetByIDForViewer(surveyID, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, survey)
+	require.False(t, survey.HasResponded)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSurveyRepository_RecomputeHotSurveysUTC_MarksTopTenPercent(t *testing.T) {
 	repo, mock, cleanup := newSurveyRepoForTest(t)
 	t.Cleanup(cleanup)

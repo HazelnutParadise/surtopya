@@ -11,6 +11,8 @@ type HeroSceneProps = {
   isMobile: boolean
 }
 
+const POINT_SIZE_SCALE = 1.35
+
 const createLayerPositions = ({
   count,
   spreadX,
@@ -170,7 +172,7 @@ function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: H
       <points ref={nearPointsRef} geometry={nearGeometry}>
         <pointsMaterial
           ref={nearMaterialRef}
-          size={isMobile ? 0.04 : 0.05}
+          size={(isMobile ? 0.04 : 0.05) * POINT_SIZE_SCALE}
           color="#a78bfa"
           transparent
           opacity={0.8}
@@ -182,7 +184,7 @@ function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: H
       <points ref={farPointsRef} geometry={farGeometry}>
         <pointsMaterial
           ref={farMaterialRef}
-          size={isMobile ? 0.026 : 0.034}
+          size={(isMobile ? 0.026 : 0.034) * POINT_SIZE_SCALE}
           color="#22d3ee"
           transparent
           opacity={0.42}
@@ -237,4 +239,3 @@ export function HeroThreeBackground() {
     </Canvas>
   )
 }
-

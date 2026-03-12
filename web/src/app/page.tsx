@@ -121,6 +121,31 @@ export default async function Home() {
                 </article>
               </div>
 
+              <div className="space-y-4 rounded-2xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-900/70 dark:bg-sky-950/30">
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-sky-900 dark:text-sky-100">
+                    {t("pointsUsageTitle")}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-sky-800 dark:text-sky-200">
+                    {t("pointsUsageDescription")}
+                  </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <article className="rounded-xl border border-sky-200 bg-white p-4 dark:border-sky-900/60 dark:bg-slate-950">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("pointsUsageBoostTitle")}</p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("pointsUsageBoostDescription")}</p>
+                  </article>
+                  <article className="rounded-xl border border-sky-200 bg-white p-4 dark:border-sky-900/60 dark:bg-slate-950">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("pointsUsageDownloadTitle")}</p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("pointsUsageDownloadDescription")}</p>
+                  </article>
+                  <article className="rounded-xl border border-sky-200 bg-white p-4 dark:border-sky-900/60 dark:bg-slate-950">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("pointsUsageEarnTitle")}</p>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("pointsUsageEarnDescription")}</p>
+                  </article>
+                </div>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <article className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-800/70 dark:bg-indigo-950/40">
                   <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">{t("roleResearchersTitle")}</h3>

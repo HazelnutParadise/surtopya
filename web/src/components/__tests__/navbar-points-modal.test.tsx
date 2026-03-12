@@ -36,7 +36,7 @@ const messages: Record<string, Record<string, string>> = {
     pointsModalCountdownSeconds: "Seconds",
     pointsModalGrantingSoon: "Monthly grant is being issued soon.",
     pointsModalWhatForTitle: "What can points do?",
-    pointsModalUseBoost: "Boost survey rewards when publishing.",
+    pointsModalUseBoost: "Add extra points for respondents when publishing surveys.",
     pointsModalUseDataset: "Download paid datasets from the marketplace.",
     pointsModalUseEarn: "Complete surveys to earn more points.",
   },
@@ -116,7 +116,7 @@ describe("Navbar points modal", () => {
 
     expect(await screen.findByTestId("navbar-points-modal")).toBeInTheDocument()
     expect(screen.getByText("What can points do?")).toBeInTheDocument()
-    expect(screen.getByText("Boost survey rewards when publishing.")).toBeInTheDocument()
+    expect(screen.getByText("Add extra points for respondents when publishing surveys.")).toBeInTheDocument()
   })
 
   it("shows no-monthly-grant fallback text when the membership has no monthly grant", async () => {

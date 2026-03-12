@@ -209,7 +209,20 @@ func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 		return
 	}
 
-	survey, err := h.repo.GetByID(id)
+	var viewerUserID *uuid.UUID
+	var viewerAnonymousID *string
+
+	if userID, exists := c.Get("userID"); exists {
+		if parsed, ok := userID.(uuid.UUID); ok {
+			viewerUserID = &parsed
+		}
+	}
+
+	if anonymousID := strings.TrimSpace(c.GetHeader("X-Surtopya-Anonymous-Id")); anonymousID != "" {
+		viewerAnonymousID = &anonymousID
+	}
+
+	survey, err := h.repo.GetByIDForViewer(id, viewerUserID, viewerAnonymousID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
 		return

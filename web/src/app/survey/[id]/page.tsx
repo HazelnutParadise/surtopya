@@ -5,6 +5,9 @@ import { fetchInternalApp } from "@/lib/internal-app-fetch";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import type { Survey as ApiSurvey } from "@/lib/api";
 import { redirect } from "next/navigation";
+import { getAuthToken } from "@/lib/api-server";
+import { cookies } from "next/headers";
+import { ANONYMOUS_RESPONDENT_COOKIE } from "@/lib/anonymous-respondent";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -23,11 +26,28 @@ const normalizeSurveyId = (paramId: string) => {
   return paramId;
 };
 
+const buildSurveyViewerHeaders = async () => {
+  const token = await getAuthToken()
+  const cookieStore = await cookies()
+  const anonymousId = cookieStore.get(ANONYMOUS_RESPONDENT_COOKIE)?.value?.trim()
+
+  if (!token && !anonymousId) {
+    return undefined
+  }
+
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(anonymousId ? { "X-Surtopya-Anonymous-Id": anonymousId } : {}),
+  }
+}
+
 const fetchSurvey = async (paramId: string): Promise<SurveyDisplay | null> => {
   const id = normalizeSurveyId(paramId);
   if (id === "preview") return null;
+  const headers = await buildSurveyViewerHeaders()
 
   const response = await fetchInternalApp(`/surveys/${id}`, {
+    headers,
     cache: "no-store",
   });
 

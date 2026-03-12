@@ -245,7 +245,9 @@ export function SurveyClientPage({
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
-  const [submissionState, setSubmissionState] = useState<SubmissionState>("available")
+  const [submissionState, setSubmissionState] = useState<SubmissionState>(
+    survey?.hasResponded ? "already_submitted" : "available"
+  )
 
   const [authLoading, setAuthLoading] = useState(!isPreview)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
@@ -582,9 +584,9 @@ export function SurveyClientPage({
   }, [setAnswersSnapshot, surveyId])
 
   useEffect(() => {
-    // Reset local one-time-submit state when account or survey context changes.
-    setSubmissionState("available")
-  }, [currentUser?.id, surveyId])
+    // Align initial button state with server-side hasResponded preflight result.
+    setSubmissionState(survey?.hasResponded ? "already_submitted" : "available")
+  }, [survey?.hasResponded, surveyId])
 
   const handleStartSurvey = useCallback(async () => {
     setFlowError(null)

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   fetchInternalApp: vi.fn(),
   mapApiSurveyToUi: vi.fn(),
   redirect: vi.fn(),
+  getAuthToken: vi.fn(),
+  cookies: vi.fn(),
 }))
 
 vi.mock("@/lib/internal-app-fetch", () => ({
@@ -22,6 +24,14 @@ vi.mock("next/navigation", () => ({
   redirect: mocks.redirect,
 }))
 
+vi.mock("@/lib/api-server", () => ({
+  getAuthToken: mocks.getAuthToken,
+}))
+
+vi.mock("next/headers", () => ({
+  cookies: mocks.cookies,
+}))
+
 import Page, { generateMetadata } from "@/app/survey/[id]/page"
 
 describe("survey/[id] server page data fetch", () => {
@@ -31,6 +41,12 @@ describe("survey/[id] server page data fetch", () => {
     mocks.fetchInternalApp.mockReset()
     mocks.mapApiSurveyToUi.mockReset()
     mocks.redirect.mockReset()
+    mocks.getAuthToken.mockReset()
+    mocks.cookies.mockReset()
+    mocks.getAuthToken.mockResolvedValue(null)
+    mocks.cookies.mockResolvedValue({
+      get: () => undefined,
+    })
   })
 
   afterEach(() => {
@@ -53,6 +69,11 @@ describe("survey/[id] server page data fetch", () => {
   })
 
   it("fetches survey and config through internal app endpoints", async () => {
+    mocks.getAuthToken.mockResolvedValue("token-123")
+    mocks.cookies.mockResolvedValue({
+      get: () => ({ value: "anon-xyz" }),
+    })
+
     mocks.fetchInternalApp.mockImplementation((path: string) => {
       if (path === `/surveys/${surveyID}`) {
         return Promise.resolve(
@@ -94,7 +115,13 @@ describe("survey/[id] server page data fetch", () => {
     expect(page).toBeTruthy()
     expect(mocks.fetchInternalApp).toHaveBeenCalledWith(
       `/surveys/${surveyID}`,
-      expect.objectContaining({ cache: "no-store" })
+      expect.objectContaining({
+        cache: "no-store",
+        headers: {
+          Authorization: "Bearer token-123",
+          "X-Surtopya-Anonymous-Id": "anon-xyz",
+        },
+      })
     )
     expect(mocks.fetchInternalApp).toHaveBeenCalledWith(
       "/config",

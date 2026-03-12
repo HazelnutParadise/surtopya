@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { getAuthToken } from "@/lib/api-server"
 import { fetchInternalApp } from "@/lib/internal-app-fetch"
+import { ANONYMOUS_RESPONDENT_COOKIE } from "@/lib/anonymous-respondent"
 
 export async function GET(
   request: Request,
@@ -8,9 +10,18 @@ export async function GET(
 ) {
   const { id } = await params
   const token = await getAuthToken()
+  const cookieStore = await cookies()
+  const anonymousId = cookieStore.get(ANONYMOUS_RESPONDENT_COOKIE)?.value?.trim()
+  const outboundHeaders =
+    token || anonymousId
+      ? {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(anonymousId ? { "X-Surtopya-Anonymous-Id": anonymousId } : {}),
+        }
+      : undefined
 
   const response = await fetchInternalApp(`/surveys/${id}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: outboundHeaders,
     cache: "no-store",
   })
 

@@ -109,6 +109,84 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 	return survey, nil
 }
 
+// GetByIDForViewer retrieves a survey by ID and resolves whether the current viewer has already responded.
+func (r *SurveyRepository) GetByIDForViewer(
+	id uuid.UUID,
+	viewerUserID *uuid.UUID,
+	viewerAnonymousID *string,
+) (*models.Survey, error) {
+	survey := &models.Survey{}
+	var themeJSON []byte
+
+	var viewerArg interface{}
+	if viewerUserID != nil {
+		viewerArg = *viewerUserID
+	}
+	var anonymousArg interface{}
+	if viewerAnonymousID != nil {
+		anonymousArg = *viewerAnonymousID
+	}
+
+	query := `
+		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+			s.require_login_to_respond,
+			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+			s.current_published_version_id, s.current_published_version_number,
+			s.has_unpublished_changes,
+			CASE
+				WHEN $2::uuid IS NULL AND NULLIF($3::text, '') IS NULL THEN FALSE
+				ELSE EXISTS(
+					SELECT 1
+					FROM survey_response_once_locks sr
+					WHERE sr.survey_id = s.id
+					  AND (
+					  	($2::uuid IS NOT NULL AND sr.user_id = $2::uuid)
+						OR (NULLIF($3::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($3::text, ''))
+					  )
+				)
+			END AS has_responded,
+			s.deleted_at
+		FROM surveys s
+		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
+		WHERE s.id = $1
+		  AND s.deleted_at IS NULL
+	`
+
+	err := r.db.QueryRow(query, id, viewerArg, anonymousArg).Scan(
+		&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
+		&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
+		&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
+		&survey.UpdatedAt, &survey.PublishedAt,
+		&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
+		&survey.HasUnpublishedChanges, &survey.HasResponded, &survey.DeletedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get survey for viewer: %w", err)
+	}
+
+	if len(themeJSON) > 0 {
+		survey.Theme = &models.SurveyTheme{}
+		if err := json.Unmarshal(themeJSON, survey.Theme); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal theme: %w", err)
+		}
+	}
+
+	questions, err := r.GetQuestions(id)
+	if err != nil {
+		return nil, err
+	}
+	survey.Questions = questions
+
+	return survey, nil
+}
+
 // GetByUserID retrieves all surveys for a user
 func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error) {
 	query := `

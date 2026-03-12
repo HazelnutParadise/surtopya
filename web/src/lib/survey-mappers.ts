@@ -3,6 +3,7 @@ import { Survey as UiSurvey, Question as UiQuestion } from "@/types/survey"
 
 export type SurveyDisplay = UiSurvey & {
   responseCount: number
+  hasResponded?: boolean
   estimatedMinutes?: number
   creatorName?: string
   createdAt?: string
@@ -52,6 +53,7 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
       isPublished,
     },
     responseCount: survey.responseCount,
+    hasResponded: Boolean(survey.hasResponded),
     estimatedMinutes,
     createdAt: survey.createdAt,
   }
