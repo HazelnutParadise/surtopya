@@ -35,7 +35,7 @@ type Report struct {
 	SelectedVersion   string
 	AvailableVersions []int
 	Summary           Summary
-	Questions         []QuestionAnalytics
+	Pages             []PageAnalytics
 	Warnings          []string
 }
 
@@ -58,6 +58,15 @@ type QuestionAnalytics struct {
 	MaxRating        *int
 	TextResponses    []string
 	HasMoreResponses bool
+}
+
+// PageAnalytics describes analytics grouped by survey page.
+type PageAnalytics struct {
+	PageID        string
+	Title         string
+	Description   *string
+	QuestionCount int
+	Questions     []QuestionAnalytics
 }
 
 // OptionCount holds a single option bucket.
@@ -92,6 +101,22 @@ type questionMeta struct {
 	SortOrder   int
 }
 
+type pageMeta struct {
+	ID          string
+	Title       string
+	Description *string
+}
+
+type selectionResult struct {
+	QuestionOrder    []uuid.UUID
+	QuestionMetaByID map[uuid.UUID]questionMeta
+	IncompatibleIDs  map[uuid.UUID]bool
+	PageOrder        []string
+	PageMetaByID     map[string]pageMeta
+	PageQuestionIDs  map[string][]uuid.UUID
+	Warnings         []string
+}
+
 type textSample struct {
 	Text string
 	At   time.Time
@@ -117,6 +142,7 @@ func BuildReport(versions []models.SurveyVersion, responses []models.Response, o
 	report := Report{
 		SelectedVersion:   selectedVersion,
 		AvailableVersions: make([]int, 0, len(sortedVersions)),
+		Pages:             make([]PageAnalytics, 0),
 		Summary: Summary{
 			GeneratedAt: opts.GeneratedAt,
 		},
@@ -130,29 +156,23 @@ func BuildReport(versions []models.SurveyVersion, responses []models.Response, o
 		return Report{}, err
 	}
 
-	questionOrder, questionMetaByID, incompatibleIDs, warnings, err := questionSelection(selectedVersions)
+	selection, err := questionSelection(selectedVersions)
 	if err != nil {
 		return Report{}, err
 	}
-	report.Warnings = append(report.Warnings, warnings...)
+	report.Warnings = append(report.Warnings, selection.Warnings...)
 
 	filteredResponses := completedResponsesForVersion(responses, selectedVersion)
 	report.Summary.TotalCompletedResponses = len(filteredResponses)
 
-	questions := make([]QuestionAnalytics, 0, len(questionOrder))
-	for _, questionID := range questionOrder {
-		meta := questionMetaByID[questionID]
-		if incompatibleIDs[questionID] {
+	analyticsByQuestionID := make(map[uuid.UUID]QuestionAnalytics, len(selection.QuestionOrder))
+	for _, questionID := range selection.QuestionOrder {
+		meta := selection.QuestionMetaByID[questionID]
+		if selection.IncompatibleIDs[questionID] {
 			continue
 		}
 
-		analytics := QuestionAnalytics{
-			QuestionID:   questionID.String(),
-			Title:        meta.Title,
-			Description:  meta.Description,
-			QuestionType: meta.Type,
-		}
-
+		var analytics QuestionAnalytics
 		switch meta.Type {
 		case "single", "select":
 			analytics = buildChoiceAnalytics(meta, filteredResponses, false)
@@ -172,11 +192,37 @@ func BuildReport(versions []models.SurveyVersion, responses []models.Response, o
 		analytics.Title = meta.Title
 		analytics.Description = meta.Description
 		analytics.QuestionType = meta.Type
-		questions = append(questions, analytics)
+		analyticsByQuestionID[questionID] = analytics
 	}
 
-	report.Questions = questions
-	report.Summary.QuestionCount = len(report.Questions)
+	pages := make([]PageAnalytics, 0, len(selection.PageOrder))
+	totalQuestions := 0
+	for _, pageID := range selection.PageOrder {
+		pageInfo := selection.PageMetaByID[pageID]
+		pageQuestions := make([]QuestionAnalytics, 0, len(selection.PageQuestionIDs[pageID]))
+		for _, questionID := range selection.PageQuestionIDs[pageID] {
+			analytics, exists := analyticsByQuestionID[questionID]
+			if !exists {
+				continue
+			}
+			pageQuestions = append(pageQuestions, analytics)
+		}
+		if len(pageQuestions) == 0 {
+			continue
+		}
+
+		pages = append(pages, PageAnalytics{
+			PageID:        pageInfo.ID,
+			Title:         pageInfo.Title,
+			Description:   pageInfo.Description,
+			QuestionCount: len(pageQuestions),
+			Questions:     pageQuestions,
+		})
+		totalQuestions += len(pageQuestions)
+	}
+
+	report.Pages = pages
+	report.Summary.QuestionCount = totalQuestions
 	return report, nil
 }
 
@@ -204,30 +250,50 @@ func filterVersions(versions []models.SurveyVersion, selectedVersion string) ([]
 	return nil, ErrVersionNotFound
 }
 
-func questionSelection(versions []models.SurveyVersion) ([]uuid.UUID, map[uuid.UUID]questionMeta, map[uuid.UUID]bool, []string, error) {
-	order := make([]uuid.UUID, 0)
-	metaByID := make(map[uuid.UUID]questionMeta)
+func questionSelection(versions []models.SurveyVersion) (selectionResult, error) {
+	selection := selectionResult{
+		QuestionOrder:    make([]uuid.UUID, 0),
+		QuestionMetaByID: make(map[uuid.UUID]questionMeta),
+		IncompatibleIDs:  make(map[uuid.UUID]bool),
+		PageOrder:        make([]string, 0),
+		PageMetaByID:     make(map[string]pageMeta),
+		PageQuestionIDs:  make(map[string][]uuid.UUID),
+		Warnings:         make([]string, 0),
+	}
 	typeByID := make(map[uuid.UUID]map[string]struct{})
-	warnings := make([]string, 0)
 
 	for _, version := range versions {
 		questions, err := parseSnapshotQuestions(version.Snapshot)
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return selectionResult{}, err
 		}
 
 		sort.SliceStable(questions, func(i, j int) bool {
 			return questions[i].SortOrder < questions[j].SortOrder
 		})
 
+		pageIndex := 0
+		var currentPage pageMeta
+		hasCurrentPage := false
 		for _, question := range questions {
 			if question.Type == "section" {
+				pageIndex++
+				currentPage = explicitPageMeta(question)
+				hasCurrentPage = true
 				continue
 			}
+			if !isAnalyticsQuestionType(question.Type) {
+				continue
+			}
+			if !hasCurrentPage {
+				pageIndex++
+				currentPage = implicitPageMeta(version.VersionNumber, pageIndex)
+				hasCurrentPage = true
+			}
 
-			if _, exists := metaByID[question.ID]; !exists {
-				order = append(order, question.ID)
-				metaByID[question.ID] = questionMeta{
+			if _, exists := selection.QuestionMetaByID[question.ID]; !exists {
+				selection.QuestionOrder = append(selection.QuestionOrder, question.ID)
+				selection.QuestionMetaByID[question.ID] = questionMeta{
 					ID:          question.ID,
 					Type:        question.Type,
 					Title:       question.Title,
@@ -236,6 +302,7 @@ func questionSelection(versions []models.SurveyVersion) ([]uuid.UUID, map[uuid.U
 					MaxRating:   question.MaxRating,
 					SortOrder:   question.SortOrder,
 				}
+				registerPageQuestion(&selection, currentPage, question.ID)
 			}
 			if _, exists := typeByID[question.ID]; !exists {
 				typeByID[question.ID] = make(map[string]struct{})
@@ -248,11 +315,12 @@ func questionSelection(versions []models.SurveyVersion) ([]uuid.UUID, map[uuid.U
 	for questionID, typeSet := range typeByID {
 		if len(typeSet) > 1 {
 			incompatibleIDs[questionID] = true
-			warnings = append(warnings, fmt.Sprintf("Question %s changed type across selected versions and was skipped.", questionID))
+			selection.Warnings = append(selection.Warnings, fmt.Sprintf("Question %s changed type across selected versions and was skipped.", questionID))
 		}
 	}
+	selection.IncompatibleIDs = incompatibleIDs
 
-	return order, metaByID, incompatibleIDs, warnings, nil
+	return selection, nil
 }
 
 func parseSnapshotQuestions(snapshot json.RawMessage) ([]snapshotQuestion, error) {
@@ -536,4 +604,44 @@ func deref(value *string) string {
 
 func min(left int, right int) int {
 	return slices.Min([]int{left, right})
+}
+
+func registerPageQuestion(selection *selectionResult, page pageMeta, questionID uuid.UUID) {
+	if _, exists := selection.PageMetaByID[page.ID]; !exists {
+		selection.PageMetaByID[page.ID] = page
+		selection.PageOrder = append(selection.PageOrder, page.ID)
+	}
+	selection.PageQuestionIDs[page.ID] = append(selection.PageQuestionIDs[page.ID], questionID)
+}
+
+func explicitPageMeta(question snapshotQuestion) pageMeta {
+	return pageMeta{
+		ID:          question.ID.String(),
+		Title:       strings.TrimSpace(question.Title),
+		Description: normalizeOptionalString(question.Description),
+	}
+}
+
+func implicitPageMeta(versionNumber int, pageIndex int) pageMeta {
+	return pageMeta{
+		ID:    fmt.Sprintf("implicit-v%d-p%d", versionNumber, pageIndex),
+		Title: "",
+	}
+}
+
+func normalizeOptionalString(value *string) *string {
+	trimmed := strings.TrimSpace(deref(value))
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func isAnalyticsQuestionType(questionType string) bool {
+	switch questionType {
+	case "single", "select", "multi", "rating", "date", "text", "short", "long":
+		return true
+	default:
+		return false
+	}
 }

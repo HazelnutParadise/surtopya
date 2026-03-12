@@ -14,6 +14,7 @@ export interface CsvAnswerLike {
 export interface CsvResponseLike {
   id: string
   status: string
+  surveyVersionNumber?: number
   userId?: string
   anonymousId?: string
   pointsAwarded?: number
@@ -47,6 +48,7 @@ export interface BuildSurveyResponsesCsvRowsOptions {
   responses: CsvResponseLike[]
   surveyVersions: CsvSurveyVersionLike[]
   metadataHeaders: CsvMetadataHeaders
+  exportScope?: "all" | number
 }
 
 interface CsvQuestionColumn {
@@ -135,10 +137,20 @@ export const buildSurveyResponsesCsvRows = ({
   responses,
   surveyVersions,
   metadataHeaders,
+  exportScope = "all",
 }: BuildSurveyResponsesCsvRowsOptions) => {
-  const completedResponses = responses.filter((response) => response.status === "completed")
+  const completedResponses = responses.filter((response) => {
+    if (response.status !== "completed") return false
+    if (exportScope === "all") return true
+    return response.surveyVersionNumber === exportScope
+  })
 
-  const columns = buildVersionQuestionColumns(surveyVersions)
+  const scopedVersions =
+    exportScope === "all"
+      ? surveyVersions
+      : surveyVersions.filter((version) => version.versionNumber === exportScope)
+
+  const columns = buildVersionQuestionColumns(scopedVersions)
   ensureAnswerQuestionColumns(columns, completedResponses)
   const questionColumns = disambiguateTitles(columns)
 

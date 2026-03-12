@@ -96,10 +96,10 @@ func TestBuildReport_AllVersionsMergesQuestionsAndPreservesLegacyOptions(t *test
 	require.Equal(t, []int{2, 1}, report.AvailableVersions)
 	require.Equal(t, 2, report.Summary.TotalCompletedResponses)
 	require.Equal(t, 1, report.Summary.QuestionCount)
-	require.Len(t, report.Questions, 1)
-	require.Equal(t, questionID.String(), report.Questions[0].QuestionID)
-	require.Equal(t, []string{"Blue", "Green", "Red"}, bucketLabels(report.Questions[0].OptionCounts))
-	require.Equal(t, []int{1, 0, 1}, bucketCounts(report.Questions[0].OptionCounts))
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, []string{questionID.String()}, pageQuestionIDs(report.Pages[0]))
+	require.Equal(t, []string{"Blue", "Green", "Red"}, bucketLabels(report.Pages[0].Questions[0].OptionCounts))
+	require.Equal(t, []int{1, 0, 1}, bucketCounts(report.Pages[0].Questions[0].OptionCounts))
 }
 
 func TestBuildReport_SingleVersionFiltersResultsAndRedactsTextResponsesWhenDisabled(t *testing.T) {
@@ -146,10 +146,10 @@ func TestBuildReport_SingleVersionFiltersResultsAndRedactsTextResponsesWhenDisab
 	require.NoError(t, err)
 	require.Equal(t, "1", report.SelectedVersion)
 	require.Equal(t, 1, report.Summary.TotalCompletedResponses)
-	require.Len(t, report.Questions, 1)
-	require.Equal(t, 1, report.Questions[0].ResponseCount)
-	require.Empty(t, report.Questions[0].TextResponses)
-	require.False(t, report.Questions[0].HasMoreResponses)
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, 1, report.Pages[0].Questions[0].ResponseCount)
+	require.Empty(t, report.Pages[0].Questions[0].TextResponses)
+	require.False(t, report.Pages[0].Questions[0].HasMoreResponses)
 }
 
 func TestBuildReport_TextQuestionKeepsNewestTwentyResponses(t *testing.T) {
@@ -187,11 +187,11 @@ func TestBuildReport_TextQuestionKeepsNewestTwentyResponses(t *testing.T) {
 		GeneratedAt:          now,
 	})
 	require.NoError(t, err)
-	require.Len(t, report.Questions, 1)
-	require.Equal(t, 22, report.Questions[0].ResponseCount)
-	require.Len(t, report.Questions[0].TextResponses, 20)
-	require.Equal(t, "2026-01-01T00:00:21Z", report.Questions[0].TextResponses[0])
-	require.True(t, report.Questions[0].HasMoreResponses)
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, 22, report.Pages[0].Questions[0].ResponseCount)
+	require.Len(t, report.Pages[0].Questions[0].TextResponses, 20)
+	require.Equal(t, "2026-01-01T00:00:21Z", report.Pages[0].Questions[0].TextResponses[0])
+	require.True(t, report.Pages[0].Questions[0].HasMoreResponses)
 }
 
 func TestBuildReport_SkipsQuestionWhenTypeChangesAcrossVersionsInAllScope(t *testing.T) {
@@ -232,10 +232,91 @@ func TestBuildReport_SkipsQuestionWhenTypeChangesAcrossVersionsInAllScope(t *tes
 		GeneratedAt:          now,
 	})
 	require.NoError(t, err)
-	require.Empty(t, report.Questions)
+	require.Empty(t, report.Pages)
 	require.Len(t, report.Warnings, 1)
 	require.NotEmpty(t, report.Warnings)
 	require.Contains(t, report.Warnings[0], questionID.String())
+}
+
+func TestBuildReport_GroupsQuestionsIntoPagesUsingSections(t *testing.T) {
+	introQuestionID := uuid.New()
+	sectionOneID := uuid.New()
+	detailQuestionID := uuid.New()
+	ratingQuestionID := uuid.New()
+	sectionTwoID := uuid.New()
+	dateQuestionID := uuid.New()
+	now := time.Now().UTC()
+
+	versions := []models.SurveyVersion{
+		{
+			ID:            uuid.New(),
+			SurveyID:      uuid.New(),
+			VersionNumber: 1,
+			Snapshot: snapshotForTest(t,
+				map[string]any{
+					"id":        introQuestionID,
+					"type":      "short",
+					"title":     "Intro",
+					"required":  false,
+					"sortOrder": 0,
+				},
+				map[string]any{
+					"id":          sectionOneID,
+					"type":        "section",
+					"title":       "Details",
+					"description": "Provide details",
+					"required":    false,
+					"sortOrder":   1,
+				},
+				map[string]any{
+					"id":        detailQuestionID,
+					"type":      "long",
+					"title":     "More detail",
+					"required":  false,
+					"sortOrder": 2,
+				},
+				map[string]any{
+					"id":        ratingQuestionID,
+					"type":      "rating",
+					"title":     "Satisfaction",
+					"maxRating": 5,
+					"required":  false,
+					"sortOrder": 3,
+				},
+				map[string]any{
+					"id":        sectionTwoID,
+					"type":      "section",
+					"title":     "Schedule",
+					"required":  false,
+					"sortOrder": 4,
+				},
+				map[string]any{
+					"id":        dateQuestionID,
+					"type":      "date",
+					"title":     "Visit date",
+					"required":  false,
+					"sortOrder": 5,
+				},
+			),
+		},
+	}
+
+	report, err := BuildReport(versions, nil, BuildOptions{
+		SelectedVersion:      "all",
+		IncludeTextResponses: true,
+		GeneratedAt:          now,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 4, report.Summary.QuestionCount)
+	require.Len(t, report.Pages, 3)
+	require.Equal(t, []string{"", "Details", "Schedule"}, pageTitles(report.Pages))
+	require.Equal(t, []string{introQuestionID.String()}, pageQuestionIDs(report.Pages[0]))
+	require.Equal(t, []string{detailQuestionID.String(), ratingQuestionID.String()}, pageQuestionIDs(report.Pages[1]))
+	require.Equal(t, []string{dateQuestionID.String()}, pageQuestionIDs(report.Pages[2]))
+	require.Equal(t, 1, report.Pages[0].QuestionCount)
+	require.Equal(t, 2, report.Pages[1].QuestionCount)
+	require.Equal(t, 1, report.Pages[2].QuestionCount)
+	require.Equal(t, "Provide details", deref(report.Pages[1].Description))
 }
 
 func TestBuildReport_RatingQuestionIncludesDistributionAndAverage(t *testing.T) {
@@ -270,11 +351,11 @@ func TestBuildReport_RatingQuestionIncludesDistributionAndAverage(t *testing.T) 
 		GeneratedAt:          now,
 	})
 	require.NoError(t, err)
-	require.Len(t, report.Questions, 1)
-	require.Equal(t, []string{"1", "2", "3", "4", "5"}, bucketLabels(report.Questions[0].OptionCounts))
-	require.Equal(t, []int{0, 0, 1, 0, 1}, bucketCounts(report.Questions[0].OptionCounts))
-	require.NotNil(t, report.Questions[0].AverageRating)
-	require.Equal(t, 4.0, *report.Questions[0].AverageRating)
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, []string{"1", "2", "3", "4", "5"}, bucketLabels(report.Pages[0].Questions[0].OptionCounts))
+	require.Equal(t, []int{0, 0, 1, 0, 1}, bucketCounts(report.Pages[0].Questions[0].OptionCounts))
+	require.NotNil(t, report.Pages[0].Questions[0].AverageRating)
+	require.Equal(t, 4.0, *report.Pages[0].Questions[0].AverageRating)
 }
 
 func TestBuildReport_ReturnsErrVersionNotFound(t *testing.T) {
@@ -311,6 +392,22 @@ func bucketCounts(buckets []OptionCount) []int {
 		counts = append(counts, bucket.Count)
 	}
 	return counts
+}
+
+func pageTitles(pages []PageAnalytics) []string {
+	titles := make([]string, 0, len(pages))
+	for _, page := range pages {
+		titles = append(titles, page.Title)
+	}
+	return titles
+}
+
+func pageQuestionIDs(page PageAnalytics) []string {
+	questionIDs := make([]string, 0, len(page.Questions))
+	for _, question := range page.Questions {
+		questionIDs = append(questionIDs, question.QuestionID)
+	}
+	return questionIDs
 }
 
 func ptr(value string) *string {

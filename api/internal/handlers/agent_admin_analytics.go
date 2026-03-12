@@ -13,11 +13,11 @@ import (
 )
 
 type agentResponseAnalyticsPayload struct {
-	SelectedVersion   string                           `json:"selected_version"`
-	AvailableVersions []int                            `json:"available_versions"`
-	Summary           agentResponseAnalyticsSummary    `json:"summary"`
-	Questions         []agentResponseAnalyticsQuestion `json:"questions"`
-	Warnings          []string                         `json:"warnings"`
+	SelectedVersion   string                        `json:"selected_version"`
+	AvailableVersions []int                         `json:"available_versions"`
+	Summary           agentResponseAnalyticsSummary `json:"summary"`
+	Pages             []agentResponseAnalyticsPage  `json:"pages"`
+	Warnings          []string                      `json:"warnings"`
 }
 
 type agentResponseAnalyticsSummary struct {
@@ -27,15 +27,24 @@ type agentResponseAnalyticsSummary struct {
 }
 
 type agentResponseAnalyticsQuestion struct {
-	QuestionID       string                      `json:"question_id"`
-	Title            string                      `json:"title"`
-	Description      *string                     `json:"description,omitempty"`
-	QuestionType     string                      `json:"question_type"`
-	ResponseCount    int                         `json:"response_count"`
-	OptionCounts     *[]agentResponseOptionCount `json:"option_counts,omitempty"`
-	AverageRating    *float64                    `json:"average_rating,omitempty"`
-	MaxRating        *int                        `json:"max_rating,omitempty"`
-	HasMoreResponses bool                        `json:"has_more_responses,omitempty"`
+	QuestionID       string                     `json:"question_id"`
+	Title            string                     `json:"title"`
+	Description      *string                    `json:"description,omitempty"`
+	QuestionType     string                     `json:"question_type"`
+	ResponseCount    int                        `json:"response_count"`
+	OptionCounts     []agentResponseOptionCount `json:"option_counts"`
+	AverageRating    *float64                   `json:"average_rating,omitempty"`
+	MaxRating        *int                       `json:"max_rating,omitempty"`
+	TextResponses    []string                   `json:"text_responses"`
+	HasMoreResponses bool                       `json:"has_more_responses,omitempty"`
+}
+
+type agentResponseAnalyticsPage struct {
+	PageID        string                           `json:"page_id"`
+	Title         string                           `json:"title"`
+	Description   *string                          `json:"description,omitempty"`
+	QuestionCount int                              `json:"question_count"`
+	Questions     []agentResponseAnalyticsQuestion `json:"questions"`
 }
 
 type agentResponseOptionCount struct {
@@ -106,18 +115,14 @@ func (h *AgentAdminHandler) loadSurveyForAgent(c *gin.Context, surveyID uuid.UUI
 }
 
 func mapAgentResponseAnalytics(report surveyanalytics.Report) agentResponseAnalyticsPayload {
-	questions := make([]agentResponseAnalyticsQuestion, 0, len(report.Questions))
-	for _, question := range report.Questions {
-		questions = append(questions, agentResponseAnalyticsQuestion{
-			QuestionID:       question.QuestionID,
-			Title:            question.Title,
-			Description:      question.Description,
-			QuestionType:     question.QuestionType,
-			ResponseCount:    question.ResponseCount,
-			OptionCounts:     mapAgentOptionCounts(question),
-			AverageRating:    question.AverageRating,
-			MaxRating:        question.MaxRating,
-			HasMoreResponses: question.HasMoreResponses,
+	pages := make([]agentResponseAnalyticsPage, 0, len(report.Pages))
+	for _, page := range report.Pages {
+		pages = append(pages, agentResponseAnalyticsPage{
+			PageID:        page.PageID,
+			Title:         page.Title,
+			Description:   page.Description,
+			QuestionCount: page.QuestionCount,
+			Questions:     mapAgentQuestions(page.Questions),
 		})
 	}
 
@@ -129,12 +134,31 @@ func mapAgentResponseAnalytics(report surveyanalytics.Report) agentResponseAnaly
 			QuestionCount:           report.Summary.QuestionCount,
 			GeneratedAt:             report.Summary.GeneratedAt.Format(time.RFC3339),
 		},
-		Questions: questions,
-		Warnings:  append([]string{}, report.Warnings...),
+		Pages:    pages,
+		Warnings: append([]string{}, report.Warnings...),
 	}
 }
 
-func mapAgentOptionCounts(question surveyanalytics.QuestionAnalytics) *[]agentResponseOptionCount {
+func mapAgentQuestions(questions []surveyanalytics.QuestionAnalytics) []agentResponseAnalyticsQuestion {
+	result := make([]agentResponseAnalyticsQuestion, 0, len(questions))
+	for _, question := range questions {
+		result = append(result, agentResponseAnalyticsQuestion{
+			QuestionID:       question.QuestionID,
+			Title:            question.Title,
+			Description:      question.Description,
+			QuestionType:     question.QuestionType,
+			ResponseCount:    question.ResponseCount,
+			OptionCounts:     mapAgentOptionCounts(question),
+			AverageRating:    question.AverageRating,
+			MaxRating:        question.MaxRating,
+			TextResponses:    []string{},
+			HasMoreResponses: question.HasMoreResponses,
+		})
+	}
+	return result
+}
+
+func mapAgentOptionCounts(question surveyanalytics.QuestionAnalytics) []agentResponseOptionCount {
 	switch question.QuestionType {
 	case "single", "select", "multi", "rating", "date":
 		optionCounts := make([]agentResponseOptionCount, 0, len(question.OptionCounts))
@@ -145,8 +169,8 @@ func mapAgentOptionCounts(question surveyanalytics.QuestionAnalytics) *[]agentRe
 				Percentage: option.Percentage,
 			})
 		}
-		return &optionCounts
+		return optionCounts
 	default:
-		return nil
+		return []agentResponseOptionCount{}
 	}
 }

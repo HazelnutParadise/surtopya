@@ -538,6 +538,7 @@ func TestResponseHandler_GetSurveyResponseAnalytics_ReturnsOwnerAnalytics(t *tes
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"selectedVersion":"all"`)
+	require.Contains(t, w.Body.String(), `"pages":[`)
 	require.Contains(t, w.Body.String(), `"questionType":"text"`)
 	require.Contains(t, w.Body.String(), `"textResponses":["owner visible text"]`)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -599,7 +600,7 @@ func TestResponseHandler_GetSurveyResponseAnalytics_ReturnsStableEmptyArrays(t *
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"availableVersions":[]`)
-	require.Contains(t, w.Body.String(), `"questions":[]`)
+	require.Contains(t, w.Body.String(), `"pages":[]`)
 	require.Contains(t, w.Body.String(), `"warnings":[]`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

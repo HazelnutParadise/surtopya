@@ -660,6 +660,7 @@
     "responseAnalyticsVersionAll": "All versions",
     "responseAnalyticsVersionSingle": "Version {version}",
     "responseAnalyticsMoreResponses": "{count} more responses",
+    "responseAnalyticsPageLabel": "Page {page}",
     "viewSurvey": "View Survey",
     "surveySettingsTitle": "Survey Settings",
     "surveySettingsDescription": "Configure your survey options",

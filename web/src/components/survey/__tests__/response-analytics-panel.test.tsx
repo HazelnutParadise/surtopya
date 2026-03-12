@@ -17,6 +17,7 @@ const messages = {
     responseAnalyticsVersionAll: "All versions",
     responseAnalyticsVersionSingle: "Version {version}",
     responseAnalyticsMoreResponses: "+{count} more",
+    responseAnalyticsPageLabel: "Page {page}",
   },
 }
 
@@ -61,14 +62,21 @@ describe("ResponseAnalyticsPanel", () => {
                 questionCount: 1,
                 generatedAt: "2026-03-12T12:00:00Z",
               },
-              questions: [
+              pages: [
                 {
-                  questionId: "q-text",
-                  title: "Comment",
-                  questionType: "text",
-                  responseCount: 1,
-                  textResponses: null,
-                  optionCounts: null,
+                  pageId: "page-1",
+                  title: "",
+                  questionCount: 1,
+                  questions: [
+                    {
+                      questionId: "q-text",
+                      title: "Comment",
+                      questionType: "text",
+                      responseCount: 1,
+                      textResponses: null,
+                      optionCounts: null,
+                    },
+                  ],
                 },
               ],
               warnings: null,
@@ -86,7 +94,7 @@ describe("ResponseAnalyticsPanel", () => {
     expect(screen.queryByText("Analytics warnings")).not.toBeInTheDocument()
   })
 
-  it("renders warnings, analytics cards, and version options", () => {
+  it("renders warnings, page tabs, analytics cards, and version options", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <ResponseAnalyticsPanel
@@ -98,24 +106,40 @@ describe("ResponseAnalyticsPanel", () => {
               questionCount: 2,
               generatedAt: "2026-03-12T12:00:00Z",
             },
-            questions: [
+            pages: [
               {
-                questionId: "q-single",
-                title: "Favorite option",
-                questionType: "single",
-                responseCount: 3,
-                optionCounts: [
-                  { label: "Blue", count: 2, percentage: 66.6667 },
-                  { label: "Green", count: 1, percentage: 33.3333 },
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-single",
+                    title: "Favorite option",
+                    questionType: "single",
+                    responseCount: 3,
+                    optionCounts: [
+                      { label: "Blue", count: 2, percentage: 66.6667 },
+                      { label: "Green", count: 1, percentage: 33.3333 },
+                    ],
+                    textResponses: [],
+                  },
                 ],
               },
               {
-                questionId: "q-text",
-                title: "Comment",
-                questionType: "text",
-                responseCount: 3,
-                textResponses: ["Newest comment", "Older comment"],
-                hasMoreResponses: true,
+                pageId: "page-2",
+                title: "Follow-up",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-text",
+                    title: "Comment",
+                    questionType: "text",
+                    responseCount: 3,
+                    optionCounts: [],
+                    textResponses: ["Newest comment", "Older comment"],
+                    hasMoreResponses: true,
+                  },
+                ],
               },
             ],
             warnings: ["Question q-legacy changed type across selected versions and was skipped."],
@@ -130,16 +154,21 @@ describe("ResponseAnalyticsPanel", () => {
 
     expect(screen.getByText("Question analytics")).toBeInTheDocument()
     expect(screen.getByText("Analytics warnings")).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Page 1" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Follow-up" })).toBeInTheDocument()
     expect(screen.getByText("Favorite option")).toBeInTheDocument()
     expect(screen.getByText("Blue")).toBeInTheDocument()
-    expect(screen.getByText("2 · 67%")).toBeInTheDocument()
+    expect(screen.getByText("2 繚 67%")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Follow-up" }))
+
     expect(screen.getByText("Comment")).toBeInTheDocument()
     expect(screen.getByText("Newest comment")).toBeInTheDocument()
     expect(screen.getByText("+1 more")).toBeInTheDocument()
     expect(screen.getByTestId("response-analytics-version-select")).toHaveValue("all")
   })
 
-  it("supports version switching and loading state", () => {
+  it("supports version switching, keeps tabs horizontally scrollable, and resets to the first page on version changes", () => {
     const onVersionChange = vi.fn()
 
     const { rerender } = render(
@@ -164,10 +193,41 @@ describe("ResponseAnalyticsPanel", () => {
             availableVersions: [2, 1],
             summary: {
               totalCompletedResponses: 1,
-              questionCount: 1,
+              questionCount: 2,
               generatedAt: "2026-03-12T12:00:00Z",
             },
-            questions: [],
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-one",
+                    title: "Version 2 question",
+                    questionType: "short",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: [],
+                  },
+                ],
+              },
+              {
+                pageId: "page-2",
+                title: "Extra page",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-two",
+                    title: "Second page question",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["visible"],
+                  },
+                ],
+              },
+            ],
             warnings: [],
           }}
           loading={false}
@@ -183,5 +243,92 @@ describe("ResponseAnalyticsPanel", () => {
     })
 
     expect(onVersionChange).toHaveBeenCalledWith("1")
+    expect(screen.getByTestId("response-analytics-page-tabs")).toHaveClass("overflow-x-auto")
+
+    fireEvent.click(screen.getByRole("tab", { name: "Extra page" }))
+    expect(screen.getByText("Second page question")).toBeInTheDocument()
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResponseAnalyticsPanel
+          analytics={{
+            selectedVersion: "1",
+            availableVersions: [2, 1],
+            summary: {
+              totalCompletedResponses: 1,
+              questionCount: 1,
+              generatedAt: "2026-03-12T12:00:00Z",
+            },
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-three",
+                    title: "Version 1 question",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["older"],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          }}
+          loading={false}
+          error={null}
+          selectedVersion="1"
+          onVersionChange={onVersionChange}
+        />
+      </NextIntlClientProvider>
+    )
+
+    expect(screen.getByRole("tab", { name: "Page 1" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByText("Version 1 question")).toBeInTheDocument()
+  })
+
+  it("uses a fixed-height scroll container for question cards", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResponseAnalyticsPanel
+          analytics={{
+            selectedVersion: "all",
+            availableVersions: [1],
+            summary: {
+              totalCompletedResponses: 1,
+              questionCount: 1,
+              generatedAt: "2026-03-12T12:00:00Z",
+            },
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-text",
+                    title: "Comment",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["line 1", "line 2"],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          }}
+          loading={false}
+          error={null}
+          selectedVersion="all"
+          onVersionChange={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    )
+
+    expect(screen.getByTestId("response-analytics-card-scroll-q-text")).toHaveClass("overflow-y-auto")
   })
 })

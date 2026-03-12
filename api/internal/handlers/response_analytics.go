@@ -12,11 +12,11 @@ import (
 )
 
 type ownerResponseAnalyticsPayload struct {
-	SelectedVersion   string                           `json:"selectedVersion"`
-	AvailableVersions []int                            `json:"availableVersions"`
-	Summary           ownerResponseAnalyticsSummary    `json:"summary"`
-	Questions         []ownerResponseAnalyticsQuestion `json:"questions"`
-	Warnings          []string                         `json:"warnings"`
+	SelectedVersion   string                        `json:"selectedVersion"`
+	AvailableVersions []int                         `json:"availableVersions"`
+	Summary           ownerResponseAnalyticsSummary `json:"summary"`
+	Pages             []ownerResponseAnalyticsPage  `json:"pages"`
+	Warnings          []string                      `json:"warnings"`
 }
 
 type ownerResponseAnalyticsSummary struct {
@@ -26,16 +26,24 @@ type ownerResponseAnalyticsSummary struct {
 }
 
 type ownerResponseAnalyticsQuestion struct {
-	QuestionID       string                      `json:"questionId"`
-	Title            string                      `json:"title"`
-	Description      *string                     `json:"description,omitempty"`
-	QuestionType     string                      `json:"questionType"`
-	ResponseCount    int                         `json:"responseCount"`
-	OptionCounts     *[]ownerResponseOptionCount `json:"optionCounts,omitempty"`
-	AverageRating    *float64                    `json:"averageRating,omitempty"`
-	MaxRating        *int                        `json:"maxRating,omitempty"`
-	TextResponses    *[]string                   `json:"textResponses,omitempty"`
-	HasMoreResponses bool                        `json:"hasMoreResponses,omitempty"`
+	QuestionID       string                     `json:"questionId"`
+	Title            string                     `json:"title"`
+	Description      *string                    `json:"description,omitempty"`
+	QuestionType     string                     `json:"questionType"`
+	ResponseCount    int                        `json:"responseCount"`
+	OptionCounts     []ownerResponseOptionCount `json:"optionCounts"`
+	AverageRating    *float64                   `json:"averageRating,omitempty"`
+	MaxRating        *int                       `json:"maxRating,omitempty"`
+	TextResponses    []string                   `json:"textResponses"`
+	HasMoreResponses bool                       `json:"hasMoreResponses,omitempty"`
+}
+
+type ownerResponseAnalyticsPage struct {
+	PageID        string                           `json:"pageId"`
+	Title         string                           `json:"title"`
+	Description   *string                          `json:"description,omitempty"`
+	QuestionCount int                              `json:"questionCount"`
+	Questions     []ownerResponseAnalyticsQuestion `json:"questions"`
 }
 
 type ownerResponseOptionCount struct {
@@ -131,22 +139,14 @@ func normalizeAnalyticsVersion(raw string) (string, error) {
 }
 
 func mapOwnerResponseAnalytics(report surveyanalytics.Report) ownerResponseAnalyticsPayload {
-	questions := make([]ownerResponseAnalyticsQuestion, 0, len(report.Questions))
-	for _, question := range report.Questions {
-		optionCounts := mapOwnerOptionCounts(question)
-		textResponses := mapOwnerTextResponses(question)
-
-		questions = append(questions, ownerResponseAnalyticsQuestion{
-			QuestionID:       question.QuestionID,
-			Title:            question.Title,
-			Description:      question.Description,
-			QuestionType:     question.QuestionType,
-			ResponseCount:    question.ResponseCount,
-			OptionCounts:     optionCounts,
-			AverageRating:    question.AverageRating,
-			MaxRating:        question.MaxRating,
-			TextResponses:    textResponses,
-			HasMoreResponses: question.HasMoreResponses,
+	pages := make([]ownerResponseAnalyticsPage, 0, len(report.Pages))
+	for _, page := range report.Pages {
+		pages = append(pages, ownerResponseAnalyticsPage{
+			PageID:        page.PageID,
+			Title:         page.Title,
+			Description:   page.Description,
+			QuestionCount: page.QuestionCount,
+			Questions:     mapOwnerQuestions(page.Questions),
 		})
 	}
 
@@ -158,12 +158,31 @@ func mapOwnerResponseAnalytics(report surveyanalytics.Report) ownerResponseAnaly
 			QuestionCount:           report.Summary.QuestionCount,
 			GeneratedAt:             report.Summary.GeneratedAt,
 		},
-		Questions: questions,
-		Warnings:  append([]string{}, report.Warnings...),
+		Pages:    pages,
+		Warnings: append([]string{}, report.Warnings...),
 	}
 }
 
-func mapOwnerOptionCounts(question surveyanalytics.QuestionAnalytics) *[]ownerResponseOptionCount {
+func mapOwnerQuestions(questions []surveyanalytics.QuestionAnalytics) []ownerResponseAnalyticsQuestion {
+	result := make([]ownerResponseAnalyticsQuestion, 0, len(questions))
+	for _, question := range questions {
+		result = append(result, ownerResponseAnalyticsQuestion{
+			QuestionID:       question.QuestionID,
+			Title:            question.Title,
+			Description:      question.Description,
+			QuestionType:     question.QuestionType,
+			ResponseCount:    question.ResponseCount,
+			OptionCounts:     mapOwnerOptionCounts(question),
+			AverageRating:    question.AverageRating,
+			MaxRating:        question.MaxRating,
+			TextResponses:    mapOwnerTextResponses(question),
+			HasMoreResponses: question.HasMoreResponses,
+		})
+	}
+	return result
+}
+
+func mapOwnerOptionCounts(question surveyanalytics.QuestionAnalytics) []ownerResponseOptionCount {
 	switch question.QuestionType {
 	case "single", "select", "multi", "rating", "date":
 		optionCounts := make([]ownerResponseOptionCount, 0, len(question.OptionCounts))
@@ -174,18 +193,17 @@ func mapOwnerOptionCounts(question surveyanalytics.QuestionAnalytics) *[]ownerRe
 				Percentage: option.Percentage,
 			})
 		}
-		return &optionCounts
+		return optionCounts
 	default:
-		return nil
+		return []ownerResponseOptionCount{}
 	}
 }
 
-func mapOwnerTextResponses(question surveyanalytics.QuestionAnalytics) *[]string {
+func mapOwnerTextResponses(question surveyanalytics.QuestionAnalytics) []string {
 	switch question.QuestionType {
 	case "text", "short", "long":
-		textResponses := append([]string{}, question.TextResponses...)
-		return &textResponses
+		return append([]string{}, question.TextResponses...)
 	default:
-		return nil
+		return []string{}
 	}
 }

@@ -174,6 +174,7 @@ func TestAgentAdminHandler_GetSurveyResponseAnalytics_RedactsTextResponses(t *te
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"selected_version":"all"`)
+	require.Contains(t, w.Body.String(), `"pages":[`)
 	require.Contains(t, w.Body.String(), `"question_type":"text"`)
 	require.NotContains(t, w.Body.String(), "private owner text")
 	require.Contains(t, w.Body.String(), `"response_count":1`)
@@ -246,7 +247,7 @@ func TestAgentAdminHandler_GetSurveyResponseAnalytics_ReturnsStableEmptyArrays(t
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"available_versions":[]`)
-	require.Contains(t, w.Body.String(), `"questions":[]`)
+	require.Contains(t, w.Body.String(), `"pages":[]`)
 	require.Contains(t, w.Body.String(), `"warnings":[]`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

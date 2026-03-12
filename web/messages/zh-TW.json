@@ -660,6 +660,7 @@
     "responseAnalyticsVersionAll": "全部版本",
     "responseAnalyticsVersionSingle": "版本 {version}",
     "responseAnalyticsMoreResponses": "還有 {count} 則",
+    "responseAnalyticsPageLabel": "第 {page} 頁",
     "viewSurvey": "查看問卷",
     "surveySettingsTitle": "問卷設定",
     "surveySettingsDescription": "設定問卷選項",

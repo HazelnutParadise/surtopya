@@ -40,6 +40,11 @@ import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, is
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { ResponseAnalyticsPanel } from "@/components/survey/response-analytics-panel";
+import {
+  SurveyResponsesExportMenu,
+  type SurveyResponsesExportEncoding,
+  type SurveyResponsesExportScope,
+} from "@/components/survey/survey-responses-export-menu";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
 import {
@@ -300,7 +305,11 @@ export default function SurveyManagementPage() {
     [responseRows]
   )
 
-  const handleExportCsv = (encoding: "excel" | "utf8") => {
+  const exportVersionOptions = useMemo(() => {
+    return [...new Set(surveyVersions.map((version) => version.versionNumber))].sort((left, right) => right - left)
+  }, [surveyVersions])
+
+  const handleExportCsv = (scope: SurveyResponsesExportScope, encoding: SurveyResponsesExportEncoding) => {
     const rows = buildSurveyResponsesCsvRows({
       responses: responseRows,
       surveyVersions,
@@ -312,8 +321,10 @@ export default function SurveyManagementPage() {
         startedAt: t("responsesTableStartedAt"),
         submittedAt: t("responsesTableSubmittedAt"),
       },
+      exportScope: scope,
     })
-    downloadCsv(`responses-${surveyId}.csv`, rows, encoding === "excel")
+    const scopeLabel = scope === "all" ? "all" : `v${scope}`
+    downloadCsv(`responses-${surveyId}-${scopeLabel}.csv`, rows, encoding === "excel")
   }
 
   const handleAnalyticsVersionChange = useCallback((value: string) => {
@@ -803,21 +814,11 @@ export default function SurveyManagementPage() {
                         <CardDescription>{t("responseSummaryDescription")}</CardDescription>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => handleExportCsv("excel")}
+                        <SurveyResponsesExportMenu
                           disabled={completedResponseCount === 0}
-                          data-testid="dashboard-responses-export"
-                        >
-                          {t("exportCsvExcel")}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleExportCsv("utf8")}
-                          disabled={completedResponseCount === 0}
-                        >
-                          {t("exportCsvUtf8")}
-                        </Button>
+                          availableVersions={exportVersionOptions}
+                          onExport={handleExportCsv}
+                        />
                         <Button
                           variant="outline"
                           onClick={handleViewSurvey}

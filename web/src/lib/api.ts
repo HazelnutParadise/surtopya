@@ -375,6 +375,14 @@ export interface SurveyResponseAnalyticsQuestion {
   hasMoreResponses?: boolean
 }
 
+export interface SurveyResponseAnalyticsPage {
+  pageId: string
+  title: string
+  description?: string
+  questionCount: number
+  questions: SurveyResponseAnalyticsQuestion[]
+}
+
 export interface SurveyResponseAnalyticsSummary {
   totalCompletedResponses: number
   questionCount: number
@@ -385,7 +393,7 @@ export interface SurveyResponseAnalytics {
   selectedVersion: string
   availableVersions: number[]
   summary: SurveyResponseAnalyticsSummary
-  questions: SurveyResponseAnalyticsQuestion[]
+  pages: SurveyResponseAnalyticsPage[]
   warnings: string[]
 }
 
@@ -473,27 +481,63 @@ const normalizeSurveyResponseAnalyticsQuestion = (
   }
 }
 
-export const normalizeSurveyResponseAnalytics = (
-  value: unknown,
-  selectedVersionFallback = "all"
-): SurveyResponseAnalytics => {
+const normalizeSurveyResponseAnalyticsPage = (
+  value: unknown
+): SurveyResponseAnalyticsPage | null => {
   const record = asRecord(value)
-  const summary = asRecord(record?.summary)
-  const questions = Array.isArray(record?.questions)
+  if (!record) return null
+
+  const questions = Array.isArray(record.questions)
     ? record.questions
         .map(normalizeSurveyResponseAnalyticsQuestion)
         .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
     : []
 
   return {
+    pageId: asString(record.pageId),
+    title: asString(record.title),
+    description: asOptionalString(record.description),
+    questionCount: asNumber(record.questionCount, questions.length),
+    questions,
+  }
+}
+
+export const normalizeSurveyResponseAnalytics = (
+  value: unknown,
+  selectedVersionFallback = "all"
+): SurveyResponseAnalytics => {
+  const record = asRecord(value)
+  const summary = asRecord(record?.summary)
+  const legacyQuestions = Array.isArray(record?.questions)
+    ? record.questions
+        .map(normalizeSurveyResponseAnalyticsQuestion)
+        .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
+    : []
+  const pages = Array.isArray(record?.pages)
+    ? record.pages
+        .map(normalizeSurveyResponseAnalyticsPage)
+        .filter((item): item is SurveyResponseAnalyticsPage => item !== null)
+    : legacyQuestions.length > 0
+      ? [
+          {
+            pageId: "legacy-page-1",
+            title: "",
+            questionCount: legacyQuestions.length,
+            questions: legacyQuestions,
+          },
+        ]
+      : []
+  const normalizedQuestionCount = pages.reduce((total, page) => total + page.questions.length, 0)
+
+  return {
     selectedVersion: asString(record?.selectedVersion, selectedVersionFallback),
     availableVersions: asNumberArray(record?.availableVersions),
     summary: {
       totalCompletedResponses: asNumber(summary?.totalCompletedResponses),
-      questionCount: asNumber(summary?.questionCount, questions.length),
+      questionCount: asNumber(summary?.questionCount, normalizedQuestionCount),
       generatedAt: asString(summary?.generatedAt),
     },
-    questions,
+    pages,
     warnings: asStringArray(record?.warnings),
   }
 }

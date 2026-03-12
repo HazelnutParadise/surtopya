@@ -660,6 +660,7 @@
     "responseAnalyticsVersionAll": "すべてのバージョン",
     "responseAnalyticsVersionSingle": "バージョン {version}",
     "responseAnalyticsMoreResponses": "さらに {count} 件",
+    "responseAnalyticsPageLabel": "ページ {page}",
     "viewSurvey": "アンケートを見る",
     "surveySettingsTitle": "アンケート設定",
     "surveySettingsDescription": "アンケートの設定を管理",

@@ -123,4 +123,71 @@ describe("survey responses csv", () => {
       "2026-03-10",
     ])
   })
+
+  it("supports exporting a specific version only", () => {
+    const rows = buildSurveyResponsesCsvRows({
+      surveyVersions: [
+        {
+          versionNumber: 1,
+          snapshot: {
+            questions: [{ id: "q-old", title: "Old question", type: "short" }],
+          },
+        },
+        {
+          versionNumber: 2,
+          snapshot: {
+            questions: [{ id: "q-new", title: "New question", type: "short" }],
+          },
+        },
+      ],
+      responses: [
+        {
+          id: "r-v1",
+          status: "completed",
+          surveyVersionNumber: 1,
+          userId: "u-1",
+          startedAt: "2026-03-10T09:00:00Z",
+          completedAt: "2026-03-10T09:05:00Z",
+          answers: [{ questionId: "q-old", value: { text: "legacy" } }],
+        },
+        {
+          id: "r-v2",
+          status: "completed",
+          surveyVersionNumber: 2,
+          userId: "u-2",
+          startedAt: "2026-03-11T09:00:00Z",
+          completedAt: "2026-03-11T09:05:00Z",
+          answers: [
+            { questionId: "q-new", value: { text: "current" } },
+            { questionId: "q-extra", value: { text: "extra answer" } },
+          ],
+        },
+      ],
+      metadataHeaders,
+      exportScope: 2,
+    })
+
+    expect(rows[0]).toEqual([
+      "Response ID",
+      "Status",
+      "Respondent",
+      "Points",
+      "Started",
+      "Submitted",
+      "New question",
+      "q-extra",
+    ])
+
+    expect(rows).toHaveLength(2)
+    expect(rows[1]).toEqual([
+      "r-v2",
+      "completed",
+      "u-2",
+      "0",
+      "2026-03-11T09:00:00Z",
+      "2026-03-11T09:05:00Z",
+      "current",
+      "extra answer",
+    ])
+  })
 })
