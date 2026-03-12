@@ -19,8 +19,6 @@ import {
   Check,
   ExternalLink,
   Lock,
-  Unlock,
-  Send,
   Trash2,
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
@@ -36,6 +34,7 @@ import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, is
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import { ResponseAnalyticsPanel } from "@/components/survey/response-analytics-panel";
+import { SurveyManagementPublishActions } from "@/components/survey/survey-management-publish-actions";
 import { SurveyResponseSummaryCards } from "@/components/survey/survey-response-summary-cards";
 import {
   SurveyResponsesExportDialog,
@@ -44,6 +43,7 @@ import {
 } from "@/components/survey/survey-responses-export-menu";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
+import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import {
   Dialog,
   DialogContent,
@@ -300,6 +300,15 @@ export default function SurveyManagementPage() {
     return [...new Set(surveyVersions.map((version) => version.versionNumber))].sort((left, right) => right - left)
   }, [surveyVersions])
 
+  const summaryQuestionCount = useMemo(() => {
+    if (!survey) return 0
+
+    return getSurveyResponseSummaryQuestionCount({
+      draftQuestions: survey.questions,
+      surveyVersions,
+    })
+  }, [survey, surveyVersions])
+
   const handleExportCsv = (scope: SurveyResponsesExportScope, encoding: SurveyResponsesExportEncoding) => {
     const rows = buildSurveyResponsesCsvRows({
       responses: responseRows,
@@ -377,53 +386,95 @@ export default function SurveyManagementPage() {
     return rawError;
   };
 
-  const handleTogglePublish = async (status: boolean) => {
+  const getPublishRequestBody = () =>
+    JSON.stringify({
+      visibility: survey?.settings.visibility,
+      includeInDatasets: survey?.settings.isDatasetActive,
+      pointsReward: survey?.settings.pointsReward,
+    })
+
+  const publishSurveyVersion = async (eventName: "initial_publish" | "publish_new_version") => {
     if (!survey) return;
     setPublishing(true);
     setPublishError(null);
     void trackUIEvent({
       screen: "survey_admin_detail",
-      component: "publish_toggle",
-      event_name: status ? "open_request" : "close_request",
+      component: "publish_version",
+      event_name: `${eventName}_request`,
       resource_id: surveyId,
     })
     try {
-      const hasPublishedVersion = Boolean(
-        survey.settings.currentPublishedVersionNumber &&
-          survey.settings.currentPublishedVersionNumber > 0
-      )
-      const endpoint = status
-        ? hasPublishedVersion
-          ? "responses/open"
-          : "publish"
-        : "responses/close"
-      const response = await fetch(`/api/surveys/${surveyId}/${endpoint}`, {
+      const response = await fetch(`/api/surveys/${surveyId}/publish`, {
         method: "POST",
-        headers: status && !hasPublishedVersion ? { "Content-Type": "application/json" } : undefined,
-        body: status && !hasPublishedVersion
-          ? JSON.stringify({
-              visibility: survey.settings.visibility,
-              includeInDatasets: survey.settings.isDatasetActive,
-              pointsReward: survey.settings.pointsReward,
-            })
-          : undefined,
+        headers: { "Content-Type": "application/json" },
+        body: getPublishRequestBody(),
       });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(mapPublishStatusError(payload?.error));
       }
       setSurvey(mapApiSurveyToUi(payload));
-      if (endpoint === "publish") {
-        void loadSurveyVersions()
-      }
+      void loadSurveyVersions()
       void trackUIEvent({
         screen: "survey_admin_detail",
-        component: "publish_toggle",
-        event_name: endpoint === "publish" ? "publish_success" : status ? "open_success" : "close_success",
+        component: "publish_version",
+        event_name: `${eventName}_success`,
         resource_id: surveyId,
       })
     } catch (error) {
-      console.error("Failed to update publish status:", error);
+      console.error("Failed to publish survey version:", error);
+      setPublishError(error instanceof Error ? error.message : tCommon("error"));
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "publish_version",
+        event_name: "error",
+        resource_id: surveyId,
+        metadata: {
+          message: error instanceof Error ? error.message : tCommon("error"),
+          action: eventName,
+        },
+      })
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleInitialPublish = async () => {
+    await publishSurveyVersion("initial_publish")
+  }
+
+  const handlePublishNewVersion = async () => {
+    await publishSurveyVersion("publish_new_version")
+  }
+
+  const handleToggleResponses = async (nextOpen: boolean) => {
+    if (!survey) return;
+    setPublishing(true);
+    setPublishError(null);
+    void trackUIEvent({
+      screen: "survey_admin_detail",
+      component: "publish_toggle",
+      event_name: nextOpen ? "open_request" : "close_request",
+      resource_id: surveyId,
+    })
+    try {
+      const endpoint = nextOpen ? "responses/open" : "responses/close"
+      const response = await fetch(`/api/surveys/${surveyId}/${endpoint}`, {
+        method: "POST",
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(mapPublishStatusError(payload?.error));
+      }
+      setSurvey(mapApiSurveyToUi(payload));
+      void trackUIEvent({
+        screen: "survey_admin_detail",
+        component: "publish_toggle",
+        event_name: nextOpen ? "open_success" : "close_success",
+        resource_id: surveyId,
+      })
+    } catch (error) {
+      console.error("Failed to update response status:", error);
       setPublishError(error instanceof Error ? error.message : tCommon("error"));
       void trackUIEvent({
         screen: "survey_admin_detail",
@@ -437,7 +488,7 @@ export default function SurveyManagementPage() {
     } finally {
       setPublishing(false);
     }
-  };
+  }
 
   const restoreVersionToDraft = async (versionNumber: number) => {
     setRestoringVersionNumber(versionNumber)
@@ -641,6 +692,7 @@ export default function SurveyManagementPage() {
     survey.settings.currentPublishedVersionNumber &&
       survey.settings.currentPublishedVersionNumber > 0
   )
+  const hasUnpublishedChanges = Boolean(survey.settings.hasUnpublishedChanges)
   const canSwitchToPublic = publishedCount === 0 || survey.settings.visibility === "public";
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isDatasetSharingLocked = isSurveyDatasetSharingLocked({
@@ -686,34 +738,16 @@ export default function SurveyManagementPage() {
                   <ExternalLink className="mr-2 h-4 w-4" />
                   {t("viewSurvey")}
                 </Button>
-                {hasPublishedVersion ? (
-                  <Button
-                    variant="outline"
-                    className={
-                      survey.settings.isResponseOpen
-                        ? "text-amber-600 border-amber-200 hover:bg-amber-50"
-                        : "text-emerald-700 border-emerald-200 hover:bg-emerald-50"
-                    }
-                    onClick={() => handleTogglePublish(!survey.settings.isResponseOpen)}
-                    disabled={publishing}
-                  >
-                    {survey.settings.isResponseOpen ? (
-                      <Lock className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Unlock className="mr-2 h-4 w-4" />
-                    )}
-                    {survey.settings.isResponseOpen ? tCommon("closeResponses") : tCommon("openResponses")}
-                  </Button>
-                ) : (
-                  <Button
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleTogglePublish(true)}
-                    disabled={publishing || isDirty}
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    {tCommon("publish")}
-                  </Button>
-                )}
+                <SurveyManagementPublishActions
+                  hasPublishedVersion={hasPublishedVersion}
+                  hasUnpublishedChanges={hasUnpublishedChanges}
+                  isResponseOpen={survey.settings.isResponseOpen}
+                  publishing={publishing}
+                  isDirty={isDirty}
+                  onInitialPublish={handleInitialPublish}
+                  onPublishNewVersion={handlePublishNewVersion}
+                  onToggleResponses={() => handleToggleResponses(!survey.settings.isResponseOpen)}
+                />
                 <Button onClick={handleEdit} variant="outline" className="border-purple-200 text-purple-700 hover:bg-purple-50">
                   <Pencil className="mr-2 h-4 w-4" />
                   {tCommon("edit")}
@@ -732,7 +766,7 @@ export default function SurveyManagementPage() {
               totalResponses={survey.responseCount}
               lastResponseDate={lastResponse?.date}
               lastResponseTime={lastResponse?.time}
-              questionCount={survey.questions.filter((q) => q.type !== "section").length}
+              questionCount={summaryQuestionCount}
             />
           </div>
 
