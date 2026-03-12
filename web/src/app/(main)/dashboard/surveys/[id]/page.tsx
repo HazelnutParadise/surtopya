@@ -28,7 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
 import type { SurveyResponse, SurveyVersion } from "@/lib/api";
 import { mapApiSurveyToUi, SurveyDisplay } from "@/lib/survey-mappers";
 import { getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
@@ -44,13 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const formatDateTime = (value?: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-};
+import { formatUtcDateTime, utcToDatetimeLocal } from "@/lib/date-time";
 
 const downloadCsv = (filename: string, rows: string[][], includeBom: boolean) => {
   const content = buildCsvContent(rows, {
@@ -77,6 +71,7 @@ export default function SurveyManagementPage() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
+  const timeZone = useTimeZone()
   const withLocalePath = (href: string) => withLocale(href, locale);
   const surveyId = params.id as string;
 
@@ -105,7 +100,7 @@ export default function SurveyManagementPage() {
     requireLoginToRespond: false,
     includeInDatasets: false,
     pointsReward: 0,
-    expiresAt: "",
+    expiresAtLocal: "",
   });
 
   const loadSurveyVersions = useCallback(async () => {
@@ -219,9 +214,9 @@ export default function SurveyManagementPage() {
       requireLoginToRespond: survey.settings.requireLoginToRespond,
       includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
-      expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
+      expiresAtLocal: utcToDatetimeLocal(survey.settings.expiresAt, timeZone),
     });
-  }, [survey]);
+  }, [survey, timeZone]);
 
   const completionRate = useMemo(() => {
     if (responses.length === 0) return 0;
@@ -236,8 +231,8 @@ export default function SurveyManagementPage() {
       if (!latest) return candidate;
       return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
     }, "");
-    return formatDateTime(latest);
-  }, [responses]);
+    return formatUtcDateTime(latest, { locale, timeZone });
+  }, [locale, responses, timeZone]);
 
   const responseRows = useMemo(() => {
     return [...responses].sort((a, b) => {
@@ -455,7 +450,8 @@ export default function SurveyManagementPage() {
         includeInDatasets: formState.includeInDatasets,
       }),
       pointsReward: formState.pointsReward,
-      expiresAt: formState.expiresAt,
+      expiresAtLocal: formState.expiresAtLocal,
+      timeZone,
     };
 
     try {
@@ -498,7 +494,7 @@ export default function SurveyManagementPage() {
       requireLoginToRespond: survey.settings.requireLoginToRespond,
       includeInDatasets: survey.settings.isDatasetActive,
       pointsReward: survey.settings.pointsReward,
-      expiresAt: survey.settings.expiresAt?.split("T")[0] || "",
+      expiresAtLocal: utcToDatetimeLocal(survey.settings.expiresAt, timeZone),
     });
   };
 
@@ -577,7 +573,7 @@ export default function SurveyManagementPage() {
     formState.requireLoginToRespond !== survey.settings.requireLoginToRespond ||
     formState.includeInDatasets !== survey.settings.isDatasetActive ||
     formState.pointsReward !== survey.settings.pointsReward ||
-    formState.expiresAt !== (survey.settings.expiresAt?.split("T")[0] || "");
+    formState.expiresAtLocal !== utcToDatetimeLocal(survey.settings.expiresAt, timeZone);
 
   const publishedCount = survey.settings.publishedCount ?? 0
   const hasPublishedVersion = Boolean(
@@ -603,7 +599,11 @@ export default function SurveyManagementPage() {
               </Button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{survey.title}</h1>
-                <p className="text-sm text-gray-500">{t("createdOn", { date: formatDateTime(survey.createdAt) || "" })}</p>
+                <p className="text-sm text-gray-500">
+                  {t("createdOn", {
+                    date: formatUtcDateTime(survey.createdAt, { locale, timeZone }) || "",
+                  })}
+                </p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -812,7 +812,7 @@ export default function SurveyManagementPage() {
                                     </Badge>
                                   </td>
                                   <td className="py-3 pr-4 whitespace-nowrap">
-                                    {formatDateTime(submittedAt) || "--"}
+                                    {formatUtcDateTime(submittedAt, { locale, timeZone }) || "--"}
                                   </td>
                                   <td className="py-3 pr-4">{response.pointsAwarded ?? 0}</td>
                                   <td className="py-3 pr-4 max-w-[240px] truncate" title={respondentLabel}>
@@ -1051,10 +1051,12 @@ export default function SurveyManagementPage() {
                       <div className="flex gap-4 items-center">
                         <Input
                           id="expires"
-                          type="date"
-                          value={formState.expiresAt}
+                          type="datetime-local"
+                          value={formState.expiresAtLocal}
                           className="max-w-[200px]"
-                          onChange={(event) => setFormState((prev) => ({ ...prev, expiresAt: event.target.value }))}
+                          onChange={(event) =>
+                            setFormState((prev) => ({ ...prev, expiresAtLocal: event.target.value }))
+                          }
                         />
                         <span className="text-xs text-gray-500 italic">{t("expirationHint")}</span>
                       </div>

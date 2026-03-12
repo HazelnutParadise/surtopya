@@ -10,9 +10,10 @@ import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
 import type { Dataset } from "@/lib/api";
 import { MotionReveal, PageMotionShell } from "@/components/motion";
+import { formatUtcDateOnly } from "@/lib/date-time";
 
 const CATEGORY_SLUGS = [
   "all",
@@ -32,22 +33,12 @@ const normalizeCategory = (category: string) => {
   return category.toLowerCase().replace(/\s+/g, "-");
 };
 
-function formatDate(value: string, locale: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat(locale, {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date)
-}
-
 function DatasetsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
+  const timeZone = useTimeZone()
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tDatasets = useTranslations("Datasets");
   const tCategories = useTranslations("Categories");
@@ -335,7 +326,9 @@ function DatasetsContent() {
                               </span>
                             </div>
                             <div className="md:ml-auto">
-                              {tDatasets("updatedLabel", { date: formatDate(ds.updatedAt, locale) })}
+                              {tDatasets("updatedLabel", {
+                                date: formatUtcDateOnly(ds.updatedAt, { locale, timeZone }),
+                              })}
                             </div>
                           </div>
                         </CardContent>

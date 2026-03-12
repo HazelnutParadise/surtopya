@@ -8,10 +8,11 @@ import { Database, Download, Globe, ChevronLeft, Lock } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
 import type { Dataset } from "@/lib/api";
 import { filenameFromContentDisposition, sanitizeFilename } from "@/lib/download";
 import { trackUIEvent } from "@/lib/ui-telemetry";
+import { formatUtcDateOnly } from "@/lib/date-time";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -22,15 +23,10 @@ const normalizeCategory = (category: string) => {
   return category.toLowerCase().replace(/\s+/g, "-");
 };
 
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString();
-};
-
 export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
+  const timeZone = useTimeZone()
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tDatasets = useTranslations("Datasets");
   const tCommon = useTranslations("Common");
@@ -247,11 +243,11 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">{tDatasets("created")}</span>
-                  <span className="font-medium">{formatDate(dataset.createdAt)}</span>
+                  <span className="font-medium">{formatUtcDateOnly(dataset.createdAt, { locale, timeZone })}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">{tDatasets("updated")}</span>
-                  <span className="font-medium">{formatDate(dataset.updatedAt)}</span>
+                  <span className="font-medium">{formatUtcDateOnly(dataset.updatedAt, { locale, timeZone })}</span>
                 </div>
               </CardContent>
             </Card>

@@ -36,7 +36,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
+import { localDatetimeToUtcISOString, utcToDatetimeLocal } from "@/lib/date-time";
 
 // Simple ID generator if nanoid causes issues or for simplicity
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -63,6 +64,7 @@ export function SurveyBuilder() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const locale = getLocaleFromPath(pathname);
+  const timeZone = useTimeZone()
   const withLocalePath = (href: string) => withLocale(href, locale);
   const tBuilder = useTranslations("SurveyBuilder");
   const tCommon = useTranslations("Common");
@@ -97,6 +99,7 @@ export function SurveyBuilder() {
   const [viewMode, setViewMode] = useState<'builder' | 'settings'>('builder');
   const [description, setDescription] = useState("");
   const [pointsReward, setPointsReward] = useState(0);
+  const [expiresAtLocal, setExpiresAtLocal] = useState("");
   const [surveyId, setSurveyId] = useState<string | null>(null);
   const [loadingSurvey, setLoadingSurvey] = useState(false);
   const [savingSurvey, setSavingSurvey] = useState(false);
@@ -147,6 +150,7 @@ export function SurveyBuilder() {
       title: string;
       description: string;
       pointsReward: number;
+      expiresAtLocal: string;
       isPublic: boolean;
       includeInDatasets: boolean;
       requireLoginToRespond: boolean;
@@ -158,6 +162,7 @@ export function SurveyBuilder() {
       settingsDraft.title !== title || 
       settingsDraft.description !== description || 
       settingsDraft.pointsReward !== pointsReward || 
+      settingsDraft.expiresAtLocal !== expiresAtLocal ||
       settingsDraft.isPublic !== isPublic ||
       settingsDraft.includeInDatasets !== includeInDatasets ||
       settingsDraft.requireLoginToRespond !== requireLoginToRespond
@@ -194,6 +199,7 @@ export function SurveyBuilder() {
         includeInDatasets,
       }),
       pointsReward,
+      expiresAt: localDatetimeToUtcISOString(expiresAtLocal, timeZone) || undefined,
       questions: questions
         .filter((question) => question.id !== "placeholder")
         .map((question, index) => ({
@@ -208,46 +214,12 @@ export function SurveyBuilder() {
           sortOrder: index,
         })),
     }),
-    [title, description, isPublic, capabilities, includeInDatasets, pointsReward, questions]
+    [title, description, isPublic, capabilities, includeInDatasets, pointsReward, expiresAtLocal, questions, timeZone]
   )
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
-
-  React.useEffect(() => {
-    if (!editId) return;
-    let isActive = true;
-
-    const loadSurvey = async () => {
-      setLoadingSurvey(true);
-      try {
-        const response = await fetch(`/api/surveys/${editId}`, { cache: "no-store" });
-        if (!response.ok) {
-          return;
-        }
-        const payload = await response.json();
-        const mapped = mapApiSurveyToUi(payload);
-
-        if (!isActive) return;
-        applyMappedSurvey(mapped)
-        setIsDirty(false);
-        await loadSurveyVersions(mapped.id)
-      } catch (error) {
-        console.error("Failed to load survey:", error);
-      } finally {
-        if (isActive) {
-          setLoadingSurvey(false);
-        }
-      }
-    };
-
-    loadSurvey();
-
-    return () => {
-      isActive = false;
-    };
-  }, [defaultPageTitle, editId]);
 
   React.useEffect(() => {
     let isActive = true
@@ -658,7 +630,7 @@ export function SurveyBuilder() {
       }));
   };
 
-  const applyMappedSurvey = (mapped: ReturnType<typeof mapApiSurveyToUi>) => {
+  const applyMappedSurvey = React.useCallback((mapped: ReturnType<typeof mapApiSurveyToUi>) => {
     const defaultSection: Question = {
       id: generateId(),
       type: "section",
@@ -683,15 +655,16 @@ export function SurveyBuilder() {
       }
     )
     setPointsReward(mapped.settings.pointsReward)
+    setExpiresAtLocal(utcToDatetimeLocal(mapped.settings.expiresAt, timeZone))
     setIsPublic(mapped.settings.visibility === "public")
     setIncludeInDatasets(mapped.settings.isDatasetActive)
     setRequireLoginToRespond(mapped.settings.requireLoginToRespond)
     setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
-  }
+  }, [defaultPageTitle, timeZone])
 
-  const loadSurveyVersions = async (id: string) => {
+  const loadSurveyVersions = React.useCallback(async (id: string) => {
     setVersionsLoading(true)
     setVersionError(null)
     try {
@@ -714,7 +687,41 @@ export function SurveyBuilder() {
     } finally {
       setVersionsLoading(false)
     }
-  }
+  }, [tBuilder])
+
+  React.useEffect(() => {
+    if (!editId) return
+    let isActive = true
+
+    const loadSurvey = async () => {
+      setLoadingSurvey(true)
+      try {
+        const response = await fetch(`/api/surveys/${editId}`, { cache: "no-store" })
+        if (!response.ok) {
+          return
+        }
+        const payload = await response.json()
+        const mapped = mapApiSurveyToUi(payload)
+
+        if (!isActive) return
+        applyMappedSurvey(mapped)
+        setIsDirty(false)
+        await loadSurveyVersions(mapped.id)
+      } catch (error) {
+        console.error("Failed to load survey:", error)
+      } finally {
+        if (isActive) {
+          setLoadingSurvey(false)
+        }
+      }
+    }
+
+    loadSurvey()
+
+    return () => {
+      isActive = false
+    }
+  }, [applyMappedSurvey, editId, loadSurveyVersions])
 
   const restoreVersionToDraft = async (versionNumber: number) => {
     if (!surveyId) return
@@ -765,6 +772,8 @@ export function SurveyBuilder() {
         }),
         theme,
         pointsReward,
+        expiresAtLocal,
+        timeZone,
         questions: buildQuestionsPayload(),
       };
 
@@ -975,6 +984,7 @@ export function SurveyBuilder() {
                                 title,
                                 description,
                                 pointsReward,
+                                expiresAtLocal,
                                 isPublic,
                                 includeInDatasets,
                                 requireLoginToRespond,
@@ -1159,9 +1169,14 @@ export function SurveyBuilder() {
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">{tBuilder("expirationDate")}</label>
                                 <Input 
-                                    type="date" 
-                                    defaultValue=""
+                                    type="datetime-local"
+                                    value={settingsDraft?.expiresAtLocal || ""}
                                     className="dark:bg-gray-800"
+                                    onChange={(e) =>
+                                      setSettingsDraft(prev =>
+                                        prev ? ({ ...prev, expiresAtLocal: e.target.value }) : null
+                                      )
+                                    }
                                 />
                                 <p className="text-xs text-gray-500 italic">{tBuilder("optional")}</p>
                             </div>
@@ -1266,6 +1281,7 @@ export function SurveyBuilder() {
                                      setTitle(settingsDraft.title);
                                      setDescription(settingsDraft.description);
                                      setPointsReward(settingsDraft.pointsReward);
+                                     setExpiresAtLocal(settingsDraft.expiresAtLocal);
                                      setIsPublic(settingsDraft.isPublic);
                                      setIncludeInDatasets(settingsDraft.includeInDatasets);
                                      setRequireLoginToRespond(settingsDraft.requireLoginToRespond);

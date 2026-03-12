@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TimLai666/surtopya-api/internal/timeutil"
 	"github.com/google/uuid"
 )
 
@@ -90,30 +91,52 @@ func (r *PointsRepository) GrantMonthlyPointsIfEligibleTx(tx *sql.Tx, userID uui
 		description = "Membership monthly points grant"
 	}
 
+	now = now.UTC()
+
+	var timeZone string
+	var nextGrantAt sql.NullTime
 	var grantAmount int
 	err := tx.QueryRow(
 		`
-		UPDATE users u
-		SET points_balance = u.points_balance + mt.monthly_points_grant,
-		    pro_points_last_granted_at = $2
-		FROM user_memberships um
+		SELECT u.timezone, u.pro_points_next_grant_at, mt.monthly_points_grant
+		FROM users u
+		JOIN user_memberships um ON um.user_id = u.id
 		JOIN membership_tiers mt ON mt.id = um.tier_id
 		WHERE u.id = $1
-		  AND um.user_id = u.id
-		  AND mt.monthly_points_grant > 0
-		  AND (
-		    u.pro_points_last_granted_at IS NULL
-		    OR date_trunc('month', u.pro_points_last_granted_at) < date_trunc('month', $2)
-		  )
-		RETURNING mt.monthly_points_grant
+		FOR UPDATE
 		`,
-		userID, now,
-	).Scan(&grantAmount)
+		userID,
+	).Scan(&timeZone, &nextGrantAt, &grantAmount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("failed to grant membership monthly points: %w", err)
+	}
+	if grantAmount <= 0 {
+		return false, nil
+	}
+	if nextGrantAt.Valid && nextGrantAt.Time.After(now) {
+		return false, nil
+	}
+	if timeZone == "" {
+		timeZone = "Asia/Taipei"
+	}
+
+	nextBoundary, err := timeutil.NextMonthlyBoundaryUTC(now, timeZone)
+	if err != nil {
+		return false, fmt.Errorf("failed to compute next monthly boundary: %w", err)
+	}
+
+	if _, err := tx.Exec(
+		`UPDATE users
+		 SET points_balance = points_balance + $2,
+		     pro_points_last_granted_at = $3,
+		     pro_points_next_grant_at = $4
+		 WHERE id = $1`,
+		userID, grantAmount, now, nextBoundary,
+	); err != nil {
+		return false, fmt.Errorf("failed to update monthly grant fields: %w", err)
 	}
 
 	if _, err := tx.Exec(

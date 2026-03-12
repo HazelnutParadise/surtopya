@@ -8,14 +8,16 @@ import { Plus, BarChart3, Award } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { withLocale, getLocaleFromPath } from "@/lib/locale";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
 import type { ResponseDraftSummary, Survey } from "@/lib/api";
 import { getRuntimeConfig } from "@/lib/runtime-config"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatUtcDateTime } from "@/lib/date-time";
 
 export default function DashboardPage() {
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
+  const timeZone = useTimeZone()
   const t = useTranslations("Dashboard");
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -201,7 +203,9 @@ export default function DashboardPage() {
                           <div>
                             <p className="font-medium text-gray-900 dark:text-white">{draft.surveyTitle}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {t("updatedAtLabel", { time: new Date(draft.updatedAt).toLocaleString() })}
+                              {t("updatedAtLabel", {
+                                time: formatUtcDateTime(draft.updatedAt, { locale, timeZone }),
+                              })}
                             </p>
                           </div>
                           <Button asChild variant="outline" size="sm">

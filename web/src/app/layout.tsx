@@ -7,10 +7,12 @@ import path from "path"
 import { readFile } from "fs/promises"
 import { I18nProvider } from "@/components/i18n-provider"
 import { defaultLocale, locales } from "@/lib/locale"
+import { DEFAULT_TIME_ZONE, isValidIanaTimeZone } from "@/lib/date-time"
 import { getLogtoConfig } from "@/lib/logto"
 import { getLogtoContext } from "@logto/next/server-actions"
 import { redirect } from "next/navigation"
 import { SiteEffectsLayer } from "@/components/effects"
+import { LOCALE_COOKIE_NAME, TIME_ZONE_COOKIE_NAME } from "@/lib/user-settings"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,13 +74,18 @@ export default async function RootLayout({
   const headerLocale = headerStore.get("x-locale")
 
   const cookieStore = await cookies();
-  const cookieLocale = cookieStore.get("NEXT_LOCALE")?.value;
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE_NAME)?.value;
+  const cookieTimeZone = cookieStore.get(TIME_ZONE_COOKIE_NAME)?.value
   const locale =
     headerLocale && locales.includes(headerLocale as (typeof locales)[number])
       ? headerLocale
       : cookieLocale && locales.includes(cookieLocale as (typeof locales)[number])
         ? cookieLocale
         : defaultLocale
+  const timeZone =
+    cookieTimeZone && isValidIanaTimeZone(cookieTimeZone)
+      ? cookieTimeZone
+      : DEFAULT_TIME_ZONE
 
   const messages = await getMessages(locale);
   const apiBaseUrl =
@@ -108,7 +115,7 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <I18nProvider locale={locale} messages={messages}>
+        <I18nProvider locale={locale} timeZone={timeZone} messages={messages}>
           <SiteEffectsLayer />
           <LocaleSync />
           <div className="relative z-10">

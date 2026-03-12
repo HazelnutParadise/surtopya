@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 
@@ -79,9 +78,13 @@ func TestPointsRepository_GrantMonthlyPointsIfEligibleTx_GrantsAndInsertsTransac
 	userID := uuid.New()
 	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery("UPDATE users").
-		WithArgs(userID, now).
-		WillReturnRows(sqlmock.NewRows([]string{"monthly_points_grant"}).AddRow(100))
+	mock.ExpectQuery("SELECT u.timezone, u.pro_points_next_grant_at, mt.monthly_points_grant").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"timezone", "pro_points_next_grant_at", "monthly_points_grant"}).AddRow("Asia/Taipei", nil, 100))
+
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2, pro_points_last_granted_at = \\$3, pro_points_next_grant_at = \\$4 WHERE id = \\$1").
+		WithArgs(userID, 100, now, time.Date(2026, 2, 28, 16, 0, 0, 0, time.UTC)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), userID, 100, sqlmock.AnyArg()).
@@ -110,13 +113,48 @@ func TestPointsRepository_GrantMonthlyPointsIfEligibleTx_NoOpWhenNotEligible(t *
 	userID := uuid.New()
 	now := time.Date(2026, 2, 12, 10, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery("UPDATE users").
-		WithArgs(userID, now).
-		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery("SELECT u.timezone, u.pro_points_next_grant_at, mt.monthly_points_grant").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"timezone", "pro_points_next_grant_at", "monthly_points_grant"}).AddRow("Asia/Taipei", time.Date(2026, 2, 28, 16, 0, 0, 0, time.UTC), 100))
 
 	granted, err := repo.GrantMonthlyPointsIfEligibleTx(tx, userID, now, "")
 	require.NoError(t, err)
 	require.False(t, granted)
+
+	mock.ExpectCommit()
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestPointsRepository_GrantMonthlyPointsIfEligibleTx_UsesUserTimeZoneBoundary(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewPointsRepository(db)
+
+	mock.ExpectBegin()
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	now := time.Date(2026, 3, 31, 23, 30, 0, 0, time.UTC)
+
+	mock.ExpectQuery("SELECT u.timezone, u.pro_points_next_grant_at, mt.monthly_points_grant").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{"timezone", "pro_points_next_grant_at", "monthly_points_grant"}).AddRow("America/Los_Angeles", nil, 50))
+
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2, pro_points_last_granted_at = \\$3, pro_points_next_grant_at = \\$4 WHERE id = \\$1").
+		WithArgs(userID, 50, now, time.Date(2026, 4, 1, 7, 0, 0, 0, time.UTC)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), userID, 50, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	granted, err := repo.GrantMonthlyPointsIfEligibleTx(tx, userID, now, "")
+	require.NoError(t, err)
+	require.True(t, granted)
 
 	mock.ExpectCommit()
 	require.NoError(t, tx.Commit())

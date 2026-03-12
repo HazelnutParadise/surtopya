@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-
-const locales = ["zh-TW", "en", "ja"] as const
-const defaultLocale = "zh-TW"
+import { locales, resolvePreferredLocale } from "./src/lib/locale"
 
 const getLocaleFromPath = (pathname: string) => {
   const segment = pathname.split("/").filter(Boolean)[0]
@@ -38,7 +36,12 @@ export function middleware(request: NextRequest) {
   const cookieLocale = request.cookies.get("NEXT_LOCALE")?.value
   const preferredLocale = locales.includes(cookieLocale as (typeof locales)[number])
     ? cookieLocale
-    : defaultLocale
+    : resolvePreferredLocale(
+        (request.headers.get("accept-language") || "")
+          .split(",")
+          .map((value) => value.split(";")[0]?.trim())
+          .filter((value): value is string => Boolean(value))
+      )
 
   const url = request.nextUrl.clone()
   url.pathname = `/${preferredLocale}${pathname === "/" ? "" : pathname}`

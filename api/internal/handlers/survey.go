@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
+	"github.com/TimLai666/surtopya-api/internal/timeutil"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -68,6 +70,8 @@ type CreateSurveyRequest struct {
 	IncludeInDatasets     bool                `json:"includeInDatasets"`
 	Theme                 *models.SurveyTheme `json:"theme"`
 	PointsReward          int                 `json:"pointsReward"`
+	ExpiresAtLocal        *string             `json:"expiresAtLocal"`
+	TimeZone              *string             `json:"timeZone"`
 	Questions             []QuestionRequest   `json:"questions"`
 }
 
@@ -106,6 +110,11 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
 		return
 	}
+	expiresAt, err := parseSurveyExpiresAt(req.ExpiresAtLocal, req.TimeZone)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
+		return
+	}
 
 	canOptOutPublicDataset, err := h.policies.Can(c.Request.Context(), userID.(uuid.UUID), policy.CapabilitySurveyPublicDatasetOptOut)
 	if err != nil {
@@ -132,6 +141,7 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		HasUnpublishedChanges: false,
 		Theme:                 req.Theme,
 		PointsReward:          req.PointsReward,
+		ExpiresAt:             expiresAt,
 	}
 
 	if err := h.repo.Create(survey); err != nil {
@@ -288,7 +298,8 @@ type UpdateSurveyRequest struct {
 	IncludeInDatasets     *bool               `json:"includeInDatasets"`
 	Theme                 *models.SurveyTheme `json:"theme"`
 	PointsReward          *int                `json:"pointsReward"`
-	ExpiresAt             *string             `json:"expiresAt"`
+	ExpiresAtLocal        *string             `json:"expiresAtLocal"`
+	TimeZone              *string             `json:"timeZone"`
 	Questions             []QuestionRequest   `json:"questions"`
 }
 
@@ -413,25 +424,16 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		}
 		survey.PointsReward = *req.PointsReward
 	}
-	if req.ExpiresAt != nil {
-		currentExpiresAt := ""
-		if survey.ExpiresAt != nil {
-			currentExpiresAt = survey.ExpiresAt.Format("2006-01-02")
+	if req.ExpiresAtLocal != nil || req.TimeZone != nil {
+		parsedExpiresAt, err := parseSurveyExpiresAt(req.ExpiresAtLocal, req.TimeZone)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
+			return
 		}
-		if currentExpiresAt != *req.ExpiresAt {
+		if surveyExpiresAtChanged(survey.ExpiresAt, parsedExpiresAt) {
 			hasDraftChanges = true
 		}
-		if *req.ExpiresAt == "" {
-			survey.ExpiresAt = nil
-		} else {
-			parsed, err := time.Parse("2006-01-02", *req.ExpiresAt)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiration date"})
-				return
-			}
-			expiresAt := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC)
-			survey.ExpiresAt = &expiresAt
-		}
+		survey.ExpiresAt = parsedExpiresAt
 	}
 
 	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 && hasDraftChanges {
@@ -476,6 +478,35 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, survey)
+}
+
+func parseSurveyExpiresAt(expiresAtLocal *string, timeZone *string) (*time.Time, error) {
+	if expiresAtLocal == nil && timeZone == nil {
+		return nil, nil
+	}
+	if expiresAtLocal == nil || timeZone == nil {
+		return nil, fmt.Errorf("expiresAtLocal and timeZone must be provided together")
+	}
+	if strings.TrimSpace(*expiresAtLocal) == "" {
+		return nil, nil
+	}
+
+	parsed, err := timeutil.ParseLocalDateTimeToUTC(*expiresAtLocal, *timeZone)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+func surveyExpiresAtChanged(current *time.Time, next *time.Time) bool {
+	switch {
+	case current == nil && next == nil:
+		return false
+	case current == nil || next == nil:
+		return true
+	default:
+		return !current.Equal(*next)
+	}
 }
 
 // PublishSurveyRequest represents the request body for publishing

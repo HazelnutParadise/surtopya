@@ -16,6 +16,7 @@ import (
 	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
+	"github.com/TimLai666/surtopya-api/internal/timeutil"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -88,6 +89,7 @@ type AdminUserUpdateRequest struct {
 	MembershipTier        *string `json:"membershipTier"`
 	MembershipPeriodEndAt *string `json:"membershipPeriodEndAt"`
 	MembershipIsPermanent *bool   `json:"membershipIsPermanent"`
+	TimeZone              *string `json:"timeZone"`
 }
 
 type AdminPolicyUpdateRequest struct {
@@ -789,7 +791,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 			if strings.TrimSpace(*req.MembershipPeriodEndAt) == "" {
 				nextPeriodEndAt = nil
 			} else {
-				parsed, parseErr := parseMembershipPeriodEndAt(*req.MembershipPeriodEndAt)
+				parsed, parseErr := parseMembershipPeriodEndAt(*req.MembershipPeriodEndAt, stringPointerValue(req.TimeZone))
 				if parseErr != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid membershipPeriodEndAt"})
 					return
@@ -1236,7 +1238,7 @@ func (h *AdminHandler) GetPublicConfig(c *gin.Context) {
 	})
 }
 
-func parseMembershipPeriodEndAt(raw string) (time.Time, error) {
+func parseMembershipPeriodEndAt(raw string, timeZone string) (time.Time, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return time.Time{}, fmt.Errorf("empty period end")
@@ -1244,8 +1246,15 @@ func parseMembershipPeriodEndAt(raw string) (time.Time, error) {
 	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
 		return parsed.UTC(), nil
 	}
-	if parsed, err := time.Parse("2006-01-02", raw); err == nil {
-		return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 23, 59, 59, 0, time.UTC), nil
+	if strings.TrimSpace(timeZone) == "" {
+		return time.Time{}, fmt.Errorf("time zone is required")
 	}
-	return time.Time{}, fmt.Errorf("unsupported period end format")
+	return timeutil.ParseLocalDateEndToUTC(raw, timeZone)
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

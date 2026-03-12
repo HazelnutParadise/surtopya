@@ -8,12 +8,15 @@ import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Camera, Mail, User, Phone, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTimeZone, useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
+import { formatUtcDateOnly } from "@/lib/date-time"
 
 export default function ProfilePage() {
   const tProfile = useTranslations("Profile")
   const tCommon = useTranslations("Common")
+  const locale = useLocale()
+  const timeZone = useTimeZone()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [form, setForm] = useState({
     displayName: "",
@@ -126,7 +129,9 @@ export default function ProfilePage() {
   }
 
   const displayName = profile.displayName || profile.email || ""
-  const memberSince = profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "--"
+  const memberSince = profile.createdAt
+    ? formatUtcDateOnly(profile.createdAt, { locale, timeZone })
+    : "--"
 
   return (
     <div className="container mx-auto py-10 px-4 md:px-6 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500">

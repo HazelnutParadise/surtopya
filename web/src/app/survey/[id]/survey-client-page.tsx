@@ -32,7 +32,7 @@ import {
 import { SurveyDisplay } from "@/lib/survey-mappers"
 import { SurveyTheme } from "@/types/survey"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
-import { useTranslations } from "next-intl"
+import { useTimeZone, useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
 import {
   analyzeDraftGuestMerge,
@@ -206,6 +206,7 @@ export function SurveyClientPage({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const locale = getLocaleFromPath(pathname)
+  const timeZone = useTimeZone()
   const withLocalePath = useCallback((href: string) => withLocale(href, locale), [locale])
   const t = useTranslations("SurveyPage")
   const tCard = useTranslations("SurveyCard")
@@ -327,6 +328,7 @@ export function SurveyClientPage({
     (date: Date) => {
       try {
         return new Intl.DateTimeFormat(locale, {
+          timeZone,
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
@@ -336,7 +338,7 @@ export function SurveyClientPage({
         return date.toLocaleTimeString()
       }
     },
-    [locale]
+    [locale, timeZone]
   )
 
   const loginHref = useCallback(

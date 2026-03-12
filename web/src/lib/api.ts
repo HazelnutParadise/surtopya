@@ -292,6 +292,8 @@ export interface CreateSurveyRequest {
   includeInDatasets: boolean;
   theme?: SurveyTheme;
   pointsReward: number;
+  expiresAtLocal?: string;
+  timeZone?: string;
   questions?: Omit<Question, "surveyId" | "sortOrder">[];
 }
 
@@ -301,8 +303,15 @@ export interface UpdateSurveyRequest {
   requireLoginToRespond?: boolean;
   theme?: SurveyTheme;
   pointsReward?: number;
-  expiresAt?: string;
+  expiresAtLocal?: string;
+  timeZone?: string;
   questions?: Omit<Question, "surveyId" | "sortOrder">[];
+}
+
+export interface UserSettingsResponse {
+  locale: string;
+  timeZone: string;
+  settingsAutoInitialized: boolean;
 }
 
 export interface PublishSurveyRequest {

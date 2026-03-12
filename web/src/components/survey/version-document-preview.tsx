@@ -1,10 +1,11 @@
 "use client"
 
 import { useMemo } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTimeZone, useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 import { Star } from "lucide-react"
 import type { SurveyVersion } from "@/lib/api"
+import { formatUtcDateTime } from "@/lib/date-time"
 
 type SnapshotQuestion = {
   id: string
@@ -43,13 +44,6 @@ type SnapshotPage = {
   title: string
   description?: string | null
   questions: SnapshotQuestion[]
-}
-
-const normalizeDate = (value?: string) => {
-  if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toISOString().slice(0, 10)
 }
 
 const normalizeQuestionForCompare = (question?: SnapshotQuestion) => {
@@ -155,13 +149,15 @@ export function VersionDocumentPreview({
   const tBuilder = useTranslations("SurveyBuilder")
   const tCommon = useTranslations("Common")
   const tQuestion = useTranslations("QuestionTypes")
+  const locale = useLocale()
+  const timeZone = useTimeZone()
 
   const versionSnapshot = version?.snapshot
 
   const hasFieldChanged = (field: keyof SurveyVersionSnapshotPreview) => {
     if (!versionSnapshot || !draftSnapshot) return false
     if (field === "expiresAt") {
-      return normalizeDate(versionSnapshot.expiresAt) !== normalizeDate(draftSnapshot.expiresAt)
+      return (versionSnapshot.expiresAt || "") !== (draftSnapshot.expiresAt || "")
     }
     return JSON.stringify(versionSnapshot[field]) !== JSON.stringify(draftSnapshot[field])
   }
@@ -332,7 +328,7 @@ export function VersionDocumentPreview({
             </Badge>
             {hasFieldChanged("includeInDatasets") ? renderDiffBadge("changed") : null}
             <Badge variant="outline">
-              {tBuilder("expirationDate")}: {normalizeDate(versionSnapshot.expiresAt) || "-"}
+              {tBuilder("expirationDate")}: {formatUtcDateTime(versionSnapshot.expiresAt, { locale, timeZone }) || "-"}
             </Badge>
             {hasFieldChanged("expiresAt") ? renderDiffBadge("changed") : null}
           </div>

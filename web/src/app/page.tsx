@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/navbar";
 import { HeroThreeBackground } from "@/components/marketing/hero-three-background";
 import { cookies, headers } from "next/headers";
-import { locales, withLocale } from "@/lib/locale";
+import { defaultLocale, locales, withLocale } from "@/lib/locale";
 import { getServerTranslator } from "@/lib/i18n-server";
 import { MotionReveal, PageMotionShell } from "@/components/motion";
 
@@ -12,7 +12,7 @@ export default async function Home() {
   const headerStore = await headers();
   const headerLocale = headerStore.get("x-locale");
   const localeCookieStore = await cookies();
-  const localeFromCookie = localeCookieStore.get("NEXT_LOCALE")?.value || "zh-TW";
+  const localeFromCookie = localeCookieStore.get("NEXT_LOCALE")?.value || defaultLocale;
   const locale =
     headerLocale && locales.includes(headerLocale as (typeof locales)[number])
       ? headerLocale

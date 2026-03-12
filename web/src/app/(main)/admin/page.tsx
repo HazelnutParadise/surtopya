@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTranslations } from "next-intl";
+import { useTimeZone, useTranslations } from "next-intl";
 import type {
   AgentAdminAccount,
   AdminUser,
@@ -36,6 +36,7 @@ import type {
   UserProfile,
 } from "@/lib/api";
 import { trackUIEvent } from "@/lib/ui-telemetry";
+import { utcToDateOnly } from "@/lib/date-time";
 
 const PAGE_SIZE = 20;
 const AGENT_PERMISSIONS = [
@@ -80,6 +81,7 @@ const AGENT_PERMISSION_DESCRIPTION_KEYS: Record<
 export default function AdminPage() {
   const tAdmin = useTranslations("Admin");
   const tCommon = useTranslations("Common");
+  const timeZone = useTimeZone()
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -409,13 +411,13 @@ export default function AdminPage() {
           membershipTier: user.membershipTier,
           membershipIsPermanent: user.membershipIsPermanent ?? true,
           membershipPeriodEndAt: user.membershipPeriodEndAt
-            ? user.membershipPeriodEndAt.slice(0, 10)
+            ? utcToDateOnly(user.membershipPeriodEndAt, timeZone)
             : "",
         };
       }
       return next;
     });
-  }, [users]);
+  }, [timeZone, users]);
 
   useEffect(() => {
     if (!editingSurvey) return;
@@ -1098,6 +1100,7 @@ export default function AdminPage() {
           membershipPeriodEndAt: draft.membershipIsPermanent
             ? ""
             : draft.membershipPeriodEndAt,
+          timeZone,
         }),
       });
       if (!response.ok) {
@@ -1113,7 +1116,7 @@ export default function AdminPage() {
                 membershipIsPermanent: draft.membershipIsPermanent,
                 membershipPeriodEndAt: draft.membershipIsPermanent
                   ? undefined
-                  : draft.membershipPeriodEndAt,
+                  : item.membershipPeriodEndAt,
               }
             : item,
         ),
