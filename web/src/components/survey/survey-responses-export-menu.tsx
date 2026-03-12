@@ -24,7 +24,7 @@ interface SurveyResponsesExportMenuProps {
   expandVersionSubmenus?: boolean
 }
 
-const combinedLabel = (encodingLabel: string, scopeLabel: string) => `${encodingLabel} · ${scopeLabel}`
+const scopeKey = (scope: SurveyResponsesExportScope) => (scope === "all" ? "all" : `version-${scope}`)
 
 export function SurveyResponsesExportMenu({
   disabled,
@@ -35,25 +35,27 @@ export function SurveyResponsesExportMenu({
 }: SurveyResponsesExportMenuProps) {
   const t = useTranslations("SurveyManagement")
 
-  const renderVersionSubmenu = (encoding: SurveyResponsesExportEncoding, encodingLabel: string) => {
-    if (availableVersions.length === 0) {
-      return null
-    }
+  const renderScopeSubmenu = (scope: SurveyResponsesExportScope, label: string) => {
+    const key = scopeKey(scope)
 
     return (
-      <DropdownMenuSub open={expandVersionSubmenus ? true : undefined}>
-        <DropdownMenuSubTrigger data-testid={`responses-export-${encoding}-submenu-trigger`}>
-          {encodingLabel}
+      <DropdownMenuSub key={key} open={expandVersionSubmenus ? true : undefined}>
+        <DropdownMenuSubTrigger data-testid={`responses-export-scope-${key}-trigger`}>
+          {label}
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent forceMount>
-          {availableVersions.map((version) => (
-            <DropdownMenuItem
-              key={`${encoding}-${version}`}
-              onClick={() => onExport(version, encoding)}
-            >
-              {t("responseAnalyticsVersionSingle", { version })}
-            </DropdownMenuItem>
-          ))}
+          <DropdownMenuItem
+            data-testid={`responses-export-${key}-excel`}
+            onClick={() => onExport(scope, "excel")}
+          >
+            {t("exportCsvExcel")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid={`responses-export-${key}-utf8`}
+            onClick={() => onExport(scope, "utf8")}
+          >
+            {t("exportCsvUtf8")}
+          </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
     )
@@ -70,16 +72,17 @@ export function SurveyResponsesExportMenu({
           {t("exportCsv")}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72" forceMount>
-        <DropdownMenuItem onClick={() => onExport("all", "excel")}>
-          {combinedLabel(t("exportCsvExcel"), t("responseAnalyticsVersionAll"))}
-        </DropdownMenuItem>
-        {renderVersionSubmenu("excel", t("exportCsvExcel"))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => onExport("all", "utf8")}>
-          {combinedLabel(t("exportCsvUtf8"), t("responseAnalyticsVersionAll"))}
-        </DropdownMenuItem>
-        {renderVersionSubmenu("utf8", t("exportCsvUtf8"))}
+      <DropdownMenuContent
+        align="end"
+        className="w-72 max-h-96 overflow-y-auto"
+        data-testid="responses-export-menu-content"
+        forceMount
+      >
+        {renderScopeSubmenu("all", t("responseAnalyticsVersionAll"))}
+        {availableVersions.length > 0 ? <DropdownMenuSeparator /> : null}
+        {availableVersions.map((version) =>
+          renderScopeSubmenu(version, t("responseAnalyticsVersionSingle", { version }))
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

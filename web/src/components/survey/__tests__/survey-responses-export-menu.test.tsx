@@ -15,14 +15,14 @@ const messages = {
 }
 
 describe("SurveyResponsesExportMenu", () => {
-  it("renders all-version actions and version submenus for both encodings", () => {
+  it("renders version-first scope submenus and makes the version list scrollable", () => {
     const onExport = vi.fn()
 
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
         <SurveyResponsesExportMenu
           disabled={false}
-          availableVersions={[3, 2]}
+          availableVersions={[5, 4, 3, 2, 1]}
           onExport={onExport}
           defaultOpen
           expandVersionSubmenus
@@ -30,13 +30,15 @@ describe("SurveyResponsesExportMenu", () => {
       </NextIntlClientProvider>
     )
 
-    expect(screen.getByText("Export CSV (Excel) · All versions")).toBeInTheDocument()
-    expect(screen.getByText("Export CSV (UTF-8) · All versions")).toBeInTheDocument()
-    expect(screen.getByTestId("responses-export-excel-submenu-trigger")).toBeInTheDocument()
-    expect(screen.getByTestId("responses-export-utf8-submenu-trigger")).toBeInTheDocument()
+    expect(screen.getByTestId("responses-export-menu-content")).toHaveClass("max-h-96")
+    expect(screen.getByTestId("responses-export-menu-content")).toHaveClass("overflow-y-auto")
+    expect(screen.getByTestId("responses-export-scope-all-trigger")).toHaveTextContent("All versions")
+    expect(screen.getByTestId("responses-export-scope-version-5-trigger")).toHaveTextContent("Version 5")
+    expect(screen.getByTestId("responses-export-all-excel")).toHaveTextContent("Export CSV (Excel)")
+    expect(screen.getByTestId("responses-export-version-5-utf8")).toHaveTextContent("Export CSV (UTF-8)")
   })
 
-  it("emits an all-version export request", () => {
+  it("emits an all-version excel export request", () => {
     const onExport = vi.fn()
 
     render(
@@ -51,12 +53,12 @@ describe("SurveyResponsesExportMenu", () => {
       </NextIntlClientProvider>
     )
 
-    fireEvent.click(screen.getByText("Export CSV (Excel) · All versions"))
+    fireEvent.click(screen.getByTestId("responses-export-all-excel"))
 
     expect(onExport).toHaveBeenCalledWith("all", "excel")
   })
 
-  it("emits a specific-version export request", () => {
+  it("emits a specific-version utf8 export request", () => {
     const onExport = vi.fn()
 
     render(
@@ -71,8 +73,8 @@ describe("SurveyResponsesExportMenu", () => {
       </NextIntlClientProvider>
     )
 
-    fireEvent.click(screen.getAllByText("Version 3")[0])
+    fireEvent.click(screen.getByTestId("responses-export-version-3-utf8"))
 
-    expect(onExport).toHaveBeenCalledWith(3, "excel")
+    expect(onExport).toHaveBeenCalledWith(3, "utf8")
   })
 })

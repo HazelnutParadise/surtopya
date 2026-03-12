@@ -158,7 +158,7 @@ describe("ResponseAnalyticsPanel", () => {
     expect(screen.getByRole("tab", { name: "Follow-up" })).toBeInTheDocument()
     expect(screen.getByText("Favorite option")).toBeInTheDocument()
     expect(screen.getByText("Blue")).toBeInTheDocument()
-    expect(screen.getByText("2 繚 67%")).toBeInTheDocument()
+    expect(screen.getByText("2 / 67%")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("tab", { name: "Follow-up" }))
 
@@ -286,6 +286,187 @@ describe("ResponseAnalyticsPanel", () => {
       </NextIntlClientProvider>
     )
 
+    expect(screen.getByRole("tab", { name: "Page 1" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByText("Version 1 question")).toBeInTheDocument()
+  })
+
+  it("uses a page-level scroll container for the active page even when there is only one page", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResponseAnalyticsPanel
+          analytics={{
+            selectedVersion: "all",
+            availableVersions: [1],
+            summary: {
+              totalCompletedResponses: 4,
+              questionCount: 4,
+              generatedAt: "2026-03-12T12:00:00Z",
+            },
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 4,
+                questions: [
+                  {
+                    questionId: "q-1",
+                    title: "Question 1",
+                    questionType: "single",
+                    responseCount: 4,
+                    optionCounts: [{ label: "Yes", count: 4, percentage: 100 }],
+                    textResponses: [],
+                  },
+                  {
+                    questionId: "q-2",
+                    title: "Question 2",
+                    questionType: "single",
+                    responseCount: 4,
+                    optionCounts: [{ label: "Yes", count: 4, percentage: 100 }],
+                    textResponses: [],
+                  },
+                  {
+                    questionId: "q-3",
+                    title: "Question 3",
+                    questionType: "single",
+                    responseCount: 4,
+                    optionCounts: [{ label: "Yes", count: 4, percentage: 100 }],
+                    textResponses: [],
+                  },
+                  {
+                    questionId: "q-4",
+                    title: "Question 4",
+                    questionType: "single",
+                    responseCount: 4,
+                    optionCounts: [{ label: "Yes", count: 4, percentage: 100 }],
+                    textResponses: [],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          }}
+          loading={false}
+          error={null}
+          selectedVersion="all"
+          onVersionChange={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    )
+
+    const pageScroll = screen.getByTestId("response-analytics-page-scroll")
+
+    expect(pageScroll).toHaveClass("max-h-[70vh]")
+    expect(pageScroll).toHaveClass("overflow-y-auto")
+    expect(screen.getByText("Question 4")).toBeInTheDocument()
+  })
+
+  it("resets the active-page scroll position when switching page tabs and analytics versions", () => {
+    const onVersionChange = vi.fn()
+
+    const { rerender } = render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResponseAnalyticsPanel
+          analytics={{
+            selectedVersion: "2",
+            availableVersions: [2, 1],
+            summary: {
+              totalCompletedResponses: 2,
+              questionCount: 2,
+              generatedAt: "2026-03-12T12:00:00Z",
+            },
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-one",
+                    title: "Version 2 question",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["first"],
+                  },
+                ],
+              },
+              {
+                pageId: "page-2",
+                title: "Extra page",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-two",
+                    title: "Second page question",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["second"],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          }}
+          loading={false}
+          error={null}
+          selectedVersion="2"
+          onVersionChange={onVersionChange}
+        />
+      </NextIntlClientProvider>
+    )
+
+    const firstScroll = screen.getByTestId("response-analytics-page-scroll")
+    firstScroll.scrollTop = 120
+
+    fireEvent.click(screen.getByRole("tab", { name: "Extra page" }))
+
+    const secondScroll = screen.getByTestId("response-analytics-page-scroll")
+    expect(secondScroll.scrollTop).toBe(0)
+
+    secondScroll.scrollTop = 80
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ResponseAnalyticsPanel
+          analytics={{
+            selectedVersion: "1",
+            availableVersions: [2, 1],
+            summary: {
+              totalCompletedResponses: 1,
+              questionCount: 1,
+              generatedAt: "2026-03-12T12:00:00Z",
+            },
+            pages: [
+              {
+                pageId: "page-1",
+                title: "",
+                questionCount: 1,
+                questions: [
+                  {
+                    questionId: "q-three",
+                    title: "Version 1 question",
+                    questionType: "text",
+                    responseCount: 1,
+                    optionCounts: [],
+                    textResponses: ["older"],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+          }}
+          loading={false}
+          error={null}
+          selectedVersion="1"
+          onVersionChange={onVersionChange}
+        />
+      </NextIntlClientProvider>
+    )
+
+    const resetScroll = screen.getByTestId("response-analytics-page-scroll")
+
+    expect(resetScroll.scrollTop).toBe(0)
     expect(screen.getByRole("tab", { name: "Page 1" })).toHaveAttribute("aria-selected", "true")
     expect(screen.getByText("Version 1 question")).toBeInTheDocument()
   })
