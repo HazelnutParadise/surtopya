@@ -18,6 +18,7 @@ import { LogicEditor } from "./logic-editor";
 import { SurveyTheme, LogicRule } from "@/types/survey";
 import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
+import { getContrastColor } from "@/lib/utils";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import type { SurveyVersion } from "@/lib/api";
@@ -1352,12 +1353,13 @@ export function SurveyBuilder() {
                   {/* Canvas */}
                   <main 
                     className="flex-1 overflow-y-auto p-8 transition-colors duration-200"
-                    style={{ 
+                    style={{
                         backgroundColor: theme.backgroundColor,
+                        color: getContrastColor(theme.backgroundColor) === 'white' ? '#ffffff' : '#111827',
                         fontFamily: theme.fontFamily === 'serif' ? 'serif' : theme.fontFamily === 'mono' ? 'monospace' : theme.fontFamily === 'comic' ? '"Comic Sans MS", cursive, sans-serif' : 'inherit'
                     }}
                   >
-                    <div className="mx-auto max-w-3xl" style={{ '--primary': theme.primaryColor } as React.CSSProperties}>
+                    <div className="mx-auto max-w-3xl" style={{ '--primary': theme.primaryColor, '--primary-foreground': getContrastColor(theme.primaryColor) === 'white' ? '#ffffff' : '#111827' } as React.CSSProperties}>
                       <SortableContext 
                         items={questions.map(q => q.id).filter(id => {
                             if (!activeItem) return true;

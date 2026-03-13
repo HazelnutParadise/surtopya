@@ -75,14 +75,14 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
             isDragging || isOverlay ? 'shadow-2xl ring-2 ring-purple-500 rotate-2 opacity-80' : 'hover:shadow-md'
         } ${
             question.type === 'section' 
-                ? 'bg-[var(--primary)] text-white border-none' 
+                ? 'bg-[var(--primary)] text-[var(--primary-foreground)] border-none'
                 : ''
         }`}>
         <CardHeader className="flex flex-row items-start gap-4 space-y-0 p-4 relative">
           <div 
             {...attributes} 
             {...listeners} 
-            className={`mt-2 cursor-grab active:cursor-grabbing ${question.type === 'section' ? 'text-white/50 hover:text-white' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`mt-2 cursor-grab active:cursor-grabbing ${question.type === 'section' ? 'text-[var(--primary-foreground)] opacity-50 hover:opacity-100' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <GripVertical className="h-5 w-5" />
           </div>
@@ -94,7 +94,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
               onChange={(e) => onUpdate(question.id, { title: e.target.value })}
               className={`font-semibold text-lg border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 ${
                   question.type === 'section' 
-                    ? 'text-xl text-white w-full text-center placeholder:text-white/50' 
+                    ? 'text-xl text-[var(--primary-foreground)] w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-50'
                     : 'hover:border-gray-200 focus:border-purple-500'
               }`}
               placeholder={question.type === 'section' ? tBuilder("pageTitlePlaceholder") : tBuilder("questionTitlePlaceholder")}
@@ -124,7 +124,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
             <Input 
                 value={question.description || ''} 
                 onChange={(e) => onUpdate(question.id, { description: e.target.value })}
-                className="text-white/80 border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 text-sm w-full text-center placeholder:text-white/40"
+                className="text-[var(--primary-foreground)] border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 text-sm w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-40"
                 placeholder={tBuilder("pageDescriptionPlaceholder")}
             />
           )}
@@ -170,7 +170,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
 
             {question.type === 'section' && (
               <div className="flex flex-col items-center justify-center py-2 mt-2">
-                <div className="text-xs text-white/80">{tBuilder("questionsBelowLine")}</div>
+                <div className="text-xs text-[var(--primary-foreground)] opacity-80">{tBuilder("questionsBelowLine")}</div>
               </div>
             )}
           </div>
