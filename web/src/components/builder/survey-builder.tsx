@@ -963,7 +963,7 @@ export function SurveyBuilder() {
                         placeholder={tBuilder("untitledSurvey")}
                     />
                     <span className="text-[10px] text-gray-400 capitalize px-1">
-                      {isPublished ? tDashboard("published") : tDashboard("draft")} ??{tBuilder("questionCount", { count: questionCount })}
+                      {isPublished ? tDashboard("published") : tDashboard("draft")} · {tBuilder("questionCount", { count: questionCount })}
                     </span>
                 </div>
            </div>
