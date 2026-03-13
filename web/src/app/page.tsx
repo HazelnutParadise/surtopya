@@ -72,16 +72,19 @@ export default async function Home() {
                     <p className="text-xs font-semibold tracking-[0.18em] text-purple-500">01</p>
                     <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureOneTitle")}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureOneDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-purple-500/80 dark:text-purple-400/80">{t("featureOneNote")}</p>
                   </article>
                   <article className="transform-gpu rounded-2xl border border-gray-200/80 bg-white p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg dark:border-gray-700 dark:bg-gray-900">
                     <p className="text-xs font-semibold tracking-[0.18em] text-pink-500">02</p>
                     <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureTwoTitle")}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureTwoDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-pink-500/80 dark:text-pink-400/80">{t("featureTwoNote")}</p>
                   </article>
                   <article className="transform-gpu rounded-2xl border border-gray-200/80 bg-white p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg sm:col-span-2 lg:col-span-1 dark:border-gray-700 dark:bg-gray-900">
                     <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">03</p>
                     <h3 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100">{t("featureThreeTitle")}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{t("featureThreeDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-blue-500/80 dark:text-blue-400/80">{t("featureThreeNote")}</p>
                   </article>
                 </div>
               </div>
@@ -108,16 +111,19 @@ export default async function Home() {
                   <p className="text-xs font-semibold tracking-[0.18em] text-purple-500">01</p>
                   <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepOneTitle")}</h3>
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepOneDescription")}</p>
+                  <p className="mt-2 text-xs font-medium text-purple-500/80 dark:text-purple-400/80">{t("gameplayStepOneNote")}</p>
                 </article>
                 <article className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
                   <p className="text-xs font-semibold tracking-[0.18em] text-pink-500">02</p>
                   <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepTwoTitle")}</h3>
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepTwoDescription")}</p>
+                  <p className="mt-2 text-xs font-medium text-pink-500/80 dark:text-pink-400/80">{t("gameplayStepTwoNote")}</p>
                 </article>
                 <article className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950">
                   <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">03</p>
                   <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{t("gameplayStepThreeTitle")}</h3>
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("gameplayStepThreeDescription")}</p>
+                  <p className="mt-2 text-xs font-medium text-blue-500/80 dark:text-blue-400/80">{t("gameplayStepThreeNote")}</p>
                 </article>
               </div>
 
