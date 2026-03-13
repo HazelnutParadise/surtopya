@@ -1018,8 +1018,9 @@ export function SurveyBuilder() {
                           </Tooltip>
                       </TooltipProvider>
                </span>
-               <Button size="sm" variant="outline" onClick={() => setActiveSidebar('theme')} className="h-8">
-                      <Palette className="mr-2 h-3 w-3" /> {tBuilder("theme")}
+               <Button size="sm" variant="outline" onClick={() => setActiveSidebar(activeSidebar === 'theme' ? 'toolbox' : 'theme')} className="h-8">
+                      {activeSidebar === 'theme' ? <Layout className="mr-2 h-3 w-3" /> : <Palette className="mr-2 h-3 w-3" />}
+                      {activeSidebar === 'theme' ? tBuilder("toolbox") : tBuilder("theme")}
                </Button>
                <Button 
                       size="sm" 
@@ -1443,7 +1444,7 @@ export function SurveyBuilder() {
                     </div>
                   </main>
                   {surveyId ? (
-                    <aside className="hidden xl:flex w-[360px] flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-4 gap-3 overflow-y-auto">
+                    <aside className="hidden xl:flex w-[240px] flex-col border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-4 gap-3 overflow-y-auto">
                       <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                         <HistoryIcon className="h-3.5 w-3.5" />
                         {tBuilder("versionHistory")}
