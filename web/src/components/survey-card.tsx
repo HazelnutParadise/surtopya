@@ -232,7 +232,7 @@ export function SurveyCard({
                   )}
                 </div>
               )}
-              <Badge className={`shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm border-0 ${mutedSectionClass}`}>
+              <Badge className={`ml-auto shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm border-0 ${mutedSectionClass}`}>
                 {t("points", { count: points })}
               </Badge>
             </div>
