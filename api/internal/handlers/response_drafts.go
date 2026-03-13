@@ -647,6 +647,23 @@ func (h *ResponseHandler) GetMyDrafts(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"drafts": drafts})
 }
 
+// GetMyCompletedResponses handles GET /api/app/responses/my
+func (h *ResponseHandler) GetMyCompletedResponses(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	responses, err := h.responseRepo.ListCompletedByUserID(userID.(uuid.UUID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get completed responses"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"responses": responses})
+}
+
 // SubmitAnonymousResponse handles POST /api/app/surveys/:id/responses/submit-anonymous
 func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	surveyID, err := uuid.Parse(c.Param("id"))

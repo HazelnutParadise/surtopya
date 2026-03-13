@@ -463,8 +463,8 @@ const normalizeSurveyResponseAnalyticsQuestion = (
 
   const optionCounts = Array.isArray(record.optionCounts)
     ? record.optionCounts
-        .map(normalizeSurveyResponseAnalyticsOptionCount)
-        .filter((item): item is SurveyResponseAnalyticsOptionCount => item !== null)
+      .map(normalizeSurveyResponseAnalyticsOptionCount)
+      .filter((item): item is SurveyResponseAnalyticsOptionCount => item !== null)
     : []
 
   return {
@@ -489,8 +489,8 @@ const normalizeSurveyResponseAnalyticsPage = (
 
   const questions = Array.isArray(record.questions)
     ? record.questions
-        .map(normalizeSurveyResponseAnalyticsQuestion)
-        .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
+      .map(normalizeSurveyResponseAnalyticsQuestion)
+      .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
     : []
 
   return {
@@ -510,22 +510,22 @@ export const normalizeSurveyResponseAnalytics = (
   const summary = asRecord(record?.summary)
   const legacyQuestions = Array.isArray(record?.questions)
     ? record.questions
-        .map(normalizeSurveyResponseAnalyticsQuestion)
-        .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
+      .map(normalizeSurveyResponseAnalyticsQuestion)
+      .filter((item): item is SurveyResponseAnalyticsQuestion => item !== null)
     : []
   const pages = Array.isArray(record?.pages)
     ? record.pages
-        .map(normalizeSurveyResponseAnalyticsPage)
-        .filter((item): item is SurveyResponseAnalyticsPage => item !== null)
+      .map(normalizeSurveyResponseAnalyticsPage)
+      .filter((item): item is SurveyResponseAnalyticsPage => item !== null)
     : legacyQuestions.length > 0
       ? [
-          {
-            pageId: "legacy-page-1",
-            title: "",
-            questionCount: legacyQuestions.length,
-            questions: legacyQuestions,
-          },
-        ]
+        {
+          pageId: "legacy-page-1",
+          title: "",
+          questionCount: legacyQuestions.length,
+          questions: legacyQuestions,
+        },
+      ]
       : []
   const normalizedQuestionCount = pages.reduce((total, page) => total + page.questions.length, 0)
 
@@ -551,6 +551,15 @@ export interface ResponseDraftSummary {
   startedAt: string;
   updatedAt: string;
   canResume: boolean;
+}
+
+export interface CompletedResponseSummary {
+  id: string;
+  surveyId: string;
+  surveyTitle: string;
+  surveyVersionNumber: number;
+  pointsAwarded: number;
+  completedAt?: string;
 }
 
 export interface Dataset {

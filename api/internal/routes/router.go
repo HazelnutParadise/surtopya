@@ -74,6 +74,7 @@ func setupRouter(options setupOptions) *gin.Engine {
 
 				appResponses := app.Group("/responses")
 				{
+					appResponses.GET("/my", middleware.RequireAuth(), responseHandler.GetMyCompletedResponses)
 					appResponses.GET("/:id", responseHandler.GetResponse)
 					appResponses.POST("/:id/answers", responseHandler.SubmitAnswer)
 					appResponses.POST("/:id/submit", responseHandler.SubmitAllAnswers)

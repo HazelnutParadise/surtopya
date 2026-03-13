@@ -123,6 +123,16 @@ type ResponseDraftAnswer struct {
 	UpdatedAt  time.Time   `json:"updatedAt" db:"updated_at"`
 }
 
+// CompletedResponseSummary is the lightweight dashboard payload for completed responses.
+type CompletedResponseSummary struct {
+	ID                  uuid.UUID  `json:"id"`
+	SurveyID            uuid.UUID  `json:"surveyId"`
+	SurveyTitle         string     `json:"surveyTitle"`
+	SurveyVersionNumber int        `json:"surveyVersionNumber"`
+	PointsAwarded       int        `json:"pointsAwarded"`
+	CompletedAt         *time.Time `json:"completedAt,omitempty"`
+}
+
 // ResponseDraftSummary is the lightweight dashboard payload for in-progress drafts.
 type ResponseDraftSummary struct {
 	ID                  uuid.UUID `json:"id"`

@@ -343,3 +343,42 @@ func (r *ResponseRepository) SaveAllAnswers(responseID uuid.UUID, answers []mode
 
 	return tx.Commit()
 }
+
+// ListCompletedByUserID returns completed response summaries for a given user.
+func (r *ResponseRepository) ListCompletedByUserID(userID uuid.UUID) ([]models.CompletedResponseSummary, error) {
+	query := `
+		SELECT
+			res.id,
+			res.survey_id,
+			s.title,
+			res.survey_version_number,
+			res.points_awarded,
+			res.completed_at
+		FROM responses res
+		JOIN surveys s ON s.id = res.survey_id
+		WHERE res.user_id = $1 AND res.status = 'completed'
+		ORDER BY res.completed_at DESC
+	`
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list completed responses: %w", err)
+	}
+	defer rows.Close()
+
+	var results []models.CompletedResponseSummary
+	for rows.Next() {
+		var item models.CompletedResponseSummary
+		if err := rows.Scan(
+			&item.ID,
+			&item.SurveyID,
+			&item.SurveyTitle,
+			&item.SurveyVersionNumber,
+			&item.PointsAwarded,
+			&item.CompletedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan completed response: %w", err)
+		}
+		results = append(results, item)
+	}
+	return results, nil
+}

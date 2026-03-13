@@ -110,7 +110,11 @@
     "unfinishedDraftsTitle": "Unfinished Surveys",
     "noUnfinishedDrafts": "No unfinished surveys.",
     "resumeDraft": "Resume",
-    "updatedAtLabel": "Last saved: {time}"
+    "updatedAtLabel": "Last saved: {time}",
+    "completedSurveysTitle": "Completed Surveys",
+    "noCompletedSurveys": "No completed surveys yet.",
+    "completedAtLabel": "Completed: {time}",
+    "pointsUnit": "pts"
   },
   "SurveyBuilder": {
     "title": "Survey Builder",
