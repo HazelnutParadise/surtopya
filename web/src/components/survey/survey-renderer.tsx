@@ -60,6 +60,8 @@ export function SurveyRenderer({
 
   const textColorClass = getContrastColor(activeTheme.backgroundColor) === 'white' ? 'text-white' : 'text-gray-900';
   const mutedTextColorClass = getContrastColor(activeTheme.backgroundColor) === 'white' ? 'text-gray-300' : 'text-gray-500';
+  const primaryTextColorClass = getContrastColor(activeTheme.primaryColor) === 'white' ? 'text-white' : 'text-gray-900';
+  const primaryHoverClass = getContrastColor(activeTheme.primaryColor) === 'white' ? 'hover:bg-white/20' : 'hover:bg-black/10';
 
   // Group questions into pages
   const pages = survey.questions.reduce((acc, question) => {
@@ -163,8 +165,8 @@ export function SurveyRenderer({
       <div className="w-full max-w-2xl space-y-6">
         {/* Preview Banner */}
         {isPreview && (
-          <div 
-            className="rounded-lg p-3 flex items-center justify-center gap-2 text-white text-sm font-medium"
+          <div
+            className={`rounded-lg p-3 flex items-center justify-center gap-2 text-sm font-medium ${primaryTextColorClass}`}
             style={{ backgroundColor: activeTheme.primaryColor }}
           >
             <Eye className="h-4 w-4" />
@@ -376,7 +378,7 @@ export function SurveyRenderer({
           <Button 
             onClick={handleNext}
             style={{ backgroundColor: activeTheme.primaryColor }}
-            className="text-white min-w-[120px] hover:opacity-90"
+            className={`min-w-[120px] hover:opacity-90 ${primaryTextColorClass}`}
           >
             {currentStep === totalSteps - 1 ? t("submit") : t("next")} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

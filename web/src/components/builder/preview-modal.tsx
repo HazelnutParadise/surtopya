@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useTranslations } from "next-intl";
+import { getContrastColor } from "@/lib/utils";
 
 interface PreviewModalProps {
   open: boolean;
@@ -91,6 +92,11 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
     console.info("Preview responses:", responses)
   };
 
+  const bgTextColor = getContrastColor(theme.backgroundColor) === 'white' ? 'text-white' : 'text-gray-900';
+  const bgMutedColor = getContrastColor(theme.backgroundColor) === 'white' ? 'text-gray-300' : 'text-gray-500';
+  const primaryTextColor = getContrastColor(theme.primaryColor) === 'white' ? 'text-white' : 'text-gray-900';
+  const primaryHover = getContrastColor(theme.primaryColor) === 'white' ? 'hover:bg-white/20' : 'hover:bg-black/10';
+
   const renderQuestion = (question: Question, index: number) => {
     const questionNumber = index + 1;
 
@@ -103,7 +109,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <Input
               className="mt-2"
@@ -122,7 +128,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <Textarea
               className="mt-2"
@@ -141,7 +147,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <RadioGroup
               className="mt-3 space-y-2"
@@ -168,7 +174,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <div className="mt-3 space-y-2">
               {question.options?.map((option, i) => {
@@ -204,7 +210,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <select
               className="mt-2 w-full border border-gray-300 rounded-md p-2 bg-white dark:bg-gray-800 dark:border-gray-700"
@@ -227,7 +233,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               {question.required && <span className="text-red-500 ml-1">*</span>}
             </Label>
             {question.description && (
-              <p className="text-sm text-gray-500 mt-1">{question.description}</p>
+              <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <div className="mt-3 flex gap-2">
               {[1, 2, 3, 4, 5].map((num) => (
@@ -261,18 +267,18 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
       >
         {/* Header */}
         <div
-          className="p-4 text-white flex items-center justify-between"
+          className={`p-4 flex items-center justify-between ${primaryTextColor}`}
           style={{ backgroundColor: theme.primaryColor }}
         >
           <h2 className="text-xl font-bold">{title}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20">
+          <Button variant="ghost" size="icon" onClick={onClose} className={`${primaryTextColor} ${primaryHover}`}>
             <X className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Progress */}
         <div className="px-4 pt-4">
-          <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+          <div className={`flex items-center justify-between text-sm mb-2 ${bgMutedColor}`}>
             <span>{t("pageOf", { current: currentPageIndex + 1, total: pages.length })}</span>
             <span>{t("percentComplete", { percent: Math.round(progress) })}</span>
           </div>
@@ -280,13 +286,13 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={`flex-1 overflow-y-auto p-6 ${bgTextColor}`}>
           {currentPageData && (
             <Card className="border-none shadow-none bg-transparent">
               <CardHeader className="px-0 pt-0">
-                <CardTitle className="text-2xl">{currentPageData.header.title}</CardTitle>
+                <CardTitle className={`text-2xl ${bgTextColor}`}>{currentPageData.header.title}</CardTitle>
                 {currentPageData.header.description && (
-                  <CardDescription className="text-base">
+                  <CardDescription className={`text-base ${bgMutedColor}`}>
                     {currentPageData.header.description}
                   </CardDescription>
                 )}
@@ -313,7 +319,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             <Button
               onClick={handleSubmit}
               style={{ backgroundColor: theme.primaryColor }}
-              className="text-white"
+              className={primaryTextColor}
             >
               {t("submit")}
             </Button>
@@ -321,7 +327,7 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
             <Button
               onClick={handleNext}
               style={{ backgroundColor: theme.primaryColor }}
-              className="text-white"
+              className={primaryTextColor}
             >
               {t("next")}
               <ChevronRight className="ml-2 h-4 w-4" />
