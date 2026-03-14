@@ -190,7 +190,7 @@ export function Navbar() {
         {/* Logo */}
         <Link href={withLocalePath("/")} className="flex items-center gap-0.5 transition-transform duration-300 ease-out hover:scale-[1.01]">
           <Image
-            src="/logo.svg"
+            src="/logo-full.svg"
             alt="Surtopya logo"
             width={40}
             height={40}
