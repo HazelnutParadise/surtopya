@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"context"
+	"database/sql"
 	"net/http"
 	"strings"
 
@@ -10,9 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RequireAgentAdmin() gin.HandlerFunc {
-	service := agentadmin.NewService(database.GetDB())
+var authenticateAgentAdmin = func(ctx context.Context, apiKey string) (*agentadmin.AuthenticatedAgent, error) {
+	return agentadmin.NewService(database.GetDB()).Authenticate(ctx, apiKey)
+}
 
+func RequireAgentAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
 		if authHeader == "" {
@@ -28,13 +32,36 @@ func RequireAgentAdmin() gin.HandlerFunc {
 			return
 		}
 
-		identity, err := service.Authenticate(c.Request.Context(), parts[1])
+		identity, err := authenticateAgentAdmin(c.Request.Context(), parts[1])
 		if err != nil {
 			agentError(c, http.StatusUnauthorized, "unauthorized", "Invalid agent API key", nil)
 			c.Abort()
 			return
 		}
 
+		var ownerCanUseAdminAPI bool
+		if err := database.GetDB().QueryRowContext(
+			c.Request.Context(),
+			"SELECT (is_admin = TRUE OR is_super_admin = TRUE) FROM users WHERE id = $1",
+			identity.OwnerUserID,
+		).Scan(&ownerCanUseAdminAPI); err != nil {
+			if err == sql.ErrNoRows {
+				agentError(c, http.StatusUnauthorized, "unauthorized", "Invalid agent API key", nil)
+				c.Abort()
+				return
+			}
+			agentError(c, http.StatusInternalServerError, "server_error", "Failed to verify agent owner access", nil)
+			c.Abort()
+			return
+		}
+		if !ownerCanUseAdminAPI {
+			agentError(c, http.StatusForbidden, "forbidden", "Agent owner is not an admin", nil)
+			c.Abort()
+			return
+		}
+
+		// Reuse existing admin handlers/policy checks that expect userID in context.
+		c.Set("userID", identity.OwnerUserID)
 		c.Set(platformlog.ContextKeyActorType, platformlog.ActorTypeAgentAdmin)
 		c.Set(platformlog.ContextKeyActorAgentID, identity.ID)
 		c.Set(platformlog.ContextKeyOwnerUserID, identity.OwnerUserID)

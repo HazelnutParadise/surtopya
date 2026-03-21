@@ -46,6 +46,116 @@ func NewAgentAdminHandler() *AgentAdminHandler {
 	}
 }
 
+type agentEndpointDoc struct {
+	Method      string
+	Path        string
+	OpenAPIPath string
+	Purpose     string
+	Summary     string
+	Permission  string
+}
+
+var agentEndpointDocs = []agentEndpointDoc{
+	{Method: "GET", Path: "/api/v1/agent-admin", OpenAPIPath: "/", Purpose: "usage index", Summary: "Usage index"},
+	{Method: "GET", Path: "/api/v1/agent-admin/openapi.json", OpenAPIPath: "/openapi.json", Purpose: "OpenAPI document", Summary: "OpenAPI document"},
+	{Method: "GET", Path: "/api/v1/agent-admin/me", OpenAPIPath: "/me", Purpose: "current agent identity", Summary: "Current agent identity"},
+	{Method: "GET", Path: "/api/v1/agent-admin/logs", OpenAPIPath: "/logs", Purpose: "list logs", Summary: "List accessible logs", Permission: "logs.read"},
+	{Method: "GET", Path: "/api/v1/agent-admin/logs/:id", OpenAPIPath: "/logs/{id}", Purpose: "get log detail", Summary: "Get log detail", Permission: "logs.read"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/surveys", OpenAPIPath: "/surveys", Purpose: "list surveys", Summary: "List surveys", Permission: "surveys.read"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/surveys/:id", OpenAPIPath: "/surveys/{id}", Purpose: "update survey draft metadata", Summary: "Update survey", Permission: "surveys.write"},
+	{Method: "DELETE", Path: "/api/v1/agent-admin/surveys/:id", OpenAPIPath: "/surveys/{id}", Purpose: "delete survey", Summary: "Delete survey", Permission: "surveys.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/surveys/:id/publish", OpenAPIPath: "/surveys/{id}/publish", Purpose: "publish survey draft", Summary: "Publish survey", Permission: "surveys.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/surveys/:id/responses/open", OpenAPIPath: "/surveys/{id}/responses/open", Purpose: "open survey responses", Summary: "Open survey responses", Permission: "surveys.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/surveys/:id/responses/close", OpenAPIPath: "/surveys/{id}/responses/close", Purpose: "close survey responses", Summary: "Close survey responses", Permission: "surveys.write"},
+	{Method: "GET", Path: "/api/v1/agent-admin/surveys/:id/versions", OpenAPIPath: "/surveys/{id}/versions", Purpose: "list survey versions", Summary: "List survey versions", Permission: "surveys.read"},
+	{Method: "GET", Path: "/api/v1/agent-admin/surveys/:id/versions/:versionNumber", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}", Purpose: "get survey version detail", Summary: "Get survey version", Permission: "surveys.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/surveys/:id/versions/:versionNumber/restore-draft", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}/restore-draft", Purpose: "restore version as draft", Summary: "Restore survey version to draft", Permission: "surveys.write"},
+	{Method: "GET", Path: "/api/v1/agent-admin/surveys/:id/responses/analytics", OpenAPIPath: "/surveys/{id}/responses/analytics", Purpose: "get survey response analytics", Summary: "Get survey response analytics", Permission: "surveys.read"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/datasets", OpenAPIPath: "/datasets", Purpose: "list datasets", Summary: "List datasets", Permission: "datasets.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/datasets", OpenAPIPath: "/datasets", Purpose: "create dataset", Summary: "Create dataset", Permission: "datasets.write"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/datasets/:id", OpenAPIPath: "/datasets/{id}", Purpose: "update dataset", Summary: "Update dataset", Permission: "datasets.write"},
+	{Method: "DELETE", Path: "/api/v1/agent-admin/datasets/:id", OpenAPIPath: "/datasets/{id}", Purpose: "delete dataset", Summary: "Delete dataset", Permission: "datasets.write"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/users", OpenAPIPath: "/users", Purpose: "list users", Summary: "List users", Permission: "users.read"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/users/:id", OpenAPIPath: "/users/{id}", Purpose: "update user", Summary: "Update user", Permission: "users.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/users/points-adjust", OpenAPIPath: "/users/points-adjust", Purpose: "adjust users points in batch", Summary: "Adjust users points", Permission: "users.write"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/subscription-plans", OpenAPIPath: "/subscription-plans", Purpose: "list subscription plans", Summary: "List subscription plans", Permission: "plans.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/subscription-plans", OpenAPIPath: "/subscription-plans", Purpose: "create subscription plan", Summary: "Create subscription plan", Permission: "plans.write"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/subscription-plans/:id", OpenAPIPath: "/subscription-plans/{id}", Purpose: "update subscription plan", Summary: "Update subscription plan", Permission: "plans.write"},
+	{Method: "DELETE", Path: "/api/v1/agent-admin/subscription-plans/:id", OpenAPIPath: "/subscription-plans/{id}", Purpose: "deactivate subscription plan", Summary: "Deactivate subscription plan", Permission: "plans.write"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/policies", OpenAPIPath: "/policies", Purpose: "load policy matrix", Summary: "Get policies", Permission: "policies.read"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/policies", OpenAPIPath: "/policies", Purpose: "update policy matrix", Summary: "Update policies", Permission: "policies.write"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/capabilities/:id", OpenAPIPath: "/capabilities/{id}", Purpose: "update capability display metadata", Summary: "Update capability", Permission: "policies.write"},
+	{Method: "GET", Path: "/api/v1/agent-admin/policy-writers", OpenAPIPath: "/policy-writers", Purpose: "list policy writers", Summary: "List policy writers", Permission: "policies.read"},
+	{Method: "PUT", Path: "/api/v1/agent-admin/policy-writers/:id", OpenAPIPath: "/policy-writers/{id}", Purpose: "update policy writer permission", Summary: "Update policy writer", Permission: "policies.write"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/system-settings", OpenAPIPath: "/system-settings", Purpose: "get system settings", Summary: "Get system settings", Permission: "system.read"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/system-settings", OpenAPIPath: "/system-settings", Purpose: "update system settings", Summary: "Update system settings", Permission: "system.write"},
+
+	{Method: "GET", Path: "/api/v1/agent-admin/agents", OpenAPIPath: "/agents", Purpose: "list accessible agent accounts", Summary: "List accessible agent accounts", Permission: "agents.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/agents", OpenAPIPath: "/agents", Purpose: "create agent account", Summary: "Create agent account", Permission: "agents.write"},
+	{Method: "GET", Path: "/api/v1/agent-admin/agents/:id", OpenAPIPath: "/agents/{id}", Purpose: "get agent account", Summary: "Get agent account", Permission: "agents.read"},
+	{Method: "PATCH", Path: "/api/v1/agent-admin/agents/:id", OpenAPIPath: "/agents/{id}", Purpose: "update agent account", Summary: "Update agent account", Permission: "agents.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/agents/:id/reveal-key", OpenAPIPath: "/agents/{id}/reveal-key", Purpose: "reveal active key", Summary: "Reveal current agent key", Permission: "agents.write"},
+	{Method: "POST", Path: "/api/v1/agent-admin/agents/:id/rotate-key", OpenAPIPath: "/agents/{id}/rotate-key", Purpose: "rotate active key", Summary: "Rotate current agent key", Permission: "agents.write"},
+}
+
+func buildAgentScopeEndpoints() gin.H {
+	byScope := make(map[string][]string, len(agentadmin.AllPermissions))
+	for _, permission := range agentadmin.AllPermissions {
+		byScope[permission] = []string{}
+	}
+	for _, endpoint := range agentEndpointDocs {
+		if endpoint.Permission == "" {
+			continue
+		}
+		byScope[endpoint.Permission] = append(byScope[endpoint.Permission], endpoint.Method+" "+endpoint.Path)
+	}
+
+	result := gin.H{}
+	for _, permission := range agentadmin.AllPermissions {
+		result[permission] = byScope[permission]
+	}
+	return result
+}
+
+func buildAgentUsageEndpoints() []gin.H {
+	endpoints := make([]gin.H, 0, len(agentEndpointDocs))
+	for _, endpoint := range agentEndpointDocs {
+		endpoints = append(endpoints, gin.H{
+			"method":  endpoint.Method,
+			"path":    endpoint.Path,
+			"purpose": endpoint.Purpose,
+		})
+	}
+	return endpoints
+}
+
+func buildAgentOpenAPIPaths() gin.H {
+	paths := gin.H{}
+	for _, endpoint := range agentEndpointDocs {
+		pathItem, ok := paths[endpoint.OpenAPIPath].(gin.H)
+		if !ok {
+			pathItem = gin.H{}
+		}
+
+		operation := gin.H{
+			"summary": endpoint.Summary,
+		}
+		if endpoint.Permission != "" {
+			operation["x-required-permission"] = endpoint.Permission
+		}
+
+		pathItem[strings.ToLower(endpoint.Method)] = operation
+		paths[endpoint.OpenAPIPath] = pathItem
+	}
+	return paths
+}
+
 func (h *AgentAdminHandler) GetUsageIndex(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"kind":        "agent_admin_api",
@@ -56,44 +166,15 @@ func (h *AgentAdminHandler) GetUsageIndex(c *gin.Context) {
 			"type":   "bearer_api_key",
 			"header": "Authorization: Bearer <agent_api_key>",
 		},
-		"scopes": agentadmin.AllPermissions,
-		"scope_endpoints": gin.H{
-			"logs.read":      []string{"GET /api/v1/agent-admin/logs", "GET /api/v1/agent-admin/logs/:id"},
-			"agents.read":    []string{"GET /api/v1/agent-admin/agents", "GET /api/v1/agent-admin/agents/:id"},
-			"agents.write":   []string{"POST /api/v1/agent-admin/agents", "PATCH /api/v1/agent-admin/agents/:id", "POST /api/v1/agent-admin/agents/:id/reveal-key", "POST /api/v1/agent-admin/agents/:id/rotate-key"},
-			"surveys.read":   []string{"GET /api/v1/agent-admin/surveys/:id/responses/analytics"},
-			"surveys.write":  []string{},
-			"datasets.read":  []string{},
-			"datasets.write": []string{},
-			"users.read":     []string{},
-			"users.write":    []string{},
-			"policies.read":  []string{},
-			"policies.write": []string{},
-			"plans.read":     []string{},
-			"plans.write":    []string{},
-			"system.read":    []string{},
-			"system.write":   []string{},
-		},
+		"scopes":          agentadmin.AllPermissions,
+		"scope_endpoints": buildAgentScopeEndpoints(),
 		"error_format": gin.H{
 			"code":           "string",
 			"message":        "string",
 			"details":        gin.H{},
 			"correlation_id": "uuid",
 		},
-		"endpoints": []gin.H{
-			{"method": "GET", "path": "/api/v1/agent-admin", "purpose": "usage index"},
-			{"method": "GET", "path": "/api/v1/agent-admin/openapi.json", "purpose": "OpenAPI document"},
-			{"method": "GET", "path": "/api/v1/agent-admin/me", "purpose": "current agent identity"},
-			{"method": "GET", "path": "/api/v1/agent-admin/logs", "purpose": "list logs"},
-			{"method": "GET", "path": "/api/v1/agent-admin/logs/:id", "purpose": "get log detail"},
-			{"method": "GET", "path": "/api/v1/agent-admin/surveys/:id/responses/analytics", "purpose": "get survey response analytics"},
-			{"method": "GET", "path": "/api/v1/agent-admin/agents", "purpose": "list accessible agent accounts"},
-			{"method": "POST", "path": "/api/v1/agent-admin/agents", "purpose": "create agent account"},
-			{"method": "GET", "path": "/api/v1/agent-admin/agents/:id", "purpose": "get agent account"},
-			{"method": "PATCH", "path": "/api/v1/agent-admin/agents/:id", "purpose": "update agent account"},
-			{"method": "POST", "path": "/api/v1/agent-admin/agents/:id/reveal-key", "purpose": "reveal active key"},
-			{"method": "POST", "path": "/api/v1/agent-admin/agents/:id/rotate-key", "purpose": "rotate active key"},
-		},
+		"endpoints": buildAgentUsageEndpoints(),
 		"examples": gin.H{
 			"list_logs": gin.H{
 				"method": "GET",
@@ -138,34 +219,10 @@ func (h *AgentAdminHandler) GetOpenAPI(c *gin.Context) {
 				},
 			},
 		},
-		"paths": gin.H{
-			"/": gin.H{
-				"get": gin.H{"summary": "Usage index"},
-			},
-			"/me": gin.H{
-				"get": gin.H{"summary": "Current agent identity"},
-			},
-			"/logs": gin.H{
-				"get": gin.H{"summary": "List accessible logs"},
-			},
-			"/surveys/{id}/responses/analytics": gin.H{
-				"get": gin.H{"summary": "Get survey response analytics"},
-			},
-			"/agents": gin.H{
-				"get":  gin.H{"summary": "List accessible agent accounts"},
-				"post": gin.H{"summary": "Create agent account"},
-			},
-			"/agents/{id}": gin.H{
-				"get":   gin.H{"summary": "Get agent account"},
-				"patch": gin.H{"summary": "Update agent account"},
-			},
-			"/agents/{id}/reveal-key": gin.H{
-				"post": gin.H{"summary": "Reveal current agent key"},
-			},
-			"/agents/{id}/rotate-key": gin.H{
-				"post": gin.H{"summary": "Rotate current agent key"},
-			},
+		"security": []gin.H{
+			{"bearerApiKey": []string{}},
 		},
+		"paths": buildAgentOpenAPIPaths(),
 	})
 }
 
