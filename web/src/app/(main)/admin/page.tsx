@@ -3018,7 +3018,7 @@ export default function AdminPage() {
                     <div className="text-sm text-gray-500">
                       {tCommon("loading")}
                     </div>
-                  ) : tiers.length === 0 || capabilities.length === 0 ? (
+                  ) : activeTiers.length === 0 || capabilities.length === 0 ? (
                     <div className="text-sm text-gray-500">
                       {tAdmin("noPolicies")}
                     </div>
@@ -3030,7 +3030,7 @@ export default function AdminPage() {
                             <th className="text-left px-3 py-2">
                               {tAdmin("capabilityLabel")}
                             </th>
-                            {tiers.map((tier) => (
+                            {activeTiers.map((tier) => (
                               <th key={tier.code} className="text-left px-3 py-2">
                                 {tier.code}
                               </th>
@@ -3051,7 +3051,7 @@ export default function AdminPage() {
                                   {capability.description}
                                 </div>
                               </td>
-                              {tiers.map((tier) => (
+                              {activeTiers.map((tier) => (
                                 <td
                                   key={`${capability.key}-${tier.code}`}
                                   className="px-3 py-2"
