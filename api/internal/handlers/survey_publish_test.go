@@ -175,6 +175,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_BoostCanOnlyIncrease(t *t
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 1, []byte(`{"questions":[]}`), 9, nil, time.Now().UTC(), publisherID, time.Now().UTC()))
 	mock.ExpectExec("INSERT INTO user_memberships").
 		WithArgs(publisherID, policy.DefaultMembershipTierCode).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -226,6 +232,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 1, []byte(`{"questions":[]}`), 9, nil, time.Now().UTC(), publisherID, time.Now().UTC()))
 	mock.ExpectExec("INSERT INTO user_memberships").
 		WithArgs(publisherID, policy.DefaultMembershipTierCode).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -242,6 +254,86 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -3, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
+		WithArgs(surveyID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(2))
+	mock.ExpectQuery("INSERT INTO survey_versions").
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
+	mock.ExpectExec("UPDATE surveys SET").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.PublishSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      12,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"pointsReward":12`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_PublishSurvey_AfterFirstPublish_UsesPublishedVersionPointsAsBaseline(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+
+	currentVersionID := uuid.New()
+	currentVersionNumber := 1
+	// Draft already has pointsReward=12, but current published version was 6.
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 12, 1, false, &currentVersionID, &currentVersionNumber)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 1, []byte(`{"questions":[]}`), 6, nil, time.Now().UTC(), publisherID, time.Now().UTC()))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT points_balance FROM users WHERE id = \\$1 FOR UPDATE").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"points_balance"}).AddRow(99))
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance - \\$2 WHERE id = \\$1").
+		WithArgs(publisherID, 6).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), publisherID, -6, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
 		WithArgs(surveyID, sqlmock.AnyArg()).

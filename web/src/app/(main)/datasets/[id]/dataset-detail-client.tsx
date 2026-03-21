@@ -13,6 +13,7 @@ import type { Dataset } from "@/lib/api";
 import { filenameFromContentDisposition, sanitizeFilename } from "@/lib/download";
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { formatUtcDateOnly } from "@/lib/date-time";
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -119,6 +120,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
         event_name: "success",
         resource_id: id,
       })
+      notifyPointsBalanceChanged()
     } catch (error) {
       console.error("Download failed:", error);
       setDownloadError(error instanceof Error ? error.message : tCommon("error"))

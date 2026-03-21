@@ -11,10 +11,16 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const params = new URLSearchParams()
   const search = searchParams.get("search")
+  const role = searchParams.get("role")
+  const membershipTier = searchParams.get("membership_tier")
+  const isDisabled = searchParams.get("is_disabled")
   const limit = searchParams.get("limit")
   const offset = searchParams.get("offset")
 
   if (search) params.set("search", search)
+  if (role) params.set("role", role)
+  if (membershipTier) params.set("membership_tier", membershipTier)
+  if (isDisabled) params.set("is_disabled", isDisabled)
   if (limit) params.set("limit", limit)
   if (offset) params.set("offset", offset)
 

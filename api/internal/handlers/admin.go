@@ -81,11 +81,13 @@ type AdminUser struct {
 	MembershipIsPermanent bool       `json:"membershipIsPermanent"`
 	IsAdmin               bool       `json:"isAdmin"`
 	IsSuperAdmin          bool       `json:"isSuperAdmin"`
+	IsDisabled            bool       `json:"isDisabled"`
 	CreatedAt             time.Time  `json:"createdAt"`
 }
 
 type AdminUserUpdateRequest struct {
 	IsAdmin               *bool   `json:"isAdmin"`
+	IsDisabled            *bool   `json:"isDisabled"`
 	MembershipTier        *string `json:"membershipTier"`
 	MembershipPeriodEndAt *string `json:"membershipPeriodEndAt"`
 	MembershipIsPermanent *bool   `json:"membershipIsPermanent"`
@@ -157,7 +159,8 @@ type AdminCapabilityPatchRequest struct {
 }
 
 type AdminSystemSettingsPatchRequest struct {
-	SurveyBasePoints *int `json:"surveyBasePoints"`
+	SurveyBasePoints    *int `json:"surveyBasePoints"`
+	SignupInitialPoints *int `json:"signupInitialPoints"`
 }
 
 // GetSurveys handles GET /api/v1/admin/surveys
@@ -647,6 +650,9 @@ func (h *AdminHandler) GetBootstrapStatus(c *gin.Context) {
 // GetUsers handles GET /api/v1/admin/users
 func (h *AdminHandler) GetUsers(c *gin.Context) {
 	search := c.Query("search")
+	role := strings.TrimSpace(c.DefaultQuery("role", "all"))
+	membershipTier := strings.TrimSpace(c.Query("membership_tier"))
+	isDisabled := strings.TrimSpace(c.DefaultQuery("is_disabled", "all"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
@@ -664,6 +670,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 			COALESCE(um.is_permanent, true) AS membership_is_permanent,
 			u.is_admin,
 			u.is_super_admin,
+			u.is_disabled,
 			u.created_at
 		FROM users u
 		LEFT JOIN user_memberships um ON um.user_id = u.id
@@ -677,6 +684,22 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		argCount++
 		query += " AND (u.email ILIKE $" + strconv.Itoa(argCount) + " OR u.display_name ILIKE $" + strconv.Itoa(argCount) + ")"
 		args = append(args, "%"+search+"%")
+	}
+	if role == "admin" {
+		query += " AND (u.is_admin = true OR u.is_super_admin = true)"
+	}
+	if role == "non_admin" {
+		query += " AND u.is_admin = false AND u.is_super_admin = false"
+	}
+	if membershipTier != "" && membershipTier != "all" {
+		argCount++
+		query += " AND COALESCE(mt.code, 'free') = $" + strconv.Itoa(argCount)
+		args = append(args, membershipTier)
+	}
+	if isDisabled == "true" || isDisabled == "false" {
+		argCount++
+		query += " AND u.is_disabled = $" + strconv.Itoa(argCount)
+		args = append(args, isDisabled == "true")
 	}
 
 	argCount++
@@ -697,7 +720,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	var users []AdminUser
 	for rows.Next() {
 		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.IsDisabled, &user.CreatedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
 			return
 		}
@@ -744,7 +767,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 	membershipUpdateRequested := req.MembershipTier != nil || req.MembershipIsPermanent != nil || req.MembershipPeriodEndAt != nil
-	if req.IsAdmin == nil && !membershipUpdateRequested {
+	if req.IsAdmin == nil && req.IsDisabled == nil && !membershipUpdateRequested {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
 		return
 	}
@@ -758,11 +781,24 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove super admin"})
 		return
 	}
+	if req.IsDisabled != nil && targetIsSuper && *req.IsDisabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable super admin"})
+		return
+	}
 
 	if req.IsAdmin != nil {
 		if _, err := database.GetDB().Exec(
 			"UPDATE users SET is_admin = $1 WHERE id = $2",
 			*req.IsAdmin, id,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+			return
+		}
+	}
+	if req.IsDisabled != nil {
+		if _, err := database.GetDB().Exec(
+			"UPDATE users SET is_disabled = $1 WHERE id = $2",
+			*req.IsDisabled, id,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 			return
@@ -1160,9 +1196,15 @@ func (h *AdminHandler) GetSystemSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
 		return
 	}
+	signupInitialPoints, err := loadSignupInitialPoints(database.GetDB())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"surveyBasePoints": points,
+		"surveyBasePoints":    points,
+		"signupInitialPoints": signupInitialPoints,
 	})
 }
 
@@ -1189,28 +1231,65 @@ func (h *AdminHandler) UpdateSystemSettings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
-	if req.SurveyBasePoints == nil || *req.SurveyBasePoints < 0 {
+	if req.SurveyBasePoints == nil && req.SignupInitialPoints == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
+		return
+	}
+	if req.SurveyBasePoints != nil && *req.SurveyBasePoints < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid surveyBasePoints"})
 		return
 	}
-
-	if _, err := database.GetDB().Exec(
-		`
-		INSERT INTO system_settings (key, value, updated_at)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT (key) DO UPDATE
-		SET value = EXCLUDED.value,
-		    updated_at = NOW()
-		`,
-		surveyBasePointsSettingKey,
-		strconv.Itoa(*req.SurveyBasePoints),
-	); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update system settings"})
+	if req.SignupInitialPoints != nil && *req.SignupInitialPoints < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signupInitialPoints"})
 		return
 	}
 
+	if req.SurveyBasePoints != nil {
+		if _, err := database.GetDB().Exec(
+			`
+			INSERT INTO system_settings (key, value, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (key) DO UPDATE
+			SET value = EXCLUDED.value,
+			    updated_at = NOW()
+			`,
+			surveyBasePointsSettingKey,
+			strconv.Itoa(*req.SurveyBasePoints),
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update system settings"})
+			return
+		}
+	}
+	if req.SignupInitialPoints != nil {
+		if _, err := database.GetDB().Exec(
+			`
+			INSERT INTO system_settings (key, value, updated_at)
+			VALUES ($1, $2, NOW())
+			ON CONFLICT (key) DO UPDATE
+			SET value = EXCLUDED.value,
+			    updated_at = NOW()
+			`,
+			signupInitialPointsSettingKey,
+			strconv.Itoa(*req.SignupInitialPoints),
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update system settings"})
+			return
+		}
+	}
+
+	surveyBasePoints, err := loadSurveyBasePoints(database.GetDB())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+		return
+	}
+	signupInitialPoints, err := loadSignupInitialPoints(database.GetDB())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"surveyBasePoints": *req.SurveyBasePoints,
+		"surveyBasePoints":    surveyBasePoints,
+		"signupInitialPoints": signupInitialPoints,
 	})
 }
 

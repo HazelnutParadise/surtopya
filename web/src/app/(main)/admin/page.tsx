@@ -37,6 +37,7 @@ import type {
 } from "@/lib/api";
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { utcToDateOnly } from "@/lib/date-time";
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 
 const PAGE_SIZE = 20;
 const AGENT_PERMISSIONS = [
@@ -93,11 +94,26 @@ export default function AdminPage() {
   const [surveyLoading, setSurveyLoading] = useState(true);
   const [datasetLoading, setDatasetLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(true);
+  const [adminUserLoading, setAdminUserLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [agentAccounts, setAgentAccounts] = useState<AgentAdminAccount[]>([]);
   const [userSearch, setUserSearch] = useState("");
+  const [adminSearch, setAdminSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userTierFilter, setUserTierFilter] = useState("all");
+  const [userDisabledFilter, setUserDisabledFilter] = useState("all");
+  const [userReloadTick, setUserReloadTick] = useState(0);
+  const [adminReloadTick, setAdminReloadTick] = useState(0);
+  const [addAdminDialogOpen, setAddAdminDialogOpen] = useState(false);
+  const [addAdminSearch, setAddAdminSearch] = useState("");
+  const [addAdminCandidates, setAddAdminCandidates] = useState<AdminUser[]>([]);
+  const [addAdminCandidatesLoading, setAddAdminCandidatesLoading] =
+    useState(false);
+  const [selectedAddAdminUserId, setSelectedAddAdminUserId] = useState("");
+  const [addingAdmin, setAddingAdmin] = useState(false);
   const [agentSearch, setAgentSearch] = useState("");
   const [agentOwnerFilter, setAgentOwnerFilter] = useState("all");
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
@@ -108,6 +124,7 @@ export default function AdminPage() {
   const [systemSettingsLoading, setSystemSettingsLoading] = useState(true);
   const [savingSystemSettings, setSavingSystemSettings] = useState(false);
   const [surveyBasePointsDraft, setSurveyBasePointsDraft] = useState(1);
+  const [signupInitialPointsDraft, setSignupInitialPointsDraft] = useState(0);
   const [tiers, setTiers] = useState<MembershipTier[]>([]);
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
   const [matrix, setMatrix] = useState<PolicyMatrixEntry[]>([]);
@@ -154,6 +171,9 @@ export default function AdminPage() {
     monthlyPointsGrant: 0,
     maxActiveSurveys: null as number | null,
   });
+  const [newPlanFieldErrors, setNewPlanFieldErrors] = useState<
+    Record<string, string>
+  >({});
 
   const [editingSurvey, setEditingSurvey] = useState<Survey | null>(null);
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
@@ -326,6 +346,11 @@ export default function AdminPage() {
       try {
         const params = new URLSearchParams();
         if (userSearch) params.set("search", userSearch);
+        if (userRoleFilter !== "all") params.set("role", userRoleFilter);
+        if (userTierFilter !== "all")
+          params.set("membership_tier", userTierFilter);
+        if (userDisabledFilter !== "all")
+          params.set("is_disabled", userDisabledFilter);
         params.set("limit", PAGE_SIZE.toString());
         params.set("offset", "0");
 
@@ -356,7 +381,110 @@ export default function AdminPage() {
     return () => {
       isMounted = false;
     };
-  }, [userSearch, tAdmin]);
+  }, [
+    tAdmin,
+    userDisabledFilter,
+    userReloadTick,
+    userRoleFilter,
+    userSearch,
+    userTierFilter,
+  ]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadAdminUsers = async () => {
+      setAdminUserLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (adminSearch) params.set("search", adminSearch);
+        params.set("role", "admin");
+        params.set("limit", PAGE_SIZE.toString());
+        params.set("offset", "0");
+
+        const response = await fetch(`/api/app/admin/users?${params.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.error || "Failed to load admin users");
+        }
+        const payload = await response.json();
+        if (isMounted) {
+          setAdminUsers(payload.users || []);
+        }
+      } catch {
+        if (isMounted) {
+          setError(tAdmin("loadError"));
+          setAdminUsers([]);
+        }
+      } finally {
+        if (isMounted) {
+          setAdminUserLoading(false);
+        }
+      }
+    };
+
+    loadAdminUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [adminReloadTick, adminSearch, tAdmin]);
+
+  useEffect(() => {
+    if (!addAdminDialogOpen) return;
+
+    let isMounted = true;
+    const loadCandidates = async () => {
+      setAddAdminCandidatesLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("role", "non_admin");
+        params.set("limit", "50");
+        params.set("offset", "0");
+        if (addAdminSearch.trim()) {
+          params.set("search", addAdminSearch.trim());
+        }
+
+        const response = await fetch(`/api/app/admin/users?${params.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.error || "Failed to load candidates");
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        if (!isMounted) return;
+        const candidates = payload?.users || [];
+        setAddAdminCandidates(candidates);
+        if (candidates.length === 0) {
+          setSelectedAddAdminUserId("");
+          return;
+        }
+        if (
+          candidates.length > 0 &&
+          !candidates.some((item: AdminUser) => item.id === selectedAddAdminUserId)
+        ) {
+          setSelectedAddAdminUserId(candidates[0].id);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setAddAdminCandidates([]);
+        setSelectedAddAdminUserId("");
+        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+      } finally {
+        if (isMounted) {
+          setAddAdminCandidatesLoading(false);
+        }
+      }
+    };
+
+    void loadCandidates();
+    return () => {
+      isMounted = false;
+    };
+  }, [addAdminDialogOpen, addAdminSearch, tAdmin]);
 
   useEffect(() => {
     let isMounted = true;
@@ -509,6 +637,14 @@ export default function AdminPage() {
             ? Math.max(0, Math.floor(Number(settingsPayload.surveyBasePoints)))
             : 1,
         );
+        setSignupInitialPointsDraft(
+          Number.isFinite(Number(settingsPayload?.signupInitialPoints))
+            ? Math.max(
+              0,
+              Math.floor(Number(settingsPayload.signupInitialPoints)),
+            )
+            : 0,
+        );
       } else {
         hasAnyLoadError = true;
       }
@@ -561,6 +697,14 @@ export default function AdminPage() {
       isActive: true,
     })) as MembershipTier[];
   }, [tiers, users]);
+  const activeTiers = useMemo(
+    () => tiers.filter((tier) => tier.isActive !== false),
+    [tiers],
+  );
+  const inactiveTiers = useMemo(
+    () => tiers.filter((tier) => tier.isActive === false),
+    [tiers],
+  );
 
   const applySurveyToEditor = (survey: Survey) => {
     setEditingSurvey(survey);
@@ -673,6 +817,7 @@ export default function AdminPage() {
       );
       applySurveyToEditor(payload);
       await loadSurveyVersions(payload.id);
+      notifyPointsBalanceChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : tAdmin("updateError"));
     } finally {
@@ -1047,15 +1192,33 @@ export default function AdminPage() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Update failed");
       }
-      setUsers((prev) =>
-        prev.map((item) =>
-          item.id === user.id
-            ? { ...item, isAdmin: nextValue || item.isSuperAdmin }
-            : item,
-        ),
-      );
+      setUserReloadTick((value) => value + 1);
+      setAdminReloadTick((value) => value + 1);
     } catch (err) {
-      setError(tAdmin("updateError"));
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setSavingUserId(null);
+    }
+  };
+
+  const toggleUserDisabled = async (user: AdminUser, nextValue: boolean) => {
+    if (!currentUser?.isSuperAdmin) return;
+    setSavingUserId(user.id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/app/admin/users/${user.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isDisabled: nextValue }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Update failed");
+      }
+      setUserReloadTick((value) => value + 1);
+      setAdminReloadTick((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
     } finally {
       setSavingUserId(null);
     }
@@ -1107,24 +1270,41 @@ export default function AdminPage() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Update failed");
       }
-      setUsers((prev) =>
-        prev.map((item) =>
-          item.id === user.id
-            ? {
-                ...item,
-                membershipTier: draft.membershipTier,
-                membershipIsPermanent: draft.membershipIsPermanent,
-                membershipPeriodEndAt: draft.membershipIsPermanent
-                  ? undefined
-                  : item.membershipPeriodEndAt,
-              }
-            : item,
-        ),
-      );
-    } catch {
-      setError(tAdmin("updateError"));
+      setUserReloadTick((value) => value + 1);
+      setAdminReloadTick((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
     } finally {
       setSavingUserId(null);
+    }
+  };
+
+  const promoteSelectedUserToAdmin = async () => {
+    if (!currentUser?.isSuperAdmin || !selectedAddAdminUserId) return;
+
+    setAddingAdmin(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/app/admin/users/${selectedAddAdminUserId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAdmin: true }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Failed to add admin");
+      }
+
+      setAddAdminDialogOpen(false);
+      setAddAdminSearch("");
+      setAddAdminCandidates([]);
+      setSelectedAddAdminUserId("");
+      setUserReloadTick((value) => value + 1);
+      setAdminReloadTick((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setAddingAdmin(false);
     }
   };
 
@@ -1207,18 +1387,77 @@ export default function AdminPage() {
     }
   };
 
+  const clearNewPlanFieldError = (key: string) => {
+    setNewPlanFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const createPlan = async () => {
+    const normalizedCode = newPlan.code.trim().toLowerCase();
+    const normalizedNameI18n = {
+      "zh-TW": newPlan.nameI18n["zh-TW"]?.trim() || "",
+      en: newPlan.nameI18n.en?.trim() || "",
+      ja: newPlan.nameI18n.ja?.trim() || "",
+    };
+    const normalizedDescriptionI18n = {
+      "zh-TW": newPlan.descriptionI18n["zh-TW"]?.trim() || "",
+      en: newPlan.descriptionI18n.en?.trim() || "",
+      ja: newPlan.descriptionI18n.ja?.trim() || "",
+    };
+    const normalizedPrice = Number(newPlan.priceCentsUsd);
+    const normalizedMonthlyPoints = Number(newPlan.monthlyPointsGrant);
+    const normalizedMaxActiveSurveys =
+      newPlan.maxActiveSurveys == null
+        ? null
+        : Math.max(0, Math.floor(Number(newPlan.maxActiveSurveys) || 0));
+
+    const nextFieldErrors: Record<string, string> = {};
+    if (!normalizedCode) nextFieldErrors.code = "Plan code is required";
+    if (!normalizedNameI18n["zh-TW"])
+      nextFieldErrors.nameZhTW = "Name (zh-TW) is required";
+    if (!normalizedNameI18n.en) nextFieldErrors.nameEn = "Name (en) is required";
+    if (!normalizedNameI18n.ja) nextFieldErrors.nameJa = "Name (ja) is required";
+    if (!normalizedDescriptionI18n["zh-TW"])
+      nextFieldErrors.descriptionZhTW = "Description (zh-TW) is required";
+    if (!normalizedDescriptionI18n.en)
+      nextFieldErrors.descriptionEn = "Description (en) is required";
+    if (!normalizedDescriptionI18n.ja)
+      nextFieldErrors.descriptionJa = "Description (ja) is required";
+    if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0)
+      nextFieldErrors.priceCentsUsd = "Price must be a non-negative number";
+    if (!Number.isFinite(normalizedMonthlyPoints) || normalizedMonthlyPoints < 0)
+      nextFieldErrors.monthlyPointsGrant =
+        "Monthly points must be a non-negative number";
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setNewPlanFieldErrors(nextFieldErrors);
+      return;
+    }
+
     setCreatingPlan(true);
     setError(null);
+    setNewPlanFieldErrors({});
     try {
       const response = await fetch("/api/app/admin/subscription-plans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPlan),
+        body: JSON.stringify({
+          ...newPlan,
+          code: normalizedCode,
+          nameI18n: normalizedNameI18n,
+          descriptionI18n: normalizedDescriptionI18n,
+          priceCentsUsd: Math.floor(normalizedPrice),
+          monthlyPointsGrant: Math.floor(normalizedMonthlyPoints),
+          maxActiveSurveys: normalizedMaxActiveSurveys,
+        }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Create failed");
+        throw new Error(payload?.error || payload?.message || "Create failed");
       }
       const payload = await response.json();
       setTiers((prev) => [...prev, payload]);
@@ -1234,8 +1473,8 @@ export default function AdminPage() {
         monthlyPointsGrant: 0,
         maxActiveSurveys: null,
       });
-    } catch {
-      setError(tAdmin("updateError"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
     } finally {
       setCreatingPlan(false);
     }
@@ -1249,10 +1488,14 @@ export default function AdminPage() {
         0,
         Math.floor(Number(surveyBasePointsDraft) || 0),
       );
+      const signupInitialPoints = Math.max(
+        0,
+        Math.floor(Number(signupInitialPointsDraft) || 0),
+      );
       const response = await fetch("/api/app/admin/system-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ surveyBasePoints }),
+        body: JSON.stringify({ surveyBasePoints, signupInitialPoints }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -1265,6 +1508,13 @@ export default function AdminPage() {
         );
       } else {
         setSurveyBasePointsDraft(surveyBasePoints);
+      }
+      if (Number.isFinite(Number(payload?.signupInitialPoints))) {
+        setSignupInitialPointsDraft(
+          Math.max(0, Math.floor(Number(payload.signupInitialPoints))),
+        );
+      } else {
+        setSignupInitialPointsDraft(signupInitialPoints);
       }
     } catch {
       setError(tAdmin("updateError"));
@@ -1407,9 +1657,13 @@ export default function AdminPage() {
     () => tAdmin("agentCount", { count: agentAccounts.length }),
     [agentAccounts.length, tAdmin],
   );
-  const adminCountLabel = useMemo(
+  const userCountLabel = useMemo(
     () => tAdmin("adminCount", { count: users.length }),
     [users.length, tAdmin],
+  );
+  const adminCountLabel = useMemo(
+    () => tAdmin("adminCount", { count: adminUsers.length }),
+    [adminUsers.length, tAdmin],
   );
   const policyWriterCountLabel = useMemo(
     () => tAdmin("policyWriterCount", { count: policyWriters.length }),
@@ -1425,7 +1679,7 @@ export default function AdminPage() {
   const availableAgentOwners = useMemo(() => {
     const ownerMap = new Map<string, { id: string; label: string }>();
 
-    for (const user of users) {
+    for (const user of adminUsers) {
       if (!user.isAdmin && !user.isSuperAdmin) continue;
       const primaryLabel = user.displayName || user.email || user.id;
       ownerMap.set(user.id, {
@@ -1458,7 +1712,7 @@ export default function AdminPage() {
         return 1;
       return left.label.localeCompare(right.label);
     });
-  }, [currentUser, users]);
+  }, [adminUsers, currentUser]);
   const availableAgentOwnerOptions = useMemo(() => {
     if (currentUser?.isSuperAdmin) {
       return [
@@ -1512,6 +1766,7 @@ export default function AdminPage() {
             <TabsTrigger value="surveys">{tAdmin("surveysTab")}</TabsTrigger>
             <TabsTrigger value="datasets">{tAdmin("datasetsTab")}</TabsTrigger>
             <TabsTrigger value="agents">{tAdmin("agentsTab")}</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="admins">{tAdmin("adminsTab")}</TabsTrigger>
             <TabsTrigger value="policies">{tAdmin("policiesTab")}</TabsTrigger>
           </TabsList>
@@ -1904,20 +2159,62 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="admins" className="mt-6">
+          <TabsContent value="users" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>{tAdmin("adminsTitle")}</CardTitle>
-                <CardDescription>{adminCountLabel}</CardDescription>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>{userCountLabel}</CardDescription>
+                <p className="text-xs text-gray-500">
+                  Manage all users, memberships, and account status.
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <Input
-                    placeholder={tAdmin("searchAdmins")}
-                    value={userSearch}
-                    onChange={(event) => setUserSearch(event.target.value)}
-                    className="md:max-w-sm"
-                  />
+                  <div className="flex flex-col gap-2 md:max-w-3xl md:flex-row md:items-center">
+                    <Input
+                      placeholder="Search users"
+                      value={userSearch}
+                      onChange={(event) => setUserSearch(event.target.value)}
+                      className="md:max-w-sm"
+                    />
+                    <select
+                      className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                      value={userRoleFilter}
+                      onChange={(event) => setUserRoleFilter(event.target.value)}
+                      data-testid="admin-user-role-filter"
+                    >
+                      <option value="all">{tAdmin("userRoleAll")}</option>
+                      <option value="admin">{tAdmin("userRoleAdmin")}</option>
+                      <option value="non_admin">
+                        {tAdmin("userRoleNonAdmin")}
+                      </option>
+                    </select>
+                    <select
+                      className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                      value={userTierFilter}
+                      onChange={(event) => setUserTierFilter(event.target.value)}
+                      data-testid="admin-user-tier-filter"
+                    >
+                      <option value="all">{tAdmin("membershipAll")}</option>
+                      {membershipTierOptions.map((tier) => (
+                        <option key={`filter-${tier.code}`} value={tier.code}>
+                          {tier.code}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                      value={userDisabledFilter}
+                      onChange={(event) =>
+                        setUserDisabledFilter(event.target.value)
+                      }
+                      data-testid="admin-user-disabled-filter"
+                    >
+                      <option value="all">{tAdmin("userDisabledAll")}</option>
+                      <option value="false">{tAdmin("userEnabledOnly")}</option>
+                      <option value="true">{tAdmin("userDisabledOnly")}</option>
+                    </select>
+                  </div>
                   {!currentUser?.isSuperAdmin && (
                     <div className="text-xs text-gray-500">
                       {tAdmin("superAdminOnlyHint")}
@@ -1931,7 +2228,7 @@ export default function AdminPage() {
                   </div>
                 ) : users.length === 0 ? (
                   <div className="text-sm text-gray-500">
-                    {tAdmin("noAdmins")}
+                    No users found
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1958,6 +2255,11 @@ export default function AdminPage() {
                                     {tAdmin("admin")}
                                   </Badge>
                                 )}
+                                {user.isDisabled ? (
+                                  <Badge variant="destructive">
+                                    {tAdmin("userDisabled")}
+                                  </Badge>
+                                ) : null}
                               </div>
                               <p className="text-sm text-gray-500">
                                 {user.email}
@@ -2070,10 +2372,108 @@ export default function AdminPage() {
                                 </Button>
                               </div>
                               <span className="text-xs text-gray-500">
+                                {tAdmin("userDisableToggleLabel")}
+                              </span>
+                              <Switch
+                                checked={Boolean(user.isDisabled)}
+                                onCheckedChange={(checked) =>
+                                  toggleUserDisabled(user, checked)
+                                }
+                                aria-label={tAdmin("userDisableToggleLabel")}
+                                data-testid={`admin-user-disabled-${user.id}`}
+                                disabled={
+                                  !currentUser?.isSuperAdmin ||
+                                  user.isSuperAdmin ||
+                                  savingUserId === user.id
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="admins" className="mt-6">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle>{tAdmin("adminsTitle")}</CardTitle>
+                    <CardDescription>{adminCountLabel}</CardDescription>
+                    <p className="text-xs text-gray-500">
+                      {tAdmin("addAdminExistingUsersHint")}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setAddAdminSearch("");
+                      setAddAdminCandidates([]);
+                      setSelectedAddAdminUserId("");
+                      setAddAdminDialogOpen(true);
+                    }}
+                    disabled={!currentUser?.isSuperAdmin}
+                    data-testid="admin-add-button"
+                  >
+                    Add Admin
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  placeholder={tAdmin("searchAdmins")}
+                  value={adminSearch}
+                  onChange={(event) => setAdminSearch(event.target.value)}
+                  className="md:max-w-sm"
+                />
+
+                {adminUserLoading ? (
+                  <div className="text-sm text-gray-500">
+                    {tCommon("loading")}
+                  </div>
+                ) : adminUsers.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    {tAdmin("noAdmins")}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {adminUsers.map((user) => {
+                      const label = user.displayName || user.email || user.id;
+                      return (
+                        <div
+                          key={user.id}
+                          className="flex flex-col gap-3 border border-gray-100 dark:border-gray-800 rounded-lg p-4 bg-white/70 dark:bg-gray-900/70"
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {label}
+                                </h3>
+                                {user.isSuperAdmin ? (
+                                  <Badge className="bg-purple-100 text-purple-700">
+                                    {tAdmin("superAdmin")}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">
+                                    {tAdmin("admin")}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500">
+                                {user.email}
+                              </p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <span className="text-xs text-gray-500">
                                 {tAdmin("adminToggleLabel")}
                               </span>
                               <Switch
-                                checked={user.isAdmin}
+                                checked={user.isAdmin || user.isSuperAdmin}
                                 onCheckedChange={(checked) =>
                                   toggleAdmin(user, checked)
                                 }
@@ -2094,6 +2494,73 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Dialog
+              open={addAdminDialogOpen}
+              onOpenChange={(open) => {
+                setAddAdminDialogOpen(open);
+                if (!open) {
+                  setAddAdminSearch("");
+                  setAddAdminCandidates([]);
+                  setSelectedAddAdminUserId("");
+                }
+              }}
+            >
+              <DialogContent data-testid="admin-add-modal">
+                <DialogHeader>
+                  <DialogTitle>Add Admin</DialogTitle>
+                  <DialogDescription>
+                    Promote an existing non-admin user to admin.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Search users"
+                    value={addAdminSearch}
+                    onChange={(event) => setAddAdminSearch(event.target.value)}
+                    data-testid="admin-add-search"
+                  />
+                  <select
+                    className="w-full border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                    value={selectedAddAdminUserId}
+                    onChange={(event) =>
+                      setSelectedAddAdminUserId(event.target.value)
+                    }
+                    data-testid="admin-add-select"
+                  >
+                    {addAdminCandidates.map((candidate) => {
+                      const label =
+                        candidate.displayName || candidate.email || candidate.id;
+                      return (
+                        <option key={candidate.id} value={candidate.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {addAdminCandidatesLoading ? (
+                    <p className="text-xs text-gray-500">Loading users...</p>
+                  ) : null}
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setAddAdminDialogOpen(false)}
+                  >
+                    {tCommon("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={promoteSelectedUserToAdmin}
+                    disabled={addingAdmin || !selectedAddAdminUserId}
+                    data-testid="admin-add-confirm"
+                  >
+                    {addingAdmin ? tCommon("saving") : "Add"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="policies" className="mt-6">
@@ -2137,6 +2604,28 @@ export default function AdminPage() {
                         }
                       />
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">
+                        {tAdmin("signupInitialPoints")}
+                      </Label>
+                      <Input
+                        className="w-40"
+                        type="number"
+                        min={0}
+                        value={signupInitialPointsDraft}
+                        onChange={(event) =>
+                          setSignupInitialPointsDraft(
+                            Math.max(0, Number(event.target.value) || 0),
+                          )
+                        }
+                        disabled={
+                          !canWritePolicies ||
+                          systemSettingsLoading ||
+                          savingSystemSettings
+                        }
+                        data-testid="admin-signup-initial-points"
+                      />
+                    </div>
                     <Button
                       onClick={saveSystemSettings}
                       disabled={
@@ -2153,6 +2642,9 @@ export default function AdminPage() {
                   <p className="text-xs text-gray-500">
                     Base points awarded to authenticated respondents when
                     completing a survey.
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {tAdmin("signupInitialPointsHint")}
                   </p>
                 </div>
 
@@ -2225,7 +2717,7 @@ export default function AdminPage() {
                 <div className="space-y-3">
                   <div className="text-sm font-medium">Subscription Plans</div>
                   <div className="grid grid-cols-1 gap-3">
-                    {tiers.map((tier) => (
+                    {activeTiers.map((tier) => (
                       <div
                         key={tier.id}
                         className="border border-gray-100 dark:border-gray-800 rounded-lg p-3 space-y-3"
@@ -2652,6 +3144,39 @@ export default function AdminPage() {
                       </div>
                     ))}
                   </div>
+                  {inactiveTiers.length > 0 ? (
+                    <details
+                      className="rounded-lg border border-gray-100 bg-white/70 p-3 dark:border-gray-800 dark:bg-gray-900/70"
+                      data-testid="admin-inactive-plans-collapsible"
+                    >
+                      <summary className="cursor-pointer text-sm font-medium">
+                        {tAdmin("inactivePlansTitle", {
+                          count: inactiveTiers.length,
+                        })}
+                      </summary>
+                      <div className="mt-3 space-y-2">
+                        {inactiveTiers.map((tier) => (
+                          <div
+                            key={`inactive-${tier.id}`}
+                            className="rounded-md border border-gray-100 px-3 py-2 text-sm dark:border-gray-800"
+                            data-testid={`admin-inactive-plan-${tier.code}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{tier.code}</span>
+                              <Badge variant="secondary">{tAdmin("inactive")}</Badge>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              {tier.replacementTierCode
+                                ? tAdmin("inactivePlanReplacement", {
+                                  code: tier.replacementTierCode,
+                                })
+                                : tAdmin("inactivePlanNoReplacement")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
 
                   <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
                     <div className="text-sm font-medium">New Plan</div>
@@ -2662,15 +3187,21 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.code}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("code");
                             setNewPlan((prev) => ({
                               ...prev,
                               code: event.target.value,
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="code"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.code ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.code}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2679,15 +3210,21 @@ export default function AdminPage() {
                         <Input
                           type="number"
                           value={newPlan.priceCentsUsd}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("priceCentsUsd");
                             setNewPlan((prev) => ({
                               ...prev,
                               priceCentsUsd: Number(event.target.value),
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="price cents usd"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.priceCentsUsd ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.priceCentsUsd}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2696,15 +3233,21 @@ export default function AdminPage() {
                         <Input
                           type="number"
                           value={newPlan.monthlyPointsGrant}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("monthlyPointsGrant");
                             setNewPlan((prev) => ({
                               ...prev,
                               monthlyPointsGrant: Number(event.target.value),
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="monthly points"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.monthlyPointsGrant ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.monthlyPointsGrant}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2762,18 +3305,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.nameI18n["zh-TW"]}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("nameZhTW");
                             setNewPlan((prev) => ({
                               ...prev,
                               nameI18n: {
                                 ...prev.nameI18n,
                                 "zh-TW": event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="name zh-TW"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.nameZhTW ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.nameZhTW}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2781,18 +3330,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.nameI18n.en}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("nameEn");
                             setNewPlan((prev) => ({
                               ...prev,
                               nameI18n: {
                                 ...prev.nameI18n,
                                 en: event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="name en"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.nameEn ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.nameEn}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2800,18 +3355,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.nameI18n.ja}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("nameJa");
                             setNewPlan((prev) => ({
                               ...prev,
                               nameI18n: {
                                 ...prev.nameI18n,
                                 ja: event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="name ja"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.nameJa ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.nameJa}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -2821,18 +3382,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n["zh-TW"]}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("descriptionZhTW");
                             setNewPlan((prev) => ({
                               ...prev,
                               descriptionI18n: {
                                 ...prev.descriptionI18n,
                                 "zh-TW": event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="description zh-TW"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.descriptionZhTW ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.descriptionZhTW}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2840,18 +3407,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n.en}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("descriptionEn");
                             setNewPlan((prev) => ({
                               ...prev,
                               descriptionI18n: {
                                 ...prev.descriptionI18n,
                                 en: event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="description en"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.descriptionEn ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.descriptionEn}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
@@ -2859,18 +3432,24 @@ export default function AdminPage() {
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n.ja}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            clearNewPlanFieldError("descriptionJa");
                             setNewPlan((prev) => ({
                               ...prev,
                               descriptionI18n: {
                                 ...prev.descriptionI18n,
                                 ja: event.target.value,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           placeholder="description ja"
                           disabled={!canWritePolicies}
                         />
+                        {newPlanFieldErrors.descriptionJa ? (
+                          <p className="text-xs text-red-600">
+                            {newPlanFieldErrors.descriptionJa}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   </div>

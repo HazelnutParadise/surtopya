@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { Navbar } from "@/components/navbar"
+import { pointsBalanceChangedEvent } from "@/lib/points-balance-events"
 
 const mocks = vi.hoisted(() => ({
   pathname: "/en/explore",
@@ -145,5 +146,43 @@ describe("Navbar points modal", () => {
     expect(await screen.findByTestId("navbar-points-modal-no-grant")).toHaveTextContent(
       "Your current membership does not include a monthly points grant."
     )
+  })
+
+  it("refreshes points immediately when points changed event is dispatched", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            buildProfile({
+              pointsBalance: 100,
+            })
+          ),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            buildProfile({
+              pointsBalance: 250,
+            })
+          ),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<Navbar />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("navbar-points-desktop")).toHaveTextContent("100")
+    })
+    window.dispatchEvent(new CustomEvent(pointsBalanceChangedEvent))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("navbar-points-desktop")).toHaveTextContent("250")
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

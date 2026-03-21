@@ -43,6 +43,7 @@ import {
 } from "@/components/survey/survey-responses-export-menu";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import {
   Dialog,
@@ -416,6 +417,7 @@ export default function SurveyManagementPage() {
       }
       setSurvey(mapApiSurveyToUi(payload));
       void loadSurveyVersions()
+      notifyPointsBalanceChanged();
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "publish_version",

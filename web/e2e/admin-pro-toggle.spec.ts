@@ -6,7 +6,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
   let patchCalls = 0
   let lastPatchBody: Record<string, unknown> | null = null
 
-  await page.route("**/api/me*", async (route) => {
+  await page.route("**/api/app/me*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -26,7 +26,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/surveys?*", async (route) => {
+  await page.route("**/api/app/admin/surveys?*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -34,7 +34,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/datasets?*", async (route) => {
+  await page.route("**/api/app/admin/datasets?*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -42,7 +42,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/users?*", async (route) => {
+  await page.route("**/api/app/admin/users?*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -64,7 +64,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/policies", async (route) => {
+  await page.route("**/api/app/admin/policies", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -90,7 +90,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/policy-writers", async (route) => {
+  await page.route("**/api/app/admin/policy-writers", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -101,7 +101,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
   })
 
   // Keep this endpoint failing to verify partial-fallback behavior.
-  await page.route("**/api/admin/system-settings", async (route) => {
+  await page.route("**/api/app/admin/system-settings", async (route) => {
     await route.fulfill({
       status: 500,
       contentType: "application/json",
@@ -109,7 +109,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     })
   })
 
-  await page.route("**/api/admin/users/u-1", async (route) => {
+  await page.route("**/api/app/admin/users/u-1", async (route) => {
     const req = route.request()
     if (req.method() !== "PATCH") {
       await route.fallback()
@@ -126,7 +126,7 @@ test("admin can switch membership tier to pro (mocked API)", async ({
 
   await page.goto("/en/admin")
 
-  await page.getByRole("tab", { name: "Admins" }).click()
+  await page.getByRole("tab", { name: "Users" }).click()
   await expect(page.getByText("User One")).toBeVisible()
 
   await page.getByTestId("admin-tier-pro-u-1").click()
@@ -137,5 +137,6 @@ test("admin can switch membership tier to pro (mocked API)", async ({
     membershipTier: "pro",
     membershipIsPermanent: true,
     membershipPeriodEndAt: "",
+    timeZone: "Asia/Taipei",
   })
 })

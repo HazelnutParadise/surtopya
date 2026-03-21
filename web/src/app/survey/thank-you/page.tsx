@@ -15,6 +15,7 @@ import {
   type AnonymousClaimContext,
 } from "@/lib/anonymous-claim";
 import type { UserProfile } from "@/lib/api";
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 
 const alreadySubmittedCode = "ALREADY_SUBMITTED"
 
@@ -122,6 +123,7 @@ export default function ThankYouPage() {
       )
       clearClaim(claimContext.responseId)
       setClaimResult("claimed")
+      notifyPointsBalanceChanged()
     } catch (error) {
       setClaimError(error instanceof Error ? error.message : t("claimError"))
     } finally {
@@ -147,6 +149,7 @@ export default function ThankYouPage() {
 
       clearClaim(claimContext.responseId)
       setClaimResult("forfeited")
+      notifyPointsBalanceChanged()
     } catch (error) {
       setClaimError(error instanceof Error ? error.message : t("forfeitError"))
     } finally {

@@ -22,6 +22,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import type { UserProfile } from "@/lib/api";
+import { subscribePointsBalanceChanged } from "@/lib/points-balance-events";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -125,6 +126,12 @@ export function Navbar() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
+  }, [refreshProfile]);
+
+  useEffect(() => {
+    return subscribePointsBalanceChanged(() => {
+      void refreshProfile({ background: true });
+    });
   }, [refreshProfile]);
 
   const isAuthenticated = !!user;

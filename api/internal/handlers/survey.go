@@ -652,6 +652,17 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
 		return
 	}
+	publishedPointsReward := survey.PointsReward
+	if survey.PublishedCount > 0 {
+		currentVersion, err := h.repo.GetCurrentPublishedVersion(survey.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get published survey version"})
+			return
+		}
+		if currentVersion != nil {
+			publishedPointsReward = currentVersion.PointsReward
+		}
+	}
 
 	canPublish, err := h.canPublishUnderPlanLimit(c.Request.Context(), survey.UserID, survey.ID)
 	if err != nil {
@@ -689,7 +700,7 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
-		if desiredPointsReward < survey.PointsReward {
+		if desiredPointsReward < publishedPointsReward {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
 			return
 		}
@@ -698,8 +709,8 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	boostTopUp := 0
 	if survey.PublishedCount == 0 {
 		boostTopUp = desiredPointsReward
-	} else if desiredPointsReward > survey.PointsReward {
-		boostTopUp = desiredPointsReward - survey.PointsReward
+	} else if desiredPointsReward > publishedPointsReward {
+		boostTopUp = desiredPointsReward - publishedPointsReward
 	}
 
 	tx, err := h.db.Begin()

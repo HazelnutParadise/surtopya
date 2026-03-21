@@ -3,8 +3,11 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +19,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+const signupInitialPointsSettingKey = "signup_initial_points"
+
+var errUserDisabled = errors.New("user is disabled")
 
 // AuthMiddleware validates JWT tokens from Logto
 func AuthMiddleware() gin.HandlerFunc {
@@ -60,6 +67,11 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Get or create user in our database
 		userID, err := getOrCreateUser(logtoUserID, claims)
 		if err != nil {
+			if errors.Is(err, errUserDisabled) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "User is disabled"})
+				c.Abort()
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
 			c.Abort()
 			return
@@ -105,12 +117,17 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 
 	// Try to find existing user
 	var userID uuid.UUID
+	var isDisabled bool
 	err := db.QueryRow(
-		"SELECT id FROM users WHERE logto_user_id = $1",
+		"SELECT id, COALESCE(is_disabled, false) FROM users WHERE logto_user_id = $1",
 		logtoUserID,
-	).Scan(&userID)
+	).Scan(&userID, &isDisabled)
 
 	if err == nil {
+		if isDisabled {
+			return uuid.Nil, errUserDisabled
+		}
+
 		email := getClaimString(claims, "email")
 		name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
 		picture := getClaimString(claims, "picture", "avatar")
@@ -145,6 +162,9 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	}
 
 	if err := policy.NewService(db).EnsureUserMembership(context.Background(), userID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := maybeGrantSignupInitialPoints(db, userID); err != nil {
 		return uuid.Nil, err
 	}
 
@@ -190,6 +210,67 @@ func maybeGrantMembershipMonthlyPoints(userID uuid.UUID) {
 		return
 	}
 	committed = true
+}
+
+func maybeGrantSignupInitialPoints(db *sql.DB, userID uuid.UUID) error {
+	initialPoints, err := loadSignupInitialPoints(db)
+	if err != nil {
+		return err
+	}
+	if initialPoints <= 0 {
+		return nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, err := tx.Exec(
+		"UPDATE users SET points_balance = points_balance + $2 WHERE id = $1",
+		userID, initialPoints,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO points_transactions (id, user_id, amount, type, description)
+		 VALUES ($1, $2, $3, 'admin_grant', $4)`,
+		uuid.New(), userID, initialPoints, "Signup initial points",
+	); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
+func loadSignupInitialPoints(db *sql.DB) (int, error) {
+	var raw string
+	if err := db.QueryRow(
+		"SELECT value FROM system_settings WHERE key = $1",
+		signupInitialPointsSettingKey,
+	).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("load signup initial points: %w", err)
+	}
+
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value < 0 {
+		return 0, nil
+	}
+	return value, nil
 }
 
 // CORSMiddleware handles CORS headers

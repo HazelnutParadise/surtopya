@@ -611,6 +611,7 @@ export interface AdminUser {
   membershipIsPermanent?: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isDisabled?: boolean;
   createdAt: string;
 }
 

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { useTimeZone, useTranslations } from "next-intl";
 import { localDatetimeToUtcISOString, utcToDatetimeLocal } from "@/lib/date-time";
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 
 // Simple ID generator if nanoid causes issues or for simplicity
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -862,6 +863,7 @@ export function SurveyBuilder() {
       setIsDirty(false);
       setPublishSettingsOpen(false);
       setPublishError(null);
+      notifyPointsBalanceChanged();
     } catch (error) {
       console.error("Failed to publish survey:", error);
       setPublishError(error instanceof Error ? error.message : tBuilder("publishErrorGeneric"));
