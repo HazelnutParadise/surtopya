@@ -371,10 +371,10 @@ func (s *Service) DeactivateSubscriptionPlan(ctx context.Context, actorUserID uu
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE membership_tiers
 			SET is_active = FALSE,
-				replacement_tier_id = NULL,
+				replacement_tier_id = $2,
 				updated_at = NOW()
 			WHERE id = $1
-		`, id); err != nil {
+		`, id, replacementID); err != nil {
 			return SubscriptionPlan{}, 0, fmt.Errorf("failed to deactivate subscription plan: %w", err)
 		}
 	} else {

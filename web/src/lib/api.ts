@@ -606,6 +606,7 @@ export interface AdminUser {
   id: string;
   email?: string;
   displayName?: string;
+  pointsBalance?: number;
   membershipTier: string;
   membershipPeriodEndAt?: string;
   membershipIsPermanent?: boolean;

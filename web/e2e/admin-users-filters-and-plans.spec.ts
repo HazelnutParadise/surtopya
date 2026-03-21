@@ -210,7 +210,6 @@ test("inactive subscription plans are grouped under collapsible section", async 
             code: "legacy",
             name: "Legacy",
             isActive: false,
-            replacementTierCode: "free",
           },
         ],
         capabilities: [
@@ -253,6 +252,7 @@ test("inactive subscription plans are grouped under collapsible section", async 
 
   await collapsible.locator("summary").click()
   await expect(page.getByTestId("admin-inactive-plan-legacy")).toBeVisible()
+  await expect(page.getByText("Replacement on expiry: free")).toBeVisible()
 })
 
 test("admin tab add button opens modal and promotes non-admin user", async ({
@@ -494,4 +494,174 @@ test("new plan validation blocks empty payload before POST", async ({ page }) =>
 
   await expect.poll(() => createPlanCalls).toBe(0)
   await expect(page.getByText("Plan code is required")).toBeVisible()
+})
+
+test("points tool retries with selected underflow strategy and refreshes navbar profile", async ({
+  page,
+}) => {
+  let meCalls = 0
+  let pointsAdjustCalls = 0
+  const requestBodies: Array<Record<string, unknown>> = []
+
+  await page.route("**/api/app/me*", async (route) => {
+    meCalls += 1
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "me",
+        email: "me@example.com",
+        displayName: "Super Admin",
+        pointsBalance: meCalls === 1 ? 100 : 95,
+        membershipTier: "free",
+        capabilities: {},
+        isAdmin: true,
+        isSuperAdmin: true,
+        locale: "en",
+        createdAt: new Date().toISOString(),
+        surveysCompleted: 0,
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/surveys?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ surveys: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/datasets?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ datasets: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/agents?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ accounts: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/policies", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tiers: [{ id: "t-free", code: "free", name: "Free", isActive: true }],
+        capabilities: [],
+        matrix: [],
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/policy-writers", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ users: [] }),
+    })
+  })
+  await page.route("**/api/app/admin/system-settings", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ surveyBasePoints: 1, signupInitialPoints: 0 }),
+    })
+  })
+  await page.route("**/api/app/admin/users?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        users: [
+          {
+            id: "u-1",
+            email: "user1@example.com",
+            displayName: "User One",
+            pointsBalance: 2,
+            membershipTier: "free",
+            membershipIsPermanent: true,
+            isAdmin: false,
+            isSuperAdmin: false,
+            isDisabled: false,
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "u-2",
+            email: "user2@example.com",
+            displayName: "User Two",
+            pointsBalance: 20,
+            membershipTier: "pro",
+            membershipIsPermanent: true,
+            isAdmin: false,
+            isSuperAdmin: false,
+            isDisabled: false,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        meta: { limit: 100, offset: 0 },
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/users/points-adjust", async (route) => {
+    pointsAdjustCalls += 1
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    requestBodies.push(body)
+    if (pointsAdjustCalls === 1) {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "Insufficient points for one or more users",
+          insufficientUsers: [
+            { userId: "u-1", pointsBalance: 2, requiredDeduction: 5 },
+          ],
+          strategies: ["reject_all", "skip_insufficient", "floor_zero"],
+        }),
+      })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        message: "Points adjusted",
+        summary: {
+          requestedUsers: 2,
+          adjustedUsers: 2,
+          skippedUsers: 0,
+          delta: -5,
+          underflowStrategy: "floor_zero",
+        },
+      }),
+    })
+  })
+
+  await page.goto("/en/admin")
+  await page.getByRole("tab", { name: "Users" }).click()
+  await page.getByRole("button", { name: "Points Tool" }).click()
+  await page.getByTestId("points-tool-select-all").click()
+  await page.getByTestId("points-tool-delta").fill("-5")
+  await page.getByTestId("points-tool-reason").fill("batch adjustment")
+  await page.getByTestId("points-tool-apply").click()
+
+  await expect(page.getByTestId("points-tool-insufficient-dialog")).toBeVisible()
+  await expect.poll(() => pointsAdjustCalls).toBe(1)
+
+  await page.getByTestId("points-tool-strategy-floor").click()
+  await expect.poll(() => pointsAdjustCalls).toBe(2)
+  expect(requestBodies[0]).toMatchObject({
+    userIds: ["u-1", "u-2"],
+    delta: -5,
+    reason: "batch adjustment",
+  })
+  expect(requestBodies[1]).toMatchObject({
+    userIds: ["u-1", "u-2"],
+    delta: -5,
+    reason: "batch adjustment",
+    underflowStrategy: "floor_zero",
+  })
+  await expect.poll(() => meCalls).toBeGreaterThan(1)
 })

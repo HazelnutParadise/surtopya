@@ -19,6 +19,7 @@ import (
 	"github.com/TimLai666/surtopya-api/internal/timeutil"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // AdminHandler handles admin management endpoints.
@@ -76,6 +77,7 @@ type AdminUser struct {
 	ID                    uuid.UUID  `json:"id"`
 	Email                 *string    `json:"email,omitempty"`
 	DisplayName           *string    `json:"displayName,omitempty"`
+	PointsBalance         int        `json:"pointsBalance"`
 	MembershipTier        string     `json:"membershipTier"`
 	MembershipPeriodEndAt *time.Time `json:"membershipPeriodEndAt,omitempty"`
 	MembershipIsPermanent bool       `json:"membershipIsPermanent"`
@@ -92,6 +94,25 @@ type AdminUserUpdateRequest struct {
 	MembershipPeriodEndAt *string `json:"membershipPeriodEndAt"`
 	MembershipIsPermanent *bool   `json:"membershipIsPermanent"`
 	TimeZone              *string `json:"timeZone"`
+}
+
+const (
+	pointsAdjustStrategyRejectAll        = "reject_all"
+	pointsAdjustStrategySkipInsufficient = "skip_insufficient"
+	pointsAdjustStrategyFloorZero        = "floor_zero"
+)
+
+type AdminUsersPointsAdjustRequest struct {
+	UserIDs           []string `json:"userIds"`
+	Delta             int      `json:"delta"`
+	Reason            string   `json:"reason"`
+	UnderflowStrategy string   `json:"underflowStrategy"`
+}
+
+type AdminUsersPointsAdjustInsufficient struct {
+	UserID            string `json:"userId"`
+	PointsBalance     int    `json:"pointsBalance"`
+	RequiredDeduction int    `json:"requiredDeduction"`
 }
 
 type AdminPolicyUpdateRequest struct {
@@ -665,6 +686,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 			u.id,
 			u.email,
 			u.display_name,
+			u.points_balance,
 			COALESCE(mt.code, 'free') AS membership_tier,
 			um.period_end_at,
 			COALESCE(um.is_permanent, true) AS membership_is_permanent,
@@ -720,7 +742,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	var users []AdminUser
 	for rows.Next() {
 		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.IsDisabled, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.PointsBalance, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.IsDisabled, &user.CreatedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
 			return
 		}
@@ -856,6 +878,218 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "User updated"})
+}
+
+func normalizePointsAdjustUnderflowStrategy(raw string) (string, bool) {
+	normalized := strings.TrimSpace(strings.ToLower(raw))
+	if normalized == "" {
+		return pointsAdjustStrategyRejectAll, true
+	}
+	switch normalized {
+	case pointsAdjustStrategyRejectAll, pointsAdjustStrategySkipInsufficient, pointsAdjustStrategyFloorZero:
+		return normalized, true
+	default:
+		return "", false
+	}
+}
+
+func buildPointsAdjustInsufficientPayload(items []AdminUsersPointsAdjustInsufficient) []AdminUsersPointsAdjustInsufficient {
+	if len(items) == 0 {
+		return []AdminUsersPointsAdjustInsufficient{}
+	}
+	out := make([]AdminUsersPointsAdjustInsufficient, len(items))
+	copy(out, items)
+	return out
+}
+
+// AdjustUsersPoints handles POST /api/v1/admin/users/points-adjust
+func (h *AdminHandler) AdjustUsersPoints(c *gin.Context) {
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	var req AdminUsersPointsAdjustRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	if len(req.UserIDs) == 0 || req.Delta == 0 || strings.TrimSpace(req.Reason) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid points adjust payload"})
+		return
+	}
+
+	underflowStrategy, ok := normalizePointsAdjustUnderflowStrategy(req.UnderflowStrategy)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid underflowStrategy"})
+		return
+	}
+
+	seen := make(map[uuid.UUID]struct{}, len(req.UserIDs))
+	targetUserIDs := make([]uuid.UUID, 0, len(req.UserIDs))
+	targetUserIDStrings := make([]string, 0, len(req.UserIDs))
+	for _, rawID := range req.UserIDs {
+		id, err := uuid.Parse(strings.TrimSpace(rawID))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userIds"})
+			return
+		}
+		if _, alreadyExists := seen[id]; alreadyExists {
+			continue
+		}
+		seen[id] = struct{}{}
+		targetUserIDs = append(targetUserIDs, id)
+		targetUserIDStrings = append(targetUserIDStrings, id.String())
+	}
+	if len(targetUserIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid userIds"})
+		return
+	}
+
+	tx, err := database.GetDB().BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	rows, err := tx.QueryContext(c.Request.Context(), `
+		SELECT id, points_balance
+		FROM users
+		WHERE id = ANY($1::uuid[])
+		FOR UPDATE
+	`, pq.Array(targetUserIDStrings))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load target users"})
+		return
+	}
+	defer rows.Close()
+
+	balances := make(map[uuid.UUID]int, len(targetUserIDs))
+	for rows.Next() {
+		var id uuid.UUID
+		var pointsBalance int
+		if err := rows.Scan(&id, &pointsBalance); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load target users"})
+			return
+		}
+		balances[id] = pointsBalance
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load target users"})
+		return
+	}
+	if len(balances) != len(targetUserIDs) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Some users were not found"})
+		return
+	}
+
+	requiredDeduction := 0
+	if req.Delta < 0 {
+		requiredDeduction = -req.Delta
+	}
+
+	insufficient := []AdminUsersPointsAdjustInsufficient{}
+	if requiredDeduction > 0 {
+		for _, userID := range targetUserIDs {
+			balance := balances[userID]
+			if balance < requiredDeduction {
+				insufficient = append(insufficient, AdminUsersPointsAdjustInsufficient{
+					UserID:            userID.String(),
+					PointsBalance:     balance,
+					RequiredDeduction: requiredDeduction,
+				})
+			}
+		}
+	}
+
+	if len(insufficient) > 0 && underflowStrategy == pointsAdjustStrategyRejectAll {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "Insufficient points for one or more users",
+			"insufficientUsers": buildPointsAdjustInsufficientPayload(insufficient),
+			"strategies": []string{
+				pointsAdjustStrategyRejectAll,
+				pointsAdjustStrategySkipInsufficient,
+				pointsAdjustStrategyFloorZero,
+			},
+		})
+		return
+	}
+
+	description := fmt.Sprintf(
+		"Admin points adjustment by %s: %s",
+		currentUserID.(uuid.UUID).String(),
+		strings.TrimSpace(req.Reason),
+	)
+	adjustedUsers := 0
+	skippedUsers := 0
+	for _, userID := range targetUserIDs {
+		appliedDelta := req.Delta
+		currentBalance := balances[userID]
+
+		if requiredDeduction > 0 {
+			switch underflowStrategy {
+			case pointsAdjustStrategySkipInsufficient:
+				if currentBalance < requiredDeduction {
+					skippedUsers++
+					continue
+				}
+			case pointsAdjustStrategyFloorZero:
+				if currentBalance <= 0 {
+					skippedUsers++
+					continue
+				}
+				if currentBalance < requiredDeduction {
+					appliedDelta = -currentBalance
+				}
+			}
+		}
+
+		if _, err := tx.ExecContext(
+			c.Request.Context(),
+			"UPDATE users SET points_balance = points_balance + $2 WHERE id = $1",
+			userID,
+			appliedDelta,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to adjust points"})
+			return
+		}
+
+		if _, err := tx.ExecContext(c.Request.Context(), `
+			INSERT INTO points_transactions (id, user_id, amount, type, description)
+			VALUES ($1, $2, $3, 'admin_grant', $4)
+		`, uuid.New(), userID, appliedDelta, description); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to adjust points"})
+			return
+		}
+
+		adjustedUsers++
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to adjust points"})
+		return
+	}
+	committed = true
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Points adjusted",
+		"summary": gin.H{
+			"requestedUsers":    len(targetUserIDs),
+			"adjustedUsers":     adjustedUsers,
+			"skippedUsers":      skippedUsers,
+			"delta":             req.Delta,
+			"underflowStrategy": underflowStrategy,
+		},
+		"insufficientUsers": buildPointsAdjustInsufficientPayload(insufficient),
+	})
 }
 
 // GetPolicies handles GET /api/v1/admin/policies

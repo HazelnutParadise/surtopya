@@ -124,6 +124,7 @@ func setupRouter(options setupOptions) *gin.Engine {
 					admin.PATCH("/datasets/:id", adminHandler.UpdateDataset)
 					admin.DELETE("/datasets/:id", adminHandler.DeleteDataset)
 					admin.GET("/users", adminHandler.GetUsers)
+					admin.POST("/users/points-adjust", adminHandler.AdjustUsersPoints)
 					admin.PATCH("/users/:id", adminHandler.UpdateUser)
 					admin.GET("/subscription-plans", adminHandler.GetSubscriptionPlans)
 					admin.POST("/subscription-plans", adminHandler.CreateSubscriptionPlan)

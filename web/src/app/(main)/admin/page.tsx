@@ -79,6 +79,23 @@ const AGENT_PERMISSION_DESCRIPTION_KEYS: Record<
   "agents.write": "agentPermissionAgentsWrite",
 };
 
+type PointsUnderflowStrategy =
+  | "reject_all"
+  | "skip_insufficient"
+  | "floor_zero";
+
+type PointsAdjustInsufficientUser = {
+  userId: string;
+  pointsBalance: number;
+  requiredDeduction: number;
+};
+
+type PendingPointsAdjustRequest = {
+  userIds: string[];
+  delta: number;
+  reason: string;
+};
+
 export default function AdminPage() {
   const tAdmin = useTranslations("Admin");
   const tCommon = useTranslations("Common");
@@ -105,7 +122,28 @@ export default function AdminPage() {
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userTierFilter, setUserTierFilter] = useState("all");
   const [userDisabledFilter, setUserDisabledFilter] = useState("all");
+  const [usersSubTab, setUsersSubTab] = useState<"management" | "points_tool">(
+    "management",
+  );
   const [userReloadTick, setUserReloadTick] = useState(0);
+  const [pointsToolSearch, setPointsToolSearch] = useState("");
+  const [pointsToolTierFilter, setPointsToolTierFilter] = useState("all");
+  const [pointsToolDisabledFilter, setPointsToolDisabledFilter] = useState("all");
+  const [pointsToolUsers, setPointsToolUsers] = useState<AdminUser[]>([]);
+  const [pointsToolLoading, setPointsToolLoading] = useState(true);
+  const [pointsToolReloadTick, setPointsToolReloadTick] = useState(0);
+  const [selectedPointsUserIds, setSelectedPointsUserIds] = useState<string[]>(
+    [],
+  );
+  const [pointsDeltaDraft, setPointsDeltaDraft] = useState("0");
+  const [pointsReasonDraft, setPointsReasonDraft] = useState("");
+  const [applyingPointsAdjust, setApplyingPointsAdjust] = useState(false);
+  const [insufficientDialogOpen, setInsufficientDialogOpen] = useState(false);
+  const [pendingPointsAdjustRequest, setPendingPointsAdjustRequest] =
+    useState<PendingPointsAdjustRequest | null>(null);
+  const [insufficientUsers, setInsufficientUsers] = useState<
+    PointsAdjustInsufficientUser[]
+  >([]);
   const [adminReloadTick, setAdminReloadTick] = useState(0);
   const [addAdminDialogOpen, setAddAdminDialogOpen] = useState(false);
   const [addAdminSearch, setAddAdminSearch] = useState("");
@@ -392,6 +430,62 @@ export default function AdminPage() {
 
   useEffect(() => {
     let isMounted = true;
+    const loadPointsToolUsers = async () => {
+      setPointsToolLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("role", "all");
+        if (pointsToolSearch) params.set("search", pointsToolSearch);
+        if (pointsToolTierFilter !== "all")
+          params.set("membership_tier", pointsToolTierFilter);
+        if (pointsToolDisabledFilter !== "all")
+          params.set("is_disabled", pointsToolDisabledFilter);
+        params.set("limit", "100");
+        params.set("offset", "0");
+
+        const response = await fetch(`/api/app/admin/users?${params.toString()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.error || "Failed to load users");
+        }
+
+        const payload = await response.json().catch(() => ({}));
+        if (!isMounted) return;
+        setPointsToolUsers(payload.users || []);
+      } catch (err) {
+        if (!isMounted) return;
+        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+        setPointsToolUsers([]);
+      } finally {
+        if (isMounted) {
+          setPointsToolLoading(false);
+        }
+      }
+    };
+
+    void loadPointsToolUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    pointsToolDisabledFilter,
+    pointsToolReloadTick,
+    pointsToolSearch,
+    pointsToolTierFilter,
+    tAdmin,
+  ]);
+
+  useEffect(() => {
+    setSelectedPointsUserIds((prev) =>
+      prev.filter((userId) => pointsToolUsers.some((user) => user.id === userId)),
+    );
+  }, [pointsToolUsers]);
+
+  useEffect(() => {
+    let isMounted = true;
     const loadAdminUsers = async () => {
       setAdminUserLoading(true);
       setError(null);
@@ -668,12 +762,18 @@ export default function AdminPage() {
       const next = { ...prev };
       for (const tier of tiers) {
         if (next[tier.id]) continue;
-        const fallback = tiers.find(
+        const freeFallback = tiers.find(
+          (candidate) =>
+            candidate.id !== tier.id &&
+            candidate.isActive !== false &&
+            candidate.code === "free",
+        );
+        const fallback = freeFallback || tiers.find(
           (candidate) =>
             candidate.id !== tier.id && candidate.isActive !== false,
         );
         next[tier.id] = {
-          replacementTierCode: fallback?.code || "",
+          replacementTierCode: tier.replacementTierCode || fallback?.code || "",
           executionTiming: "immediate",
         };
       }
@@ -1276,6 +1376,112 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : tAdmin("updateError"));
     } finally {
       setSavingUserId(null);
+    }
+  };
+
+  const togglePointsUserSelection = (userId: string, checked: boolean) => {
+    setSelectedPointsUserIds((prev) => {
+      if (checked) {
+        if (prev.includes(userId)) return prev;
+        return [...prev, userId];
+      }
+      return prev.filter((id) => id !== userId);
+    });
+  };
+
+  const executePointsAdjustment = async (
+    request: PendingPointsAdjustRequest,
+    underflowStrategy?: PointsUnderflowStrategy,
+  ) => {
+    const response = await fetch("/api/app/admin/users/points-adjust", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...request,
+        ...(underflowStrategy ? { underflowStrategy } : {}),
+      }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 409) {
+      setPendingPointsAdjustRequest(request);
+      setInsufficientUsers(
+        Array.isArray(payload?.insufficientUsers) ? payload.insufficientUsers : [],
+      );
+      setInsufficientDialogOpen(true);
+      return false;
+    }
+    if (!response.ok) {
+      throw new Error(payload?.error || "Failed to adjust points");
+    }
+    return true;
+  };
+
+  const submitPointsAdjustment = async () => {
+    const delta = Math.trunc(Number(pointsDeltaDraft));
+    const reason = pointsReasonDraft.trim();
+    if (selectedPointsUserIds.length === 0) {
+      setError("Please select at least one user");
+      return;
+    }
+    if (!Number.isFinite(delta) || delta === 0) {
+      setError("Delta must be a non-zero integer");
+      return;
+    }
+    if (!reason) {
+      setError("Reason is required");
+      return;
+    }
+
+    setApplyingPointsAdjust(true);
+    setError(null);
+    try {
+      const succeeded = await executePointsAdjustment({
+        userIds: selectedPointsUserIds,
+        delta,
+        reason,
+      });
+      if (!succeeded) return;
+
+      setPointsReasonDraft("");
+      setPointsToolReloadTick((value) => value + 1);
+      setUserReloadTick((value) => value + 1);
+      notifyPointsBalanceChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setApplyingPointsAdjust(false);
+    }
+  };
+
+  const applyPointsAdjustmentStrategy = async (
+    strategy: PointsUnderflowStrategy,
+  ) => {
+    const pending = pendingPointsAdjustRequest;
+    if (!pending) return;
+    if (strategy === "reject_all") {
+      setInsufficientDialogOpen(false);
+      setPendingPointsAdjustRequest(null);
+      return;
+    }
+
+    setApplyingPointsAdjust(true);
+    setError(null);
+    try {
+      const succeeded = await executePointsAdjustment(pending, strategy);
+      if (!succeeded) return;
+
+      setInsufficientDialogOpen(false);
+      setPendingPointsAdjustRequest(null);
+      setInsufficientUsers([]);
+      setPointsReasonDraft("");
+      setPointsToolReloadTick((value) => value + 1);
+      setUserReloadTick((value) => value + 1);
+      notifyPointsBalanceChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setApplyingPointsAdjust(false);
     }
   };
 
@@ -2169,6 +2375,27 @@ export default function AdminPage() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={usersSubTab === "management" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUsersSubTab("management")}
+                  >
+                    Manage Users
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={usersSubTab === "points_tool" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setUsersSubTab("points_tool")}
+                  >
+                    Points Tool
+                  </Button>
+                </div>
+
+                {usersSubTab === "management" ? (
+                  <>
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-col gap-2 md:max-w-3xl md:flex-row md:items-center">
                     <Input
@@ -2394,6 +2621,138 @@ export default function AdminPage() {
                     })}
                   </div>
                 )}
+
+                  </>
+                ) : null}
+
+                {usersSubTab === "points_tool" ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                      <Input
+                        placeholder="Search users for points tool"
+                        value={pointsToolSearch}
+                        onChange={(event) => setPointsToolSearch(event.target.value)}
+                        className="md:max-w-sm"
+                      />
+                      <select
+                        className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                        value={pointsToolTierFilter}
+                        onChange={(event) =>
+                          setPointsToolTierFilter(event.target.value)
+                        }
+                      >
+                        <option value="all">{tAdmin("membershipAll")}</option>
+                        {membershipTierOptions.map((tier) => (
+                          <option key={`points-filter-${tier.code}`} value={tier.code}>
+                            {tier.code}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                        value={pointsToolDisabledFilter}
+                        onChange={(event) =>
+                          setPointsToolDisabledFilter(event.target.value)
+                        }
+                      >
+                        <option value="all">{tAdmin("userDisabledAll")}</option>
+                        <option value="false">{tAdmin("userEnabledOnly")}</option>
+                        <option value="true">{tAdmin("userDisabledOnly")}</option>
+                      </select>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-100 dark:border-gray-800 p-3 space-y-3">
+                      <div className="text-sm font-medium">Batch points adjustment</div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-gray-500">Delta (+/-)</Label>
+                          <Input
+                            type="number"
+                            value={pointsDeltaDraft}
+                            onChange={(event) => setPointsDeltaDraft(event.target.value)}
+                            data-testid="points-tool-delta"
+                          />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <Label className="text-xs text-gray-500">Reason (required)</Label>
+                          <Input
+                            value={pointsReasonDraft}
+                            onChange={(event) => setPointsReasonDraft(event.target.value)}
+                            placeholder="Adjustment reason"
+                            data-testid="points-tool-reason"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          onClick={submitPointsAdjustment}
+                          disabled={applyingPointsAdjust}
+                          data-testid="points-tool-apply"
+                        >
+                          {applyingPointsAdjust ? tCommon("saving") : "Apply to selected users"}
+                        </Button>
+                        <span className="text-xs text-gray-500">
+                          Selected users: {selectedPointsUserIds.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    {pointsToolLoading ? (
+                      <div className="text-sm text-gray-500">{tCommon("loading")}</div>
+                    ) : pointsToolUsers.length === 0 ? (
+                      <div className="text-sm text-gray-500">No users found</div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="inline-flex items-center gap-2 text-xs text-gray-500">
+                          <input
+                            type="checkbox"
+                            checked={
+                              pointsToolUsers.length > 0 &&
+                              selectedPointsUserIds.length === pointsToolUsers.length
+                            }
+                            onChange={(event) =>
+                              setSelectedPointsUserIds(
+                                event.target.checked
+                                  ? pointsToolUsers.map((user) => user.id)
+                                  : [],
+                              )
+                            }
+                            data-testid="points-tool-select-all"
+                          />
+                          Select all filtered users
+                        </label>
+                        {pointsToolUsers.map((user) => {
+                          const label = user.displayName || user.email || user.id;
+                          const pointsBalance = Number(user.pointsBalance || 0);
+                          return (
+                            <div
+                              key={`points-${user.id}`}
+                              className="flex items-center justify-between gap-3 rounded-md border border-gray-100 px-3 py-2 text-sm dark:border-gray-800"
+                            >
+                              <label className="inline-flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPointsUserIds.includes(user.id)}
+                                  onChange={(event) =>
+                                    togglePointsUserSelection(user.id, event.target.checked)
+                                  }
+                                  data-testid={`points-tool-user-${user.id}`}
+                                />
+                                <span>{label}</span>
+                                <span className="text-xs text-gray-500">
+                                  ({user.membershipTier})
+                                </span>
+                              </label>
+                              <div className="text-xs text-gray-500">
+                                {pointsBalance.toLocaleString()} pts
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </TabsContent>
@@ -3166,11 +3525,9 @@ export default function AdminPage() {
                               <Badge variant="secondary">{tAdmin("inactive")}</Badge>
                             </div>
                             <div className="mt-1 text-xs text-gray-500">
-                              {tier.replacementTierCode
-                                ? tAdmin("inactivePlanReplacement", {
-                                  code: tier.replacementTierCode,
-                                })
-                                : tAdmin("inactivePlanNoReplacement")}
+                              {tAdmin("inactivePlanReplacement", {
+                                code: tier.replacementTierCode || "free",
+                              })}
                             </div>
                           </div>
                         ))}
@@ -3706,6 +4063,66 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog
+        open={insufficientDialogOpen}
+        onOpenChange={(open) => {
+          setInsufficientDialogOpen(open);
+          if (!open) {
+            setPendingPointsAdjustRequest(null);
+            setInsufficientUsers([]);
+          }
+        }}
+      >
+        <DialogContent data-testid="points-tool-insufficient-dialog">
+          <DialogHeader>
+            <DialogTitle>Insufficient points detected</DialogTitle>
+            <DialogDescription>
+              Some selected users do not have enough points for this deduction.
+              Choose how to proceed for this batch.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-56 overflow-y-auto">
+            {insufficientUsers.map((item) => (
+              <div
+                key={`${item.userId}-${item.pointsBalance}`}
+                className="rounded-md border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
+              >
+                <div>User: {item.userId}</div>
+                <div>Balance: {item.pointsBalance}</div>
+                <div>Required deduction: {item.requiredDeduction}</div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => applyPointsAdjustmentStrategy("reject_all")}
+              disabled={applyingPointsAdjust}
+            >
+              Reject all
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => applyPointsAdjustmentStrategy("skip_insufficient")}
+              disabled={applyingPointsAdjust}
+              data-testid="points-tool-strategy-skip"
+            >
+              Skip insufficient
+            </Button>
+            <Button
+              type="button"
+              onClick={() => applyPointsAdjustmentStrategy("floor_zero")}
+              disabled={applyingPointsAdjust}
+              data-testid="points-tool-strategy-floor"
+            >
+              Floor to zero
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!editingSurvey}
