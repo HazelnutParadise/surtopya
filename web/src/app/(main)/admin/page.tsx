@@ -2925,17 +2925,9 @@ export default function AdminPage() {
           <TabsContent value="policies" className="mt-6">
             <Card>
               <CardHeader>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <CardTitle>{tAdmin("policiesTitle")}</CardTitle>
-                    <CardDescription>{policyWriterCountLabel}</CardDescription>
-                  </div>
-                  <Button
-                    onClick={savePolicies}
-                    disabled={!canWritePolicies || policySaving}
-                  >
-                    {policySaving ? tCommon("saving") : tCommon("save")}
-                  </Button>
+                <div>
+                  <CardTitle>{tAdmin("policiesTitle")}</CardTitle>
+                  <CardDescription>{policyWriterCountLabel}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -3007,71 +2999,87 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                {policyLoading ? (
-                  <div className="text-sm text-gray-500">
-                    {tCommon("loading")}
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm font-medium">
+                      {tAdmin("capabilityLabel")}
+                    </div>
+                    <Button
+                      onClick={savePolicies}
+                      disabled={!canWritePolicies || policySaving}
+                    >
+                      {policySaving
+                        ? tCommon("saving")
+                        : tAdmin("savePolicyMatrix")}
+                    </Button>
                   </div>
-                ) : tiers.length === 0 || capabilities.length === 0 ? (
-                  <div className="text-sm text-gray-500">
-                    {tAdmin("noPolicies")}
-                  </div>
-                ) : (
-                  <div className="overflow-auto border border-gray-100 dark:border-gray-800 rounded-lg">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 dark:bg-gray-900/60">
-                        <tr>
-                          <th className="text-left px-3 py-2">
-                            {tAdmin("capabilityLabel")}
-                          </th>
-                          {tiers.map((tier) => (
-                            <th key={tier.code} className="text-left px-3 py-2">
-                              {tier.code}
+
+                  {policyLoading ? (
+                    <div className="text-sm text-gray-500">
+                      {tCommon("loading")}
+                    </div>
+                  ) : tiers.length === 0 || capabilities.length === 0 ? (
+                    <div className="text-sm text-gray-500">
+                      {tAdmin("noPolicies")}
+                    </div>
+                  ) : (
+                    <div className="overflow-auto border border-gray-100 dark:border-gray-800 rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-900/60">
+                          <tr>
+                            <th className="text-left px-3 py-2">
+                              {tAdmin("capabilityLabel")}
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {capabilities.map((capability) => (
-                          <tr
-                            key={capability.key}
-                            className="border-t border-gray-100 dark:border-gray-800"
-                          >
-                            <td className="px-3 py-2">
-                              <div className="font-medium">
-                                {capability.key}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {capability.description}
-                              </div>
-                            </td>
                             {tiers.map((tier) => (
-                              <td
-                                key={`${capability.key}-${tier.code}`}
-                                className="px-3 py-2"
-                              >
-                                <Switch
-                                  checked={policyMatrixValue(
-                                    tier.code,
-                                    capability.key,
-                                  )}
-                                  onCheckedChange={(checked) =>
-                                    updatePolicyMatrixValue(
-                                      tier.code,
-                                      capability.key,
-                                      checked,
-                                    )
-                                  }
-                                  disabled={!canWritePolicies}
-                                  data-testid={`policy-${tier.code}-${capability.key}`}
-                                />
-                              </td>
+                              <th key={tier.code} className="text-left px-3 py-2">
+                                {tier.code}
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {capabilities.map((capability) => (
+                            <tr
+                              key={capability.key}
+                              className="border-t border-gray-100 dark:border-gray-800"
+                            >
+                              <td className="px-3 py-2">
+                                <div className="font-medium">
+                                  {capability.key}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {capability.description}
+                                </div>
+                              </td>
+                              {tiers.map((tier) => (
+                                <td
+                                  key={`${capability.key}-${tier.code}`}
+                                  className="px-3 py-2"
+                                >
+                                  <Switch
+                                    checked={policyMatrixValue(
+                                      tier.code,
+                                      capability.key,
+                                    )}
+                                    onCheckedChange={(checked) =>
+                                      updatePolicyMatrixValue(
+                                        tier.code,
+                                        capability.key,
+                                        checked,
+                                      )
+                                    }
+                                    disabled={!canWritePolicies}
+                                    data-testid={`policy-${tier.code}-${capability.key}`}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-3">
                   <div className="text-sm font-medium">Subscription Plans</div>

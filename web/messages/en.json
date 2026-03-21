@@ -831,6 +831,7 @@
     "noPolicyWriters": "No policy writers found",
     "policyWriterToggleLabel": "Can write policies",
     "capabilityLabel": "Capability",
+    "savePolicyMatrix": "Save policy matrix",
     "policyWriterCount": "{count} policy writers",
     "adminCount": "{count} users",
     "superAdmin": "Super admin",

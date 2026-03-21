@@ -872,6 +872,7 @@
     "noPolicyWriters": "No policy writers found",
     "policyWriterToggleLabel": "可編輯政策",
     "capabilityLabel": "Capability",
+    "savePolicyMatrix": "儲存權限設定",
     "policyWriterCount": "{count} policy writers",
     "responseStatus": "回應狀態",
     "responseStatusHint": "發布會建立新版本；開啟/關閉回應是獨立操作。",

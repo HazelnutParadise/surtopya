@@ -872,6 +872,7 @@
     "noPolicyWriters": "ポリシーライターが見つかりません",
     "policyWriterToggleLabel": "ポリシー編集権限",
     "capabilityLabel": "機能",
+    "savePolicyMatrix": "権限マトリクスを保存",
     "policyWriterCount": "{count} 名のポリシーライター",
     "responseStatus": "回答受付状態",
     "responseStatusHint": "公開は新バージョン作成です。回答受付の開閉は別操作です。",
