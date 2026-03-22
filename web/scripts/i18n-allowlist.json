@@ -1,0 +1,40 @@
+﻿{
+  "intentional_same_as_zh": [
+    "Home.footerHazelnutParadise"
+  ],
+  "runtime_dynamic_keys": [
+    "Admin.agentPermissionLogsRead",
+    "Admin.agentPermissionDeidRead",
+    "Admin.agentPermissionDeidWrite",
+    "Admin.agentPermissionSurveysRead",
+    "Admin.agentPermissionSurveysWrite",
+    "Admin.agentPermissionDatasetsRead",
+    "Admin.agentPermissionDatasetsWrite",
+    "Admin.agentPermissionUsersRead",
+    "Admin.agentPermissionUsersWrite",
+    "Admin.agentPermissionPoliciesRead",
+    "Admin.agentPermissionPoliciesWrite",
+    "Admin.agentPermissionPlansRead",
+    "Admin.agentPermissionPlansWrite",
+    "Admin.agentPermissionSystemRead",
+    "Admin.agentPermissionSystemWrite",
+    "Admin.agentPermissionAgentsRead",
+    "Admin.agentPermissionAgentsWrite",
+    "QuestionTypes.single",
+    "QuestionTypes.multi",
+    "QuestionTypes.text",
+    "QuestionTypes.short",
+    "QuestionTypes.long",
+    "QuestionTypes.rating",
+    "QuestionTypes.date",
+    "QuestionTypes.select",
+    "QuestionTypes.section",
+    "Categories.market-research",
+    "Categories.social-science",
+    "Categories.technology",
+    "Categories.healthcare",
+    "Categories.finance",
+    "Categories.consumer-goods",
+    "Categories.other"
+  ]
+}
