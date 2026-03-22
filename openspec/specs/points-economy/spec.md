@@ -2,9 +2,7 @@
 
 ## Purpose
 Define how points are earned and spent across surveys, datasets, and Pro membership.
-
 ## Requirements
-
 ### Requirement: Publishing Surveys Costs 0 Points
 Publishing a survey MUST NOT deduct points from the publisher.
 
@@ -58,18 +56,19 @@ Paid dataset downloads MUST be gated by points balance and recorded as a transac
 - **THEN** no points are deducted
 
 ### Requirement: Pro Members Receive Monthly Base Points (Lazy Grant)
-Pro users (`users.is_pro = true`) MUST receive a monthly base points grant, applied lazily on the first authenticated request in each calendar month.
+Users with membership tier `pro` MUST receive a monthly base points grant, applied lazily on the first authenticated request in each calendar month.
 
-#### Scenario: Eligible Pro user receives monthly grant once per month
-- **WHEN** a Pro user makes their first authenticated request in a calendar month
+#### Scenario: Eligible pro-tier user receives monthly grant once per month
+- **WHEN** a pro-tier user makes their first authenticated request in a calendar month
 - **THEN** the backend increments `users.points_balance` by `PRO_MONTHLY_POINTS`
 - **AND** sets `users.pro_points_last_granted_at` to the grant timestamp
 - **AND** records a `points_transactions` row of type `pro_monthly_grant`
 
-#### Scenario: Pro user does not receive the grant twice in the same month
-- **WHEN** a Pro user makes multiple authenticated requests within the same calendar month
+#### Scenario: Pro-tier user does not receive the grant twice in the same month
+- **WHEN** a pro-tier user makes multiple authenticated requests within the same calendar month
 - **THEN** the backend grants `PRO_MONTHLY_POINTS` at most once
 
-#### Scenario: Non-Pro user never receives Pro monthly grants
-- **WHEN** a non-Pro user makes authenticated requests
+#### Scenario: Non-pro-tier user never receives Pro monthly grants
+- **WHEN** a non-pro-tier user makes authenticated requests
 - **THEN** no `pro_monthly_grant` transaction is created
+

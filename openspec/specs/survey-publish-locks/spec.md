@@ -38,3 +38,18 @@ Once a survey has been published at least once (`published_count > 0`), the surv
 - **THEN** the dataset sharing control SHALL be disabled
 - **THEN** the UI SHALL display a hint that these settings are locked after publishing
 
+### Requirement: Membership-aware public survey dataset policy
+For public surveys, dataset sharing behavior SHALL be controlled by capability `survey.public_dataset_opt_out` before publish lock applies.
+
+#### Scenario: Free user cannot opt out for public survey
+- **WHEN** a user without `survey.public_dataset_opt_out` sets survey visibility to `public`
+- **THEN** dataset sharing is forced to enabled
+
+#### Scenario: Pro user can opt out for public survey before lock
+- **WHEN** a user with `survey.public_dataset_opt_out` sets survey visibility to `public`
+- **THEN** dataset sharing may be enabled or disabled
+
+#### Scenario: Publish lock overrides capability
+- **WHEN** `published_count > 0`
+- **THEN** visibility and dataset sharing remain immutable regardless of capability
+
