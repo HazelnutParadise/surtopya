@@ -55,6 +55,34 @@ func TestSetupRouter_AgentAdminUsageIndexAdvertisesSurveyAnalyticsEndpoint(t *te
 	require.Contains(t, surveysRead, "GET /api/v1/agent-admin/surveys/:id/responses/analytics")
 }
 
+func TestSetupRouter_AgentAdminUsageIndexAdvertisesDeidEndpointsInDeidScopes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := SetupRouter()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	res := httptest.NewRecorder()
+
+	r.ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusOK, res.Code)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &payload))
+
+	scopeEndpoints, ok := payload["scope_endpoints"].(map[string]any)
+	require.True(t, ok)
+
+	deidRead, ok := scopeEndpoints["deid.read"].([]any)
+	require.True(t, ok)
+	require.Contains(t, deidRead, "GET /api/v1/agent-admin/deid")
+	require.Contains(t, deidRead, "GET /api/v1/agent-admin/deid/sessions/:session_id")
+
+	deidWrite, ok := scopeEndpoints["deid.write"].([]any)
+	require.True(t, ok)
+	require.Contains(t, deidWrite, "POST /api/v1/agent-admin/deid/sessions/start")
+	require.Contains(t, deidWrite, "POST /api/v1/agent-admin/deid/sessions/:session_id/chunks/:chunk_index/annotate")
+}
+
 func TestSetupRouter_AgentAdminUsageIndexAdvertisesAllPermissionEndpoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -102,6 +130,18 @@ func TestSetupRouter_AgentAdminOpenAPIDocIncludesExtendedPaths(t *testing.T) {
 	require.Contains(t, paths, "/subscription-plans")
 	require.Contains(t, paths, "/system-settings")
 	require.Contains(t, paths, "/logs/{id}")
+
+	deidPath, ok := paths["/deid"].(map[string]any)
+	require.True(t, ok)
+	deidGet, ok := deidPath["get"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "deid.read", deidGet["x-required-permission"])
+
+	annotatePath, ok := paths["/deid/sessions/{session_id}/chunks/{chunk_index}/annotate"].(map[string]any)
+	require.True(t, ok)
+	annotatePost, ok := annotatePath["post"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "deid.write", annotatePost["x-required-permission"])
 }
 
 func TestSetupRouter_AgentAdminExtendedRoutesAreRegistered(t *testing.T) {

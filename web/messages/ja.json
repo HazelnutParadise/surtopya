@@ -946,7 +946,9 @@
     "deidCompleteReview": "レビュー完了",
     "deidDatasetIdRequired": "マージ時は対象 dataset ID が必要です",
     "deidReviewCompleteMessage": "レビュー完了。dataset {datasetId} の草案へ反映しました。",
-    "deidMaskedCells": "{count} セルをマスク済み"
+    "deidMaskedCells": "{count} セルをマスク済み",
+    "agentPermissionDeidRead": "View de-identification queue status and active sessions.",
+    "agentPermissionDeidWrite": "Start de-identification sessions and submit chunk annotations."
   },
   "LegalTerms": {
     "title": "利用規約サマリー",

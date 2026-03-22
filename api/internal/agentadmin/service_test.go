@@ -11,3 +11,20 @@ func TestParseKeyPrefix_AllowsUnderscoresInsideSecret(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "OOknOw", prefix)
 }
+
+func TestNormalizePermissions_IncludesDeidAndFiltersInvalid(t *testing.T) {
+	permissions := normalizePermissions([]string{
+		"deid.read",
+		"deid.write",
+		"surveys.read",
+		"deid.read",
+		"unknown.permission",
+		"",
+	})
+
+	require.Equal(t, []string{
+		"deid.read",
+		"deid.write",
+		"surveys.read",
+	}, permissions)
+}

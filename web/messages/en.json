@@ -941,6 +941,8 @@
     "agentPermissionSurveysWrite": "Create, update, publish, and open or close surveys.",
     "agentPermissionAgentsRead": "View agent admin accounts and their assigned scopes.",
     "agentPermissionLogsRead": "Read platform event logs and error records for debugging.",
+    "agentPermissionDeidRead": "View de-identification queue status and active sessions.",
+    "agentPermissionDeidWrite": "Start de-identification sessions and submit chunk annotations.",
     "agentPermissionDatasetsRead": "View dataset records, pricing, and availability.",
     "agentOwnerFilter": "Owner filter",
     "agentOwnerAll": "All owners",

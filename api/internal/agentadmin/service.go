@@ -33,6 +33,8 @@ var (
 
 var AllPermissions = []string{
 	"logs.read",
+	"deid.read",
+	"deid.write",
 	"surveys.read",
 	"surveys.write",
 	"datasets.read",

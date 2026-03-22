@@ -42,6 +42,8 @@ import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 const PAGE_SIZE = 20;
 const AGENT_PERMISSIONS = [
   "logs.read",
+  "deid.read",
+  "deid.write",
   "surveys.read",
   "surveys.write",
   "datasets.read",
@@ -63,6 +65,8 @@ const AGENT_PERMISSION_DESCRIPTION_KEYS: Record<
   string
 > = {
   "logs.read": "agentPermissionLogsRead",
+  "deid.read": "agentPermissionDeidRead",
+  "deid.write": "agentPermissionDeidWrite",
   "surveys.read": "agentPermissionSurveysRead",
   "surveys.write": "agentPermissionSurveysWrite",
   "datasets.read": "agentPermissionDatasetsRead",

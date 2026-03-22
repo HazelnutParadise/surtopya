@@ -946,7 +946,9 @@
     "deidCompleteReview": "完成審核",
     "deidDatasetIdRequired": "合併模式需要提供目標 dataset ID",
     "deidReviewCompleteMessage": "審核完成，已寫入資料集 {datasetId} 草稿。",
-    "deidMaskedCells": "已遮蔽 {count} 格"
+    "deidMaskedCells": "已遮蔽 {count} 格",
+    "agentPermissionDeidRead": "View de-identification queue status and active sessions.",
+    "agentPermissionDeidWrite": "Start de-identification sessions and submit chunk annotations."
   },
   "LegalTerms": {
     "title": "服務條款摘要",

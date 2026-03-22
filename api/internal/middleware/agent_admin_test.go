@@ -193,6 +193,8 @@ func TestRequireAgentPermission_DeniesMissingExtendedScopes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	requiredPermissions := []string{
+		"deid.read",
+		"deid.write",
 		"surveys.write",
 		"datasets.read",
 		"datasets.write",
