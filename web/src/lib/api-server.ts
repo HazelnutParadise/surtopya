@@ -5,7 +5,7 @@ import crypto from "crypto"
 export const API_BASE_URL =
   process.env.INTERNAL_API_URL ||
   process.env.PUBLIC_API_URL ||
-  "http://api:8080/api/v1"
+  "http://api:8080/v1"
 
 const LOGTO_AUDIENCE = process.env.LOGTO_AUDIENCE?.trim() || ""
 
@@ -101,3 +101,4 @@ export const getAuthToken = async () => {
     return null
   }
 }
+

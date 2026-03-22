@@ -40,7 +40,7 @@ func NewDatasetHandler() *DatasetHandler {
 	}
 }
 
-// GetDatasets handles GET /api/v1/datasets
+// GetDatasets handles GET /v1/datasets
 func (h *DatasetHandler) GetDatasets(c *gin.Context) {
 	category := c.Query("category")
 	accessType := c.Query("accessType")
@@ -76,7 +76,7 @@ func (h *DatasetHandler) GetDatasets(c *gin.Context) {
 	})
 }
 
-// GetDataset handles GET /api/v1/datasets/:id
+// GetDataset handles GET /v1/datasets/:id
 func (h *DatasetHandler) GetDataset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -99,7 +99,7 @@ func (h *DatasetHandler) GetDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, dataset)
 }
 
-// DownloadDataset handles POST /api/v1/datasets/:id/download
+// DownloadDataset handles POST /v1/datasets/:id/download
 func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -207,7 +207,7 @@ func (h *DatasetHandler) DownloadDataset(c *gin.Context) {
 	c.FileAttachment(targetVersion.FilePath, filename)
 }
 
-// PurchaseDataset handles POST /api/v1/datasets/:id/purchase
+// PurchaseDataset handles POST /v1/datasets/:id/purchase
 func (h *DatasetHandler) PurchaseDataset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -322,7 +322,7 @@ func (h *DatasetHandler) PurchaseDataset(c *gin.Context) {
 	})
 }
 
-// ListDatasetVersions handles GET /api/v1/datasets/:id/versions
+// ListDatasetVersions handles GET /v1/datasets/:id/versions
 func (h *DatasetHandler) ListDatasetVersions(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -350,7 +350,7 @@ func (h *DatasetHandler) ListDatasetVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"versions": versions})
 }
 
-// GetCategories handles GET /api/v1/datasets/categories
+// GetCategories handles GET /v1/datasets/categories
 func (h *DatasetHandler) GetCategories(c *gin.Context) {
 	// Return available categories
 	categories := []gin.H{

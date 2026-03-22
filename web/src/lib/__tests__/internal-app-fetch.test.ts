@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/api-server", () => ({
-  API_BASE_URL: "http://api:8080/api/v1",
+  API_BASE_URL: "http://api:8080/v1",
 }))
 
 const signCanonical = (secret: string, method: string, path: string, timestamp: string, body: string) => {
@@ -108,3 +108,4 @@ describe("fetchInternalApp", () => {
     )
   })
 })
+

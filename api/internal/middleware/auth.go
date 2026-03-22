@@ -27,7 +27,7 @@ var errUserDisabled = errors.New("user is disabled")
 // AuthMiddleware validates JWT tokens from Logto
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/agent-admin") {
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/agent-admin") {
 			c.Next()
 			return
 		}

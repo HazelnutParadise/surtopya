@@ -3,7 +3,7 @@ import { getServerTranslator } from "@/lib/i18n-server"
 
 const OPENAPI_SPEC_URL = "/api/docs/datasets/openapi.json"
 const PROXY_BASE_URL = "/api/app"
-const PUBLIC_API_BASE_URL = process.env.PUBLIC_API_URL || "http://localhost:8080/api/v1"
+const PUBLIC_API_BASE_URL = process.env.PUBLIC_API_URL || "http://localhost:8080/v1"
 
 export default async function DatasetApiDocsPage() {
   const t = await getServerTranslator("ApiDocs")
@@ -57,3 +57,4 @@ export default async function DatasetApiDocsPage() {
     </div>
   )
 }
+

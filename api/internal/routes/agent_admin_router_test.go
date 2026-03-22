@@ -15,7 +15,7 @@ func TestSetupRouter_AgentAdminUsageIndexIsPublicAndReturnsDocs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupRouter()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin", nil)
 	res := httptest.NewRecorder()
 
 	r.ServeHTTP(res, req)
@@ -27,7 +27,7 @@ func TestSetupRouter_AgentAdminUsageIndexIsPublicAndReturnsDocs(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &payload))
 
 	require.Equal(t, "agent_admin_api", payload["kind"])
-	require.Equal(t, "/api/v1/agent-admin/openapi.json", payload["openapi_url"])
+	require.Equal(t, "/v1/agent-admin/openapi.json", payload["openapi_url"])
 
 	auth, ok := payload["auth"].(map[string]any)
 	require.True(t, ok)
@@ -38,7 +38,7 @@ func TestSetupRouter_AgentAdminUsageIndexAdvertisesSurveyAnalyticsEndpoint(t *te
 	gin.SetMode(gin.TestMode)
 
 	r := SetupRouter()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin", nil)
 	res := httptest.NewRecorder()
 
 	r.ServeHTTP(res, req)
@@ -52,14 +52,14 @@ func TestSetupRouter_AgentAdminUsageIndexAdvertisesSurveyAnalyticsEndpoint(t *te
 	require.True(t, ok)
 	surveysRead, ok := scopeEndpoints["surveys.read"].([]any)
 	require.True(t, ok)
-	require.Contains(t, surveysRead, "GET /api/v1/agent-admin/surveys/:id/responses/analytics")
+	require.Contains(t, surveysRead, "GET /v1/agent-admin/surveys/:id/responses/analytics")
 }
 
 func TestSetupRouter_AgentAdminUsageIndexAdvertisesDeidEndpointsInDeidScopes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupRouter()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin", nil)
 	res := httptest.NewRecorder()
 
 	r.ServeHTTP(res, req)
@@ -74,20 +74,20 @@ func TestSetupRouter_AgentAdminUsageIndexAdvertisesDeidEndpointsInDeidScopes(t *
 
 	deidRead, ok := scopeEndpoints["deid.read"].([]any)
 	require.True(t, ok)
-	require.Contains(t, deidRead, "GET /api/v1/agent-admin/deid")
-	require.Contains(t, deidRead, "GET /api/v1/agent-admin/deid/sessions/:session_id")
+	require.Contains(t, deidRead, "GET /v1/agent-admin/deid")
+	require.Contains(t, deidRead, "GET /v1/agent-admin/deid/sessions/:session_id")
 
 	deidWrite, ok := scopeEndpoints["deid.write"].([]any)
 	require.True(t, ok)
-	require.Contains(t, deidWrite, "POST /api/v1/agent-admin/deid/sessions/start")
-	require.Contains(t, deidWrite, "POST /api/v1/agent-admin/deid/sessions/:session_id/chunks/:chunk_index/annotate")
+	require.Contains(t, deidWrite, "POST /v1/agent-admin/deid/sessions/start")
+	require.Contains(t, deidWrite, "POST /v1/agent-admin/deid/sessions/:session_id/chunks/:chunk_index/annotate")
 }
 
 func TestSetupRouter_AgentAdminUsageIndexAdvertisesAllPermissionEndpoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupRouter()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin", nil)
 	res := httptest.NewRecorder()
 
 	r.ServeHTTP(res, req)
@@ -113,7 +113,7 @@ func TestSetupRouter_AgentAdminOpenAPIDocIncludesExtendedPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	r := SetupRouter()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin/openapi.json", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin/openapi.json", nil)
 	res := httptest.NewRecorder()
 
 	r.ServeHTTP(res, req)
@@ -153,14 +153,14 @@ func TestSetupRouter_AgentAdminExtendedRoutesAreRegistered(t *testing.T) {
 		method string
 		path   string
 	}{
-		{method: http.MethodGet, path: "/api/v1/agent-admin/surveys"},
-		{method: http.MethodPatch, path: "/api/v1/agent-admin/surveys/00000000-0000-0000-0000-000000000000"},
-		{method: http.MethodGet, path: "/api/v1/agent-admin/datasets"},
-		{method: http.MethodPost, path: "/api/v1/agent-admin/users/points-adjust"},
-		{method: http.MethodPatch, path: "/api/v1/agent-admin/subscription-plans/00000000-0000-0000-0000-000000000000"},
-		{method: http.MethodGet, path: "/api/v1/agent-admin/policies"},
-		{method: http.MethodPatch, path: "/api/v1/agent-admin/capabilities/00000000-0000-0000-0000-000000000000"},
-		{method: http.MethodGet, path: "/api/v1/agent-admin/system-settings"},
+		{method: http.MethodGet, path: "/v1/agent-admin/surveys"},
+		{method: http.MethodPatch, path: "/v1/agent-admin/surveys/00000000-0000-0000-0000-000000000000"},
+		{method: http.MethodGet, path: "/v1/agent-admin/datasets"},
+		{method: http.MethodPost, path: "/v1/agent-admin/users/points-adjust"},
+		{method: http.MethodPatch, path: "/v1/agent-admin/subscription-plans/00000000-0000-0000-0000-000000000000"},
+		{method: http.MethodGet, path: "/v1/agent-admin/policies"},
+		{method: http.MethodPatch, path: "/v1/agent-admin/capabilities/00000000-0000-0000-0000-000000000000"},
+		{method: http.MethodGet, path: "/v1/agent-admin/system-settings"},
 	}
 
 	for _, tc := range testCases {

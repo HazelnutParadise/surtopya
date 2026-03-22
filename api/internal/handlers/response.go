@@ -267,7 +267,7 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 	})
 }
 
-// GetResponse handles GET /api/v1/responses/:id
+// GetResponse handles GET /v1/responses/:id
 func (h *ResponseHandler) GetResponse(c *gin.Context) {
 	responseIDStr := c.Param("id")
 	responseID, err := uuid.Parse(responseIDStr)
@@ -290,7 +290,7 @@ func (h *ResponseHandler) GetResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetSurveyResponses handles GET /api/v1/surveys/:id/responses
+// GetSurveyResponses handles GET /v1/surveys/:id/responses
 func (h *ResponseHandler) GetSurveyResponses(c *gin.Context) {
 	surveyIDStr := c.Param("id")
 	surveyID, err := uuid.Parse(surveyIDStr)

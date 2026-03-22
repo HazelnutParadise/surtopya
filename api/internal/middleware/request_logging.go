@@ -89,7 +89,7 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 
 func shouldSkipRequestLogging(path string) bool {
 	switch path {
-	case "/api/v1/health", "/api/v1/ready":
+	case "/v1/health", "/v1/ready":
 		return true
 	default:
 		return strings.Contains(path, "/openapi.json")

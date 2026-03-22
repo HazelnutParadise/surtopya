@@ -20,11 +20,11 @@ func TestRequireDBReady_BlocksUnavailableV1Route(t *testing.T) {
 
 	r := gin.New()
 	r.Use(RequireDBReady())
-	r.GET("/api/v1/me", func(c *gin.Context) {
+	r.GET("/v1/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -41,11 +41,11 @@ func TestRequireDBReady_AllowsHealthWhenUnavailable(t *testing.T) {
 
 	r := gin.New()
 	r.Use(RequireDBReady())
-	r.GET("/api/v1/health", func(c *gin.Context) {
+	r.GET("/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "up"})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -66,11 +66,11 @@ func TestRequireDBReady_AllowsReadyDatabase(t *testing.T) {
 
 	r := gin.New()
 	r.Use(RequireDBReady())
-	r.GET("/api/v1/me", func(c *gin.Context) {
+	r.GET("/v1/me", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -108,11 +108,11 @@ func TestRequireDBReady_AllowsAgentAdminWhenUnavailable(t *testing.T) {
 
 	r := gin.New()
 	r.Use(RequireDBReady())
-	r.GET("/api/v1/agent-admin", func(c *gin.Context) {
+	r.GET("/v1/agent-admin", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/agent-admin", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 

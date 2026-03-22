@@ -52,7 +52,7 @@ type ownerResponseOptionCount struct {
 	Percentage float64 `json:"percentage"`
 }
 
-// GetSurveyResponseAnalytics handles GET /api/v1/surveys/:id/responses/analytics.
+// GetSurveyResponseAnalytics handles GET /v1/surveys/:id/responses/analytics.
 func (h *ResponseHandler) GetSurveyResponseAnalytics(c *gin.Context) {
 	surveyID, selectedVersion, ok := parseResponseAnalyticsRequest(c)
 	if !ok {

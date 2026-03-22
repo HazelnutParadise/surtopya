@@ -53,7 +53,7 @@ type agentResponseOptionCount struct {
 	Percentage float64 `json:"percentage"`
 }
 
-// GetSurveyResponseAnalytics handles GET /api/v1/agent-admin/surveys/:id/responses/analytics.
+// GetSurveyResponseAnalytics handles GET /v1/agent-admin/surveys/:id/responses/analytics.
 func (h *AgentAdminHandler) GetSurveyResponseAnalytics(c *gin.Context) {
 	identity := currentAgentIdentity(c)
 	if identity == nil {

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/api-server", () => ({
-  API_BASE_URL: "http://api:8080/api/v1",
+  API_BASE_URL: "http://api:8080/v1",
   getAuthToken: mocks.getAuthToken,
 }))
 
@@ -94,3 +94,4 @@ describe("GET /api/app/me route", () => {
     await expect(response.json()).resolves.toEqual({ error: "unauthorized" })
   })
 })
+

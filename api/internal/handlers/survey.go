@@ -102,7 +102,7 @@ type QuestionRequest struct {
 	Logic       []models.LogicRule `json:"logic"`
 }
 
-// CreateSurvey handles POST /api/v1/surveys
+// CreateSurvey handles POST /v1/surveys
 func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	var req CreateSurveyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -214,7 +214,7 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	c.JSON(http.StatusCreated, survey)
 }
 
-// GetSurvey handles GET /api/v1/surveys/:id
+// GetSurvey handles GET /v1/surveys/:id
 func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -274,7 +274,7 @@ func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, survey)
 }
 
-// GetMySurveys handles GET /api/v1/surveys/my
+// GetMySurveys handles GET /v1/surveys/my
 func (h *SurveyHandler) GetMySurveys(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -291,7 +291,7 @@ func (h *SurveyHandler) GetMySurveys(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"surveys": surveys})
 }
 
-// GetPublicSurveys handles GET /api/v1/surveys/public
+// GetPublicSurveys handles GET /v1/surveys/public
 func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -335,7 +335,7 @@ type UpdateSurveyRequest struct {
 	Questions             []QuestionRequest   `json:"questions"`
 }
 
-// UpdateSurvey handles PUT /api/v1/surveys/:id
+// UpdateSurvey handles PUT /v1/surveys/:id
 func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -618,7 +618,7 @@ func buildSurveySnapshot(survey *models.Survey) ([]byte, error) {
 	return json.Marshal(snapshot)
 }
 
-// PublishSurvey handles POST /api/v1/surveys/:id/publish
+// PublishSurvey handles POST /v1/surveys/:id/publish
 func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -817,7 +817,7 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	c.JSON(http.StatusOK, survey)
 }
 
-// OpenSurveyResponses handles POST /api/v1/surveys/:id/responses/open
+// OpenSurveyResponses handles POST /v1/surveys/:id/responses/open
 func (h *SurveyHandler) OpenSurveyResponses(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -901,7 +901,7 @@ func (h *SurveyHandler) OpenSurveyResponses(c *gin.Context) {
 	c.JSON(http.StatusOK, survey)
 }
 
-// CloseSurveyResponses handles POST /api/v1/surveys/:id/responses/close
+// CloseSurveyResponses handles POST /v1/surveys/:id/responses/close
 func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -974,7 +974,7 @@ func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
 	c.JSON(http.StatusOK, survey)
 }
 
-// ListSurveyVersions handles GET /api/v1/surveys/:id/versions
+// ListSurveyVersions handles GET /v1/surveys/:id/versions
 func (h *SurveyHandler) ListSurveyVersions(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -1011,7 +1011,7 @@ func (h *SurveyHandler) ListSurveyVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"versions": versions})
 }
 
-// GetSurveyVersion handles GET /api/v1/surveys/:id/versions/:versionNumber
+// GetSurveyVersion handles GET /v1/surveys/:id/versions/:versionNumber
 func (h *SurveyHandler) GetSurveyVersion(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -1058,7 +1058,7 @@ func (h *SurveyHandler) GetSurveyVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, version)
 }
 
-// RestoreSurveyVersionDraft handles POST /api/v1/surveys/:id/versions/:versionNumber/restore-draft
+// RestoreSurveyVersionDraft handles POST /v1/surveys/:id/versions/:versionNumber/restore-draft
 func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -1166,7 +1166,7 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// DeleteSurvey handles DELETE /api/v1/surveys/:id
+// DeleteSurvey handles DELETE /v1/surveys/:id
 func (h *SurveyHandler) DeleteSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)

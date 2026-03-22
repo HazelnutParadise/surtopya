@@ -50,7 +50,7 @@ type UpdateUserProfileRequest struct {
 	Location    *string `json:"location"`
 }
 
-// GetProfile handles GET /api/v1/me
+// GetProfile handles GET /v1/me
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -129,7 +129,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, profile)
 }
 
-// UpdateProfile handles PATCH /api/v1/me
+// UpdateProfile handles PATCH /v1/me
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {

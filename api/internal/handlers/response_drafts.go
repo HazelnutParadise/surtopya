@@ -630,7 +630,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 	})
 }
 
-// GetMyDrafts handles GET /api/v1/drafts/my
+// GetMyDrafts handles GET /v1/drafts/my
 func (h *ResponseHandler) GetMyDrafts(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -965,7 +965,7 @@ func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 	})
 }
 
-// ForfeitAnonymousPoints handles POST /api/v1/responses/forfeit-anonymous-points
+// ForfeitAnonymousPoints handles POST /v1/responses/forfeit-anonymous-points
 func (h *ResponseHandler) ForfeitAnonymousPoints(c *gin.Context) {
 	var req ForfeitAnonymousPointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

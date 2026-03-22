@@ -202,7 +202,7 @@ type AdminSystemSettingsPatchRequest struct {
 	SignupInitialPoints *int `json:"signupInitialPoints"`
 }
 
-// GetSurveys handles GET /api/v1/admin/surveys
+// GetSurveys handles GET /v1/admin/surveys
 func (h *AdminHandler) GetSurveys(c *gin.Context) {
 	search := c.Query("search")
 	visibility := c.Query("visibility")
@@ -239,7 +239,7 @@ func (h *AdminHandler) GetSurveys(c *gin.Context) {
 	})
 }
 
-// UpdateSurvey handles PATCH /api/v1/admin/surveys/:id
+// UpdateSurvey handles PATCH /v1/admin/surveys/:id
 func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -358,7 +358,7 @@ func (h *AdminHandler) loadSurveyByParamID(c *gin.Context) (*models.Survey, bool
 	return survey, true
 }
 
-// PublishSurveyVersion handles POST /api/v1/admin/surveys/:id/publish.
+// PublishSurveyVersion handles POST /v1/admin/surveys/:id/publish.
 func (h *AdminHandler) PublishSurveyVersion(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -368,7 +368,7 @@ func (h *AdminHandler) PublishSurveyVersion(c *gin.Context) {
 	NewSurveyHandler().PublishSurvey(c)
 }
 
-// OpenSurveyResponses handles POST /api/v1/admin/surveys/:id/responses/open.
+// OpenSurveyResponses handles POST /v1/admin/surveys/:id/responses/open.
 func (h *AdminHandler) OpenSurveyResponses(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -378,7 +378,7 @@ func (h *AdminHandler) OpenSurveyResponses(c *gin.Context) {
 	NewSurveyHandler().OpenSurveyResponses(c)
 }
 
-// CloseSurveyResponses handles POST /api/v1/admin/surveys/:id/responses/close.
+// CloseSurveyResponses handles POST /v1/admin/surveys/:id/responses/close.
 func (h *AdminHandler) CloseSurveyResponses(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -388,7 +388,7 @@ func (h *AdminHandler) CloseSurveyResponses(c *gin.Context) {
 	NewSurveyHandler().CloseSurveyResponses(c)
 }
 
-// ListSurveyVersions handles GET /api/v1/admin/surveys/:id/versions.
+// ListSurveyVersions handles GET /v1/admin/surveys/:id/versions.
 func (h *AdminHandler) ListSurveyVersions(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -398,7 +398,7 @@ func (h *AdminHandler) ListSurveyVersions(c *gin.Context) {
 	NewSurveyHandler().ListSurveyVersions(c)
 }
 
-// GetSurveyVersion handles GET /api/v1/admin/surveys/:id/versions/:versionNumber.
+// GetSurveyVersion handles GET /v1/admin/surveys/:id/versions/:versionNumber.
 func (h *AdminHandler) GetSurveyVersion(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -408,7 +408,7 @@ func (h *AdminHandler) GetSurveyVersion(c *gin.Context) {
 	NewSurveyHandler().GetSurveyVersion(c)
 }
 
-// RestoreSurveyVersionDraft handles POST /api/v1/admin/surveys/:id/versions/:versionNumber/restore-draft.
+// RestoreSurveyVersionDraft handles POST /v1/admin/surveys/:id/versions/:versionNumber/restore-draft.
 func (h *AdminHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 	survey, ok := h.loadSurveyByParamID(c)
 	if !ok {
@@ -418,7 +418,7 @@ func (h *AdminHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 	NewSurveyHandler().RestoreSurveyVersionDraft(c)
 }
 
-// DeleteSurvey handles DELETE /api/v1/admin/surveys/:id
+// DeleteSurvey handles DELETE /v1/admin/surveys/:id
 func (h *AdminHandler) DeleteSurvey(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -472,7 +472,7 @@ func (h *AdminHandler) DeleteSurvey(c *gin.Context) {
 	})
 }
 
-// GetDatasets handles GET /api/v1/admin/datasets
+// GetDatasets handles GET /v1/admin/datasets
 func (h *AdminHandler) GetDatasets(c *gin.Context) {
 	search := c.Query("search")
 	active := c.Query("active")
@@ -508,7 +508,7 @@ func (h *AdminHandler) GetDatasets(c *gin.Context) {
 	})
 }
 
-// CreateDataset handles POST /api/v1/admin/datasets
+// CreateDataset handles POST /v1/admin/datasets
 func (h *AdminHandler) CreateDataset(c *gin.Context) {
 	surveyIDStr := strings.TrimSpace(c.PostForm("surveyId"))
 	title := strings.TrimSpace(c.PostForm("title"))
@@ -727,7 +727,7 @@ func (h *AdminHandler) CreateDataset(c *gin.Context) {
 	c.JSON(http.StatusCreated, refreshed)
 }
 
-// UpdateDataset handles PATCH /api/v1/admin/datasets/:id
+// UpdateDataset handles PATCH /v1/admin/datasets/:id
 func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -887,7 +887,7 @@ func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, updatedDataset)
 }
 
-// DeleteDataset handles DELETE /api/v1/admin/datasets/:id
+// DeleteDataset handles DELETE /v1/admin/datasets/:id
 func (h *AdminHandler) DeleteDataset(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -904,7 +904,7 @@ func (h *AdminHandler) DeleteDataset(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Dataset deleted successfully"})
 }
 
-// ListDatasetVersions handles GET /api/v1/admin/datasets/:id/versions
+// ListDatasetVersions handles GET /v1/admin/datasets/:id/versions
 func (h *AdminHandler) ListDatasetVersions(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -931,7 +931,7 @@ func (h *AdminHandler) ListDatasetVersions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"versions": versions})
 }
 
-// PublishDatasetVersion handles POST /api/v1/admin/datasets/:id/publish
+// PublishDatasetVersion handles POST /v1/admin/datasets/:id/publish
 func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -1064,7 +1064,7 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 	})
 }
 
-// ListDeidReviewJobs handles GET /api/v1/admin/deid/reviews
+// ListDeidReviewJobs handles GET /v1/admin/deid/reviews
 func (h *AdminHandler) ListDeidReviewJobs(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -1080,7 +1080,7 @@ func (h *AdminHandler) ListDeidReviewJobs(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetDeidReviewJob handles GET /api/v1/admin/deid/reviews/:jobId
+// GetDeidReviewJob handles GET /v1/admin/deid/reviews/:jobId
 func (h *AdminHandler) GetDeidReviewJob(c *gin.Context) {
 	jobID, err := uuid.Parse(c.Param("jobId"))
 	if err != nil {
@@ -1102,7 +1102,7 @@ func (h *AdminHandler) GetDeidReviewJob(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// CompleteDeidReview handles POST /api/v1/admin/deid/reviews/:jobId/complete
+// CompleteDeidReview handles POST /v1/admin/deid/reviews/:jobId/complete
 func (h *AdminHandler) CompleteDeidReview(c *gin.Context) {
 	jobID, err := uuid.Parse(c.Param("jobId"))
 	if err != nil {
@@ -1167,7 +1167,7 @@ func (h *AdminHandler) CompleteDeidReview(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// GetBootstrapStatus handles GET /api/v1/bootstrap
+// GetBootstrapStatus handles GET /v1/bootstrap
 func (h *AdminHandler) GetBootstrapStatus(c *gin.Context) {
 	var count int
 	if err := database.GetDB().QueryRow("SELECT COUNT(*) FROM users WHERE is_super_admin = true").Scan(&count); err != nil {
@@ -1178,7 +1178,7 @@ func (h *AdminHandler) GetBootstrapStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"hasSuperAdmin": count > 0})
 }
 
-// GetUsers handles GET /api/v1/admin/users
+// GetUsers handles GET /v1/admin/users
 func (h *AdminHandler) GetUsers(c *gin.Context) {
 	search := c.Query("search")
 	role := strings.TrimSpace(c.DefaultQuery("role", "all"))
@@ -1268,7 +1268,7 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	})
 }
 
-// UpdateUser handles PATCH /api/v1/admin/users/:id
+// UpdateUser handles PATCH /v1/admin/users/:id
 func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1412,7 +1412,7 @@ func buildPointsAdjustInsufficientPayload(items []AdminUsersPointsAdjustInsuffic
 	return out
 }
 
-// AdjustUsersPoints handles POST /api/v1/admin/users/points-adjust
+// AdjustUsersPoints handles POST /v1/admin/users/points-adjust
 func (h *AdminHandler) AdjustUsersPoints(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1602,7 +1602,7 @@ func (h *AdminHandler) AdjustUsersPoints(c *gin.Context) {
 	})
 }
 
-// GetPolicies handles GET /api/v1/admin/policies
+// GetPolicies handles GET /v1/admin/policies
 func (h *AdminHandler) GetPolicies(c *gin.Context) {
 	_, _, matrix, err := h.policies.ListPolicies(c.Request.Context())
 	if err != nil {
@@ -1627,7 +1627,7 @@ func (h *AdminHandler) GetPolicies(c *gin.Context) {
 	})
 }
 
-// UpdatePolicies handles PATCH /api/v1/admin/policies
+// UpdatePolicies handles PATCH /v1/admin/policies
 func (h *AdminHandler) UpdatePolicies(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1663,7 +1663,7 @@ func (h *AdminHandler) UpdatePolicies(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Policies updated"})
 }
 
-// GetPolicyWriters handles GET /api/v1/admin/policy-writers
+// GetPolicyWriters handles GET /v1/admin/policy-writers
 func (h *AdminHandler) GetPolicyWriters(c *gin.Context) {
 	writers, err := h.policies.ListPolicyWriters(c.Request.Context())
 	if err != nil {
@@ -1673,7 +1673,7 @@ func (h *AdminHandler) GetPolicyWriters(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": writers})
 }
 
-// UpdatePolicyWriter handles PUT /api/v1/admin/policy-writers/:id
+// UpdatePolicyWriter handles PUT /v1/admin/policy-writers/:id
 func (h *AdminHandler) UpdatePolicyWriter(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1712,7 +1712,7 @@ func (h *AdminHandler) UpdatePolicyWriter(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Policy writer updated"})
 }
 
-// GetSubscriptionPlans handles GET /api/v1/admin/subscription-plans
+// GetSubscriptionPlans handles GET /v1/admin/subscription-plans
 func (h *AdminHandler) GetSubscriptionPlans(c *gin.Context) {
 	plans, err := h.policies.ListSubscriptionPlans(c.Request.Context())
 	if err != nil {
@@ -1722,7 +1722,7 @@ func (h *AdminHandler) GetSubscriptionPlans(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"plans": plans})
 }
 
-// CreateSubscriptionPlan handles POST /api/v1/admin/subscription-plans
+// CreateSubscriptionPlan handles POST /v1/admin/subscription-plans
 func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1770,7 +1770,7 @@ func (h *AdminHandler) CreateSubscriptionPlan(c *gin.Context) {
 	c.JSON(http.StatusCreated, plan)
 }
 
-// UpdateSubscriptionPlan handles PATCH /api/v1/admin/subscription-plans/:id
+// UpdateSubscriptionPlan handles PATCH /v1/admin/subscription-plans/:id
 func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1828,7 +1828,7 @@ func (h *AdminHandler) UpdateSubscriptionPlan(c *gin.Context) {
 	c.JSON(http.StatusOK, plan)
 }
 
-// DeactivateSubscriptionPlan handles DELETE /api/v1/admin/subscription-plans/:id
+// DeactivateSubscriptionPlan handles DELETE /v1/admin/subscription-plans/:id
 func (h *AdminHandler) DeactivateSubscriptionPlan(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1882,7 +1882,7 @@ func (h *AdminHandler) DeactivateSubscriptionPlan(c *gin.Context) {
 	})
 }
 
-// UpdateCapability handles PATCH /api/v1/admin/capabilities/:id
+// UpdateCapability handles PATCH /v1/admin/capabilities/:id
 func (h *AdminHandler) UpdateCapability(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -1933,7 +1933,7 @@ func (h *AdminHandler) UpdateCapability(c *gin.Context) {
 	c.JSON(http.StatusOK, capability)
 }
 
-// GetSystemSettings handles GET /api/v1/admin/system-settings
+// GetSystemSettings handles GET /v1/admin/system-settings
 func (h *AdminHandler) GetSystemSettings(c *gin.Context) {
 	points, err := loadSurveyBasePoints(database.GetDB())
 	if err != nil {
@@ -1952,7 +1952,7 @@ func (h *AdminHandler) GetSystemSettings(c *gin.Context) {
 	})
 }
 
-// UpdateSystemSettings handles PATCH /api/v1/admin/system-settings
+// UpdateSystemSettings handles PATCH /v1/admin/system-settings
 func (h *AdminHandler) UpdateSystemSettings(c *gin.Context) {
 	currentUserID, exists := c.Get("userID")
 	if !exists {
@@ -2037,7 +2037,7 @@ func (h *AdminHandler) UpdateSystemSettings(c *gin.Context) {
 	})
 }
 
-// GetPricingPlans handles GET /api/v1/pricing/plans
+// GetPricingPlans handles GET /v1/pricing/plans
 func (h *AdminHandler) GetPricingPlans(c *gin.Context) {
 	locale := strings.TrimSpace(c.DefaultQuery("locale", "en"))
 	plans, err := h.policies.ListPricingPlans(c.Request.Context(), locale)
@@ -2048,7 +2048,7 @@ func (h *AdminHandler) GetPricingPlans(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"plans": plans})
 }
 
-// GetPublicConfig handles GET /api/v1/config
+// GetPublicConfig handles GET /v1/config
 func (h *AdminHandler) GetPublicConfig(c *gin.Context) {
 	points, err := loadSurveyBasePoints(database.GetDB())
 	if err != nil {

@@ -22,7 +22,7 @@ for (const [key, value] of Object.entries(envDefaults)) {
 const mockApiEnabled = process.env.PLAYWRIGHT_MOCK_API === "true"
 if (mockApiEnabled) {
   const mockApiPort = Number(process.env.PLAYWRIGHT_MOCK_API_PORT || 9100)
-  const baseUrl = `http://localhost:${mockApiPort}/api/v1`
+  const baseUrl = `http://localhost:${mockApiPort}/v1`
 
   if (!process.env.INTERNAL_API_URL) {
     process.env.INTERNAL_API_URL = baseUrl
@@ -73,7 +73,7 @@ if (mockApiEnabled) {
       const url = new URL(request.url)
       const { pathname } = url
 
-      if (request.method === "GET" && pathname === "/api/v1/me") {
+      if (request.method === "GET" && pathname === "/v1/me") {
         return json(200, {
           id: "me",
           email: "me@example.com",
@@ -89,13 +89,13 @@ if (mockApiEnabled) {
         })
       }
 
-      const surveyMatch = pathname.match(/^\/api\/v1\/surveys\/([^/]+)$/)
+      const surveyMatch = pathname.match(/^\/v1\/surveys\/([^/]+)$/)
       if (request.method === "GET" && surveyMatch) {
         const surveyId = surveyMatch[1]
         return json(200, mockSurvey(surveyId))
       }
 
-      const startMatch = pathname.match(/^\/api\/v1\/surveys\/([^/]+)\/responses\/start$/)
+      const startMatch = pathname.match(/^\/v1\/surveys\/([^/]+)\/responses\/start$/)
       if (request.method === "POST" && startMatch) {
         const surveyId = startMatch[1]
         return json(201, {
@@ -107,7 +107,7 @@ if (mockApiEnabled) {
         })
       }
 
-      const submitMatch = pathname.match(/^\/api\/v1\/responses\/([^/]+)\/submit$/)
+      const submitMatch = pathname.match(/^\/v1\/responses\/([^/]+)\/submit$/)
       if (request.method === "POST" && submitMatch) {
         const responseId = submitMatch[1]
         return json(200, {
@@ -196,3 +196,4 @@ if (shouldBuild) {
 
 // Keep the process alive as the web server entrypoint for Playwright.
 await run("bun", ["run", "start", "--", "--port", String(port)])
+

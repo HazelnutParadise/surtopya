@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@/lib/api-server", () => ({
-  API_BASE_URL: "http://api:8080/api/v1",
+  API_BASE_URL: "http://api:8080/v1",
   getAuthToken: mocks.getAuthToken,
 }))
 
@@ -173,3 +173,4 @@ describe("/api/app/user-settings route", () => {
     })
   })
 })
+

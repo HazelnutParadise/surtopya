@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 
 describe("datasets openapi spec", () => {
   it("contains required top-level fields and servers", () => {
-    const spec = buildDatasetsOpenApiSpec({ publicApiUrl: "https://api.example.com/api/v1/" })
+    const spec = buildDatasetsOpenApiSpec({ publicApiUrl: "https://api.example.com/v1/" })
 
     expect(spec.openapi).toBe("3.1.0")
     expect(spec.info.title).toBe("Surtopya Dataset API")
@@ -13,7 +13,7 @@ describe("datasets openapi spec", () => {
         description: "Same-origin proxy (recommended for interactive try-out)",
       },
       {
-        url: "https://api.example.com/api/v1",
+        url: "https://api.example.com/v1",
         description: "Versioned public API",
       },
     ])
@@ -65,3 +65,4 @@ describe("datasets openapi spec", () => {
     expect(purchaseResponses?.[500]?.["x-error-code"]).toBe("server_error")
   })
 })
+

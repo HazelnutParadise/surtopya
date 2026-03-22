@@ -3,7 +3,7 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.PUBLIC_API_URL ||
-  "http://localhost:8080/api/v1";
+  "http://localhost:8080/v1";
 
 interface ApiError {
   error: string;
@@ -724,3 +724,4 @@ export interface PricingPlan {
 // Export singleton instance
 export const api = new ApiClient();
 export default api;
+

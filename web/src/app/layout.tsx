@@ -26,8 +26,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Surtopya - Privacy-Preserving Survey Platform",
-  description: "Create surveys and share de-identified datasets securely.",
+  title: "Surtopya | Privacy-Preserving Survey & Dataset Marketplace",
+  description:
+    "Create privacy-preserving surveys, collect responses, and publish de-identified datasets in a searchable marketplace.",
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",

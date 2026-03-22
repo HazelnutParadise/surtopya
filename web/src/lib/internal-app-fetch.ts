@@ -49,11 +49,11 @@ const resolveInternalAppBaseUrl = (apiBaseUrl: string) => {
     url.pathname = "/api/app"
     return trimTrailingSlash(url.toString())
   } catch {
-    const withoutV1 = trimmed.replace(/\/api\/v\d+$/, "")
-    if (withoutV1 !== trimmed) {
-      return `${withoutV1}/api/app`
+    const withoutVersion = trimmed.replace(/\/(?:api\/)?v\d+$/, "")
+    if (withoutVersion !== trimmed) {
+      return `${withoutVersion}/api/app`
     }
-    return `${trimmed}/app`
+    return `${trimmed}/api/app`
   }
 }
 
