@@ -914,7 +914,6 @@
   "ApiDocs": {
     "title": "Dataset API Docs",
     "subtitle": "Explore dataset APIs in Swagger UI with complete parameters, examples, and error codes, plus interactive try-out.",
-    "recommendedServer": "Recommended Try-it Server (same-origin proxy)",
     "publicServer": "Public Versioned API Server",
     "howToTitle": "How To Use",
     "howToAuth": "Try-it reuses your current signed-in session cookie. Sign in first before testing.",

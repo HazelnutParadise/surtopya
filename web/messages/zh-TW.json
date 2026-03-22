@@ -914,7 +914,6 @@
   "ApiDocs": {
     "title": "資料集 API 文件",
     "subtitle": "使用 Swagger UI 瀏覽資料集 API，查看完整參數、範例與錯誤碼，並可直接互動試打。",
-    "recommendedServer": "Try-it 建議 Server（同站代理）",
     "publicServer": "公開版本化 API Server",
     "howToTitle": "如何使用",
     "howToAuth": "Try-it 會沿用你目前登入會話（cookie），請先登入再試打。",

@@ -914,7 +914,6 @@
   "ApiDocs": {
     "title": "データセット API ドキュメント",
     "subtitle": "Swagger UI でデータセット API を確認し、完全なパラメータ、サンプル、エラーコードを対話的に試せます。",
-    "recommendedServer": "Try-it 推奨サーバー（同一オリジンプロキシ）",
     "publicServer": "公開バージョン API サーバー",
     "howToTitle": "使い方",
     "howToAuth": "Try-it は現在のログインセッション cookie を利用します。事前にログインしてください。",
