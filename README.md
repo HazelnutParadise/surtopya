@@ -1,76 +1,149 @@
-# Surtopya - Privacy-Preserving Survey Platform
+# Surtopya
 
-Surtopya 是一個整合了去識別化資料集市場的問卷平台。本文件記載了系統的核心邏輯與架構設計。
+Publish surveys that keep growing.
 
-## 1. 核心技術架構
+Surtopya is a survey platform where each survey can stay discoverable, keep collecting responses over time, and optionally contribute de-identified data to a community marketplace.
 
-### 前端 (Web)
-- **Framework**: Next.js (App Router)
-- **Internationalization (i18n)**: 使用 `next-intl`。
-- **Styling**: Tailwind CSS & Lucide Icons.
+## Product Positioning
 
-### 後端 (API)
-- **Framework**: Go Gin
-- **Database**: PostgreSQL
+- Discoverability first: surveys are designed to be searchable and shareable
+- Long-tail response growth: surveys continue to attract new responses after launch
+- Data contribution model: eligible responses can be de-identified and shared as datasets
 
----
+Current homepage metadata direction:
 
-## 2. 關鍵邏輯實作
+- Title: `Surtopya | Publish Surveys That Keep Growing`
+- Description: `Turn every survey into a searchable page, collect responses over time, and contribute de-identified data to a research community marketplace.`
 
-### A. 國際化 (i18n)
-系統支援繁體中文 (zh-TW)、英文 (en) 與日文 (ja)。
-- **翻譯來源**: `web/messages/zh-TW.json` 為來源檔，其他語系需人工更新。
-- **檔案位置**: 所有語系檔案位於 `web/messages/`。
-- **路由設計**: 採用 `[locale]` 動態路由結構，確保 SEO 與語系切換的流暢度。
+## Monorepo Structure
 
-### B. 動態環境變數 (Runtime Env Vars)
-為了解決 Docker 環境下 `PUBLIC_API_URL` 被編譯固定的問題：
-- **混合架構**: 數據集詳情頁等關鍵頁面改為 **Server Component**，在 Request Time 讀取環境變數。
-- **注入機制**: 由 Server Component 讀取 `process.env` 後，作為 Prop 傳入 Client Component，確保 Docker Compose 中的變數修改能即時生效。
-
-### C. 問卷可見度與資料分享連動
-系統內建隱私補償邏輯：
-- **公開問卷 (Public)**：自動強制開啟「資料集分享 (Dataset Sharing)」，以此維持平台的免費營運（去識別化後加入市場）。
-- **非公開問卷 (Non-public)**：預設關閉分享，保障絕對隱私，除非使用者手動開啟。
-- **知情同意**: 建置工具 (Survey Builder) 進入前必經 Consent Modal，拒絕同意將無法使用建置功能。
-
-### D. API 分層規則
-- **公開 API（對外文件）**：維持版本化，統一走 `/api/v1/*`。
-- **前端內部 API（BFF 代打）**：不版本化，統一走 `/api/app/*`，可直接演進不保留版本號。
-- **文件範圍**：對外 API 文件僅列 `/api/v1/*`；`/api/app/*` 不對外公開。
-
----
-
-## 3. 開發與部署
-
-### Docker 啟動
-使用 Docker Compose 一鍵啟動全棧環境：
-```bash
-docker compose up --build
+```text
+surtopya/
+├── api/                    # Go backend (Gin + PostgreSQL)
+│   ├── cmd/                # Server entry point
+│   ├── internal/           # handlers, repository, models, middleware, routes
+│   └── migrations/         # PostgreSQL init scripts
+├── web/                    # Next.js frontend (App Router + TypeScript)
+│   ├── src/
+│   │   ├── app/            # routes
+│   │   ├── components/     # UI and feature components
+│   │   └── lib/            # API client, i18n/runtime utils
+│   └── messages/           # i18n message files (zh-TW, en, ja)
+└── docker-compose.yml      # full-stack orchestration
 ```
 
-### 翻譯維護
-若修改了 `messages/zh-TW.json`，請手動同步 `en.json` 與 `ja.json`。
+## Tech Stack
 
-### 資料持久化
-- 翻譯文件透過 Docker Volume 掛載到本地 `./web/messages`，確保語系檔案不會因容器重啟而消失。
+- Frontend: Next.js (App Router), React, TypeScript, Tailwind CSS v4, Radix UI
+- Backend: Go, Gin
+- Database: PostgreSQL 16
+- Auth: Logto
+- Package manager (web): Bun
 
----
+## Quick Start
 
-## 4. 系統環境變數
-| 變數名 | 說明 | 範例 |
-| :--- | :--- | :--- |
-| `PUBLIC_API_URL` | 前端呼叫 API 的地址 | `http://localhost:8080/api/v1` |
+### Prerequisites
 
----
+- Docker + Docker Compose
+- Bun (for local web development)
+- Go (for local API development)
 
-## 5. 未來設計與維護建議 (Future Design Considerations)
+### Run full stack with Docker
 
-### A. 資料庫設計 (Database Schema)
-當未來從 Mock 轉向實體資料庫時，務必確保問卷 table 包含 `visibility` (enum: public, non-public) 欄位。這直接影響：
-1. **API 過濾管理**：Server 端應在 Query 時就排除 `non-public` 的問卷，除非是作者本人或持有 Direct Link。
-2. **搜尋引擎索引控制**：前端需根據此欄位動態輸出 `noindex`。
+Development:
 
-### B. 搜尋引擎優化 (SEO)
-- **索引控制**：對於非公開問卷，前端必須輸出 `robots: { index: false, follow: true }`。主流搜尋引擎（Google, Bing, Baidu）均能正確識別此 Meta 標籤以防止頁面被收錄。
-- **動態環境變數**：Docker 部署時，環境變數應統一從 `.env` 文件載入，避免直接硬編碼在 `docker-compose.yml` 中，以方便多環境管理（Dev/Staging/Prod）。
+```bash
+docker compose --env-file .env.development up --build
+```
+
+Production-like:
+
+```bash
+docker compose --env-file .env.production up -d --build
+```
+
+Default local URLs:
+
+- Web: `http://localhost:3000`
+- Public API: `http://localhost:8000/v1`
+
+## Local Development (without full Docker workflow)
+
+### Web
+
+```bash
+cd web
+bun install
+bun run dev
+```
+
+Other useful commands:
+
+```bash
+bun run build
+bun run test
+bun run lint
+```
+
+### API
+
+```bash
+cd api
+go run cmd/server/main.go
+```
+
+Build binary:
+
+```bash
+go build -o bin/server ./cmd/server
+```
+
+## Environment Variables
+
+Most setups only need this for frontend API access:
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `PUBLIC_API_URL` | Frontend base URL to public API | `http://localhost:8000/v1` |
+
+Notes:
+
+- `PUBLIC_` values can be supplied from Compose env files
+- Frontend uses runtime server-side env access pattern to avoid hard-baked endpoints
+
+## i18n Workflow
+
+- Source of truth: `web/messages/zh-TW.json`
+- Keep `web/messages/en.json` and `web/messages/ja.json` manually in sync
+- Locale routes are served via App Router locale segment pattern
+
+## Privacy and Data Sharing Rules
+
+- Public surveys: dataset sharing is automatically enabled (platform rule)
+- Non-public surveys: sharing can be controlled manually (subject to plan/capability rules)
+- Dataset contributions are de-identified before marketplace exposure
+
+## API Conventions
+
+- Base path: `/v1/...`
+- JSON keys: `snake_case`
+- Error envelope: `{ code, message, details, correlationId }`
+
+## Testing Status
+
+Current test coverage is still limited.
+
+- Web: Vitest-based component and page tests
+- API: basic and targeted handler/repository tests
+
+Recommended before release:
+
+- Add integration tests for key survey and dataset flows
+- Strengthen error/loading state tests on frontend
+
+## Contribution Notes
+
+- Avoid introducing new mock-only flows where real API is already available
+- Prefer smaller components over adding logic to large monolithic files
+- Keep formatting consistent with project defaults (TypeScript no semicolons in web code)
+
