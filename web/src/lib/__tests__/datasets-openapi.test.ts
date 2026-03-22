@@ -2,25 +2,22 @@ import { buildDatasetsOpenApiSpec } from "@/lib/datasets-openapi"
 import { describe, expect, it } from "vitest"
 
 describe("datasets openapi spec", () => {
-  it("contains required top-level fields and servers", () => {
+  it("contains required top-level fields and single server from provided api url", () => {
     const spec = buildDatasetsOpenApiSpec({ publicApiUrl: "https://api.example.com/v1/" })
 
     expect(spec.openapi).toBe("3.1.0")
     expect(spec.info.title).toBe("Surtopya Dataset API")
     expect(spec.servers).toEqual([
       {
-        url: "/api/app",
-        description: "Same-origin proxy (recommended for interactive try-out)",
-      },
-      {
         url: "https://api.example.com/v1",
         description: "Versioned public API",
       },
     ])
+    expect(spec.servers.some((server) => server.url === "/api/app")).toBe(false)
   })
 
   it("defines all dataset endpoints with parameters and responses", () => {
-    const spec = buildDatasetsOpenApiSpec({ publicApiUrl: "" })
+    const spec = buildDatasetsOpenApiSpec()
 
     expect(spec.paths["/datasets"]?.get).toBeDefined()
     expect(spec.paths["/datasets/categories"]?.get).toBeDefined()
@@ -50,7 +47,7 @@ describe("datasets openapi spec", () => {
   })
 
   it("documents download and purchase error codes", () => {
-    const spec = buildDatasetsOpenApiSpec({ publicApiUrl: "" })
+    const spec = buildDatasetsOpenApiSpec()
     const downloadResponses = spec.paths["/datasets/{id}/download"]?.post?.responses
     const purchaseResponses = spec.paths["/datasets/{id}/purchase"]?.post?.responses
 

@@ -1,25 +1,29 @@
-export interface BuildDatasetsOpenApiSpecOptions {
-  publicApiUrl: string
+const DEFAULT_DATASETS_PUBLIC_API_BASE_URL = "https://api.surtopya.com/v1"
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "")
+
+export interface DatasetsOpenApiOptions {
+  publicApiUrl?: string
 }
 
-const trimTrailingSlash = (value: string) => value.replace(/\/$/, "")
+export const getDatasetsPublicApiBaseUrl = (publicApiUrl?: string) => {
+  const envValue =
+    publicApiUrl ||
+    process.env.DATASETS_PUBLIC_API_URL ||
+    process.env.PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    DEFAULT_DATASETS_PUBLIC_API_BASE_URL
 
-export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiSpecOptions) => {
-  const normalizedPublicApiUrl = trimTrailingSlash(publicApiUrl)
+  return trimTrailingSlash(envValue)
+}
 
-  const servers: Array<{ url: string; description: string }> = [
+export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: DatasetsOpenApiOptions = {}) => {
+  const servers = [
     {
-      url: "/api/app",
-      description: "Same-origin proxy (recommended for interactive try-out)",
+      url: getDatasetsPublicApiBaseUrl(publicApiUrl),
+      description: "Versioned public API",
     },
   ]
-
-  if (normalizedPublicApiUrl) {
-    servers.push({
-      url: normalizedPublicApiUrl,
-      description: "Versioned public API",
-    })
-  }
 
   return {
     openapi: "3.1.0",

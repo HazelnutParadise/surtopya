@@ -20,9 +20,18 @@ export interface CreateDatasetDocsRequestInterceptorOptions {
 }
 
 const DOWNLOAD_PATH_PATTERN = /\/datasets\/([^/]+)\/download\/?$/
+const VERSION_PREFIX_PATTERN = /^\/(?:api\/)?v\d+(?=\/|$)/
 
 const isDownloadPath = (pathname: string) => {
   return pathname.includes("/datasets/") && pathname.endsWith("/download")
+}
+
+const isDatasetsPath = (pathname: string) => {
+  return pathname === "/datasets" || pathname.startsWith("/datasets/")
+}
+
+const stripVersionPrefix = (pathname: string) => {
+  return pathname.replace(VERSION_PREFIX_PATTERN, "")
 }
 
 const getRequestUrl = (requestUrl: string) => {
@@ -31,6 +40,18 @@ const getRequestUrl = (requestUrl: string) => {
   } catch {
     return null
   }
+}
+
+export const rewriteDatasetDocsRequestUrl = (requestUrl: string) => {
+  const parsedUrl = getRequestUrl(requestUrl)
+  if (!parsedUrl) return requestUrl
+
+  const datasetPath = stripVersionPrefix(parsedUrl.pathname)
+  if (!isDatasetsPath(datasetPath)) {
+    return requestUrl
+  }
+
+  return `/api/app${datasetPath}${parsedUrl.search}`
 }
 
 export const extractDatasetIdFromDownloadUrl = (requestUrl: string) => {
@@ -78,6 +99,9 @@ export const createDatasetDocsRequestInterceptor = ({
 }: CreateDatasetDocsRequestInterceptorOptions) => {
   return async (request: SwaggerRequestLike) => {
     withCookieCredentials(request)
+    if (request.url) {
+      request.url = rewriteDatasetDocsRequestUrl(request.url)
+    }
 
     if (!isDatasetDownloadRequest(request)) {
       return request

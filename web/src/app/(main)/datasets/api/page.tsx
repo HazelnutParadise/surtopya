@@ -1,9 +1,9 @@
 import { DatasetsSwaggerUi } from "@/components/docs/datasets-swagger-ui"
 import { getServerTranslator } from "@/lib/i18n-server"
+import { getDatasetsPublicApiBaseUrl } from "@/lib/datasets-openapi"
 
 const OPENAPI_SPEC_URL = "/api/docs/datasets/openapi.json"
-const PROXY_BASE_URL = "/api/app"
-const PUBLIC_API_BASE_URL = process.env.PUBLIC_API_URL || "http://localhost:8080/v1"
+const PUBLIC_API_BASE_URL = getDatasetsPublicApiBaseUrl()
 
 export default async function DatasetApiDocsPage() {
   const t = await getServerTranslator("ApiDocs")
@@ -18,11 +18,7 @@ export default async function DatasetApiDocsPage() {
           <p className="max-w-3xl text-gray-600 dark:text-gray-300">{t("subtitle")}</p>
         </header>
 
-        <section className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 md:grid-cols-2 dark:border-gray-800 dark:bg-gray-900">
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">{t("recommendedServer")}</h2>
-            <p className="break-all font-mono text-sm text-gray-700 dark:text-gray-200">{PROXY_BASE_URL}</p>
-          </div>
+        <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">{t("publicServer")}</h2>
             <p className="break-all font-mono text-sm text-gray-700 dark:text-gray-200">{PUBLIC_API_BASE_URL}</p>

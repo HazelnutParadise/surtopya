@@ -4,11 +4,7 @@ import { buildDatasetsOpenApiSpec } from "@/lib/datasets-openapi"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const publicApiUrl =
-    process.env.PUBLIC_API_URL ||
-    process.env.INTERNAL_API_URL ||
-    "http://localhost:8080/v1"
-  const spec = buildDatasetsOpenApiSpec({ publicApiUrl })
+  const spec = buildDatasetsOpenApiSpec()
 
   return NextResponse.json(spec)
 }
