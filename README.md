@@ -100,16 +100,40 @@ go build -o bin/server ./cmd/server
 
 ## Environment Variables
 
-Most setups only need this for frontend API access:
+Source of truth: `.env.example` (for local defaults) and `docker-compose.yml` (runtime wiring).
 
-| Variable | Purpose | Example |
+### Core Web Variables
+
+| Variable | Used by | Purpose / Default |
 | --- | --- | --- |
-| `PUBLIC_API_URL` | Frontend base URL to public API | `http://localhost:8000/v1` |
+| `INTERNAL_API_URL` | server-side web calls | Internal API base, default `http://api:8080/v1` |
+| `PUBLIC_API_URL` | web server + fallback | Public API base, commonly `http://localhost:8000/v1` |
+| `NEXT_PUBLIC_API_URL` | browser client | Client API base; highest priority for browser requests |
+| `NEXT_PUBLIC_BASE_URL` | web security/auth | Base site URL for origin checks and auth callback construction |
+| `REQUIRE_BOOTSTRAP_AUTH` | root layout | Force sign-in during bootstrap when no super admin exists |
+| `LOGTO_ENDPOINT` / `LOGTO_APP_ID` / `LOGTO_APP_SECRET` / `LOGTO_COOKIE_SECRET` | Logto integration | Required when Logto auth is enabled |
 
-Notes:
+### Core API Variables
 
-- `PUBLIC_` values can be supplied from Compose env files
-- Frontend uses runtime server-side env access pattern to avoid hard-baked endpoints
+| Variable | Purpose |
+| --- | --- |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` / `DB_SSLMODE` | PostgreSQL connection |
+| `JWT_SECRET` | JWT fallback signing/verification secret |
+| `INTERNAL_APP_SIGNING_SECRET` | Internal `/api/app` request signing secret |
+| `ALLOW_UNVERIFIED_JWT` | Dev-friendly JWT behavior toggle |
+| `ALLOWED_ORIGINS` | CORS allow list |
+| `LOGTO_JWKS_URL` / `LOGTO_ISSUER` / `LOGTO_AUDIENCE` | RS256 JWT verification with Logto |
+| `DATASETS_DIR` | Dataset file storage path |
+| `MIGRATIONS_DIR` | SQL migration directory path |
+| `SURTOPYA_ENV` | Environment mode (`development`/`production`) |
+
+### Resolution Order (actual code behavior)
+
+- Browser API base: `NEXT_PUBLIC_API_URL` -> `PUBLIC_API_URL` -> `http://localhost:8080/v1`
+- Server API base: `INTERNAL_API_URL` -> `PUBLIC_API_URL` -> `http://api:8080/v1`
+- Internal app signing secret: `INTERNAL_APP_SIGNING_SECRET` -> `JWT_SECRET`
+
+If you are unsure, start from `.env.example` and keep environment overrides in `--env-file` files such as `.env.development` or `.env.production`.
 
 ## i18n Workflow
 
@@ -146,4 +170,3 @@ Recommended before release:
 - Avoid introducing new mock-only flows where real API is already available
 - Prefer smaller components over adding logic to large monolithic files
 - Keep formatting consistent with project defaults (TypeScript no semicolons in web code)
-
