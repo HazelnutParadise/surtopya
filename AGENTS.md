@@ -61,7 +61,7 @@ surtopya/
 ### API Contracts
 - **JSON keys**: ALL keys MUST be `snake_case` (e.g., `user_id`, `created_at`)
 - **Error envelope**: `{ code, message, details, correlationId }`
-- **REST**: Plural nouns, `/api/v1/` prefix
+- **REST**: Plural nouns, `/v1/` prefix
 
 ### TypeScript/JavaScript
 - **No semicolons**: ASI-based, Prettier `{ "semi": false }`
@@ -123,7 +123,7 @@ go build -o bin/server ./cmd/server
 ## ENVIRONMENT VARIABLES
 | Variable | Purpose | Example |
 |-----------|---------|---------|
-| `PUBLIC_API_URL` | Frontend → API endpoint | `http://localhost:8080/api/v1` |
+| `PUBLIC_API_URL` | Frontend → API endpoint | `http://localhost:8080/v1` |
 
 ## NOTES
 

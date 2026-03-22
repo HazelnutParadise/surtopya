@@ -17,7 +17,7 @@ Hexagonal-lite architecture implementing core Surtopya domain logic (Surveys, Da
 ## WHERE TO LOOK
 | Logic Type | Primary Directory | Notes |
 |------------|-------------------|-------|
-| API Endpoints | `routes/router.go` | Source of truth for all `/api/v1` routes |
+| API Endpoints | `routes/router.go` | Source of truth for all `/v1` routes |
 | Business Validation | `handlers/` | Enforces privacy-sharing rules (e.g., public survey requirements) |
 | SQL Queries | `repository/` | Direct SQL implementation; manages question sorting and JSON fields |
 | Auth Context | `middleware/auth.go` | Populates `userID` in `gin.Context` from Logto JWT |
