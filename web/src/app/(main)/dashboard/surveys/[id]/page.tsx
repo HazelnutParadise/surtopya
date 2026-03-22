@@ -46,6 +46,12 @@ import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import {
+  readUiPayloadError,
+  readUiPayloadMessage,
+  resolveUiError,
+  toUiErrorMessage,
+} from "@/lib/ui-error";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -83,6 +89,10 @@ export default function SurveyManagementPage() {
   const timeZone = useTimeZone()
   const withLocalePath = (href: string) => withLocale(href, locale);
   const surveyId = params.id as string;
+  const getUiError = (payload: unknown, fallbackMessage: string) =>
+    resolveUiError(payload, fallbackMessage)
+  const getUiErrorMessage = (error: unknown, fallbackMessage: string) =>
+    toUiErrorMessage(error, fallbackMessage)
 
   const [survey, setSurvey] = useState<SurveyDisplay | null>(null);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
@@ -126,7 +136,7 @@ export default function SurveyManagementPage() {
       })
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload?.error || "Failed to load survey versions")
+        throw new Error(getUiError(errorPayload, tBuilder("versionLoadFailed")))
       }
       const payload = await response.json()
       const versions = payload.versions || []
@@ -236,7 +246,7 @@ export default function SurveyManagementPage() {
         const payload = await response.json().catch(() => ({}))
 
         if (!response.ok) {
-          throw new Error(payload?.message || payload?.error || tCommon("error"))
+          throw new Error(getUiError(payload, t("responseAnalyticsError")))
         }
 
         if (isMounted) {
@@ -246,7 +256,7 @@ export default function SurveyManagementPage() {
         if (!isMounted || controller.signal.aborted) return
         console.error("Failed to load response analytics:", error)
         setAnalytics(null)
-        setAnalyticsError(error instanceof Error ? error.message : tCommon("error"))
+        setAnalyticsError(getUiErrorMessage(error, t("responseAnalyticsError")))
       } finally {
         if (isMounted && !controller.signal.aborted) {
           setAnalyticsLoading(false)
@@ -369,23 +379,26 @@ export default function SurveyManagementPage() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        throw new Error(payload?.error || "Delete failed")
+        throw new Error(getUiError(payload, t("deleteFailed")))
       }
       router.replace(withLocalePath("/dashboard"))
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : tCommon("error"))
+      setDeleteError(getUiErrorMessage(error, t("deleteFailed")))
     } finally {
       setDeleting(false)
     }
   }
 
-  const mapPublishStatusError = (rawError?: string) => {
+  const mapPublishStatusError = (payload: unknown) => {
+    const apiMessage = readUiPayloadMessage(payload)
+    if (apiMessage) return apiMessage
+    const rawError = readUiPayloadError(payload)
     if (!rawError) return tCommon("error");
     if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached");
     if (rawError === "No changes to publish") return tBuilder("noChangesToPublish");
     if (rawError === "Survey responses are closed") return tBuilder("responsesClosed");
     if (rawError === "Published version expired") return tBuilder("publishedVersionExpired");
-    return rawError;
+    return tCommon("error");
   };
 
   const getPublishRequestBody = () =>
@@ -413,7 +426,7 @@ export default function SurveyManagementPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(mapPublishStatusError(payload?.error));
+        throw new Error(mapPublishStatusError(payload));
       }
       setSurvey(mapApiSurveyToUi(payload));
       void loadSurveyVersions()
@@ -426,14 +439,14 @@ export default function SurveyManagementPage() {
       })
     } catch (error) {
       console.error("Failed to publish survey version:", error);
-      setPublishError(error instanceof Error ? error.message : tCommon("error"));
+      setPublishError(getUiErrorMessage(error, tCommon("error")));
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "publish_version",
         event_name: "error",
         resource_id: surveyId,
         metadata: {
-          message: error instanceof Error ? error.message : tCommon("error"),
+          message: getUiErrorMessage(error, tCommon("error")),
           action: eventName,
         },
       })
@@ -467,7 +480,7 @@ export default function SurveyManagementPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(mapPublishStatusError(payload?.error));
+        throw new Error(mapPublishStatusError(payload));
       }
       setSurvey(mapApiSurveyToUi(payload));
       void trackUIEvent({
@@ -478,14 +491,14 @@ export default function SurveyManagementPage() {
       })
     } catch (error) {
       console.error("Failed to update response status:", error);
-      setPublishError(error instanceof Error ? error.message : tCommon("error"));
+      setPublishError(getUiErrorMessage(error, tCommon("error")));
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "publish_toggle",
         event_name: "error",
         resource_id: surveyId,
         metadata: {
-          message: error instanceof Error ? error.message : tCommon("error"),
+          message: getUiErrorMessage(error, tCommon("error")),
         },
       })
     } finally {
@@ -510,7 +523,7 @@ export default function SurveyManagementPage() {
       })
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload?.error || "Failed to restore survey version")
+        throw new Error(getUiError(errorPayload, tBuilder("versionRestoreFailed")))
       }
       const payload = await response.json()
       setSurvey(mapApiSurveyToUi(payload))
@@ -577,7 +590,7 @@ export default function SurveyManagementPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.error || "Failed to save survey settings");
+        throw new Error(getUiError(data, t("saveSettingsFailed")));
       }
       setSurvey(mapApiSurveyToUi(data));
       void trackUIEvent({
@@ -588,7 +601,7 @@ export default function SurveyManagementPage() {
       })
     } catch (error) {
       console.error("Failed to save settings:", error);
-      setSaveError(error instanceof Error ? error.message : tCommon("error"));
+      setSaveError(getUiErrorMessage(error, t("saveSettingsFailed")));
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "settings_form",

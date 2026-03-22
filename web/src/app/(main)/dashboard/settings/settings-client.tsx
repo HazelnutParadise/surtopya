@@ -18,6 +18,7 @@ import {
 } from "@/lib/date-time"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { TIME_ZONE_COOKIE_NAME, type UserSettings } from "@/lib/user-settings"
+import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error"
 
 const hasTimeZoneCookie = () => {
   if (typeof document === "undefined") return false
@@ -130,7 +131,7 @@ export default function SettingsClient() {
 
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(typeof data?.error === "string" ? data.error : t("saveError"))
+        throw new Error(resolveUiError(data, t("saveError")))
       }
 
       const nextSettings = {
@@ -149,7 +150,7 @@ export default function SettingsClient() {
         router.refresh()
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t("saveError"))
+      setError(toUiErrorMessage(saveError, t("saveError")))
     } finally {
       setSaving(false)
     }

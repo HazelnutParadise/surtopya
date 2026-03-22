@@ -181,7 +181,8 @@
     "authRequiredDescription": "登入可儲存草稿、管理版本，並在準備好時一鍵發布。",
     "authRequiredAction": "立即登入/註冊",
     "requireLoginToRespondLabel": "需登入才能填",
-    "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。"
+    "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。",
+    "publishErrorMissingSurveyId": "找不到問卷 ID，請先儲存草稿後再發布。"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -259,7 +260,9 @@
     "purchaseButton": "購買（{price} 點）",
     "purchasing": "購買中...",
     "purchaseCompleted": "購買完成",
-    "purchaseFailed": "購買失敗"
+    "purchaseFailed": "購買失敗",
+    "downloadDefaultFilename": "資料集",
+    "downloadFailed": "下載失敗，請稍後再試。"
   },
   "Categories": {
     "market-research": "市場研究",
@@ -594,7 +597,9 @@
     "statusInProgress": "進行中",
     "statusAbandoned": "已放棄",
     "deleteSurvey": "刪除問卷",
-    "deleteSurveyConfirm": "確定要刪除此問卷嗎？此操作無法復原。"
+    "deleteSurveyConfirm": "確定要刪除此問卷嗎？此操作無法復原。",
+    "deleteFailed": "刪除失敗，請稍後再試。",
+    "saveSettingsFailed": "儲存設定失敗，請稍後再試。"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "沒有預覽資料",
@@ -788,7 +793,49 @@
     "deidReviewCompleteMessage": "審核完成，已寫入資料集 {datasetId} 草稿。",
     "deidMaskedCells": "已遮蔽 {count} 格",
     "agentPermissionDeidRead": "View de-identification queue status and active sessions.",
-    "agentPermissionDeidWrite": "Start de-identification sessions and submit chunk annotations."
+    "agentPermissionDeidWrite": "Start de-identification sessions and submit chunk annotations.",
+    "addAdminAction": "新增管理員",
+    "addAdminConfirmAction": "新增",
+    "addAdminDialogDescription": "將既有的非管理員用戶提升為管理員。",
+    "addAdminDialogTitle": "新增管理員",
+    "addAdminLoadingUsers": "載入用戶中...",
+    "addAdminSearchPlaceholder": "搜尋用戶",
+    "createError": "建立失敗，請稍後再試。",
+    "deactivatePlanAction": "停用方案",
+    "deactivatePlanConfirm": "停用 {plan} 並將訂閱者移轉到 {replacement}？",
+    "noUsers": "沒有符合條件的用戶",
+    "planCodeRequired": "方案代碼為必填",
+    "planDescriptionEnRequired": "說明（en）為必填",
+    "planDescriptionJaRequired": "說明（ja）為必填",
+    "planDescriptionZhTWRequired": "說明（zh-TW）為必填",
+    "planMonthlyPointsNonNegative": "每月點數必須為非負數",
+    "planNameEnRequired": "名稱（en）為必填",
+    "planNameJaRequired": "名稱（ja）為必填",
+    "planNameZhTWRequired": "名稱（zh-TW）為必填",
+    "planPriceNonNegative": "價格必須為非負數",
+    "planRetirementImmediate": "立即",
+    "planRetirementOnExpiry": "到期時",
+    "pointsAdjustDeltaInvalidError": "點數變動必須為非 0 的整數",
+    "pointsAdjustReasonRequiredError": "原因為必填",
+    "pointsAdjustSelectUserError": "請至少選擇一位用戶",
+    "pointsToolApplySelected": "套用到已選用戶",
+    "pointsToolBatchTitle": "批次點數調整",
+    "pointsToolDeltaLabel": "變動值（+/-）",
+    "pointsToolNoUsers": "沒有符合條件的用戶",
+    "pointsToolReasonLabel": "原因（必填）",
+    "pointsToolReasonPlaceholder": "輸入調整原因",
+    "pointsToolSearchPlaceholder": "搜尋點數工具用戶",
+    "pointsToolSelectAllFiltered": "全選目前篩選結果",
+    "pointsToolSelectedUsers": "已選用戶：{count}",
+    "replacementPlanRequiredError": "請選擇替代方案",
+    "searchUsers": "搜尋用戶",
+    "surveyBasePointsLabel": "問卷基礎點數",
+    "systemSettingsTitle": "系統設定",
+    "usersDescription": "管理所有用戶、會員方案與帳號狀態。",
+    "usersManagementTab": "用戶管理",
+    "usersPointsToolTab": "點數工具",
+    "usersTab": "用戶",
+    "usersTitle": "用戶管理"
   },
   "LegalTerms": {
     "title": "服務條款摘要",

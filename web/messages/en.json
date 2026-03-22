@@ -181,7 +181,8 @@
     "authRequiredDescription": "Signing in lets you save drafts, manage versions, and publish when you're ready.",
     "authRequiredAction": "Sign in / Register",
     "requireLoginToRespondLabel": "Require login to respond",
-    "requireLoginToRespondDescription": "Guests must sign in before they can start this survey."
+    "requireLoginToRespondDescription": "Guests must sign in before they can start this survey.",
+    "publishErrorMissingSurveyId": "Missing survey id. Save draft before publishing."
   },
   "QuestionTypes": {
     "single": "Single Choice",
@@ -259,7 +260,9 @@
     "purchaseButton": "Purchase ({price} pts)",
     "purchasing": "Purchasing...",
     "purchaseCompleted": "Purchase completed",
-    "purchaseFailed": "Purchase failed"
+    "purchaseFailed": "Purchase failed",
+    "downloadDefaultFilename": "dataset",
+    "downloadFailed": "Download failed. Please try again."
   },
   "Categories": {
     "market-research": "Market Research",
@@ -594,7 +597,9 @@
     "statusInProgress": "In progress",
     "statusAbandoned": "Abandoned",
     "deleteSurvey": "Delete Survey",
-    "deleteSurveyConfirm": "Delete this survey? This action cannot be undone."
+    "deleteSurveyConfirm": "Delete this survey? This action cannot be undone.",
+    "deleteFailed": "Delete failed. Please try again.",
+    "saveSettingsFailed": "Failed to save survey settings. Please try again."
   },
   "PreviewPage": {
     "noPreviewDataTitle": "No Preview Data",
@@ -788,7 +793,49 @@
     "agentOwnerAll": "All owners",
     "agentKeyDialogDescription": "This is the full API key for {name}. Store it securely.",
     "agentRotateKeyConfirmTitle": "Confirm API key rotation",
-    "agentRotateKeyConfirmDescription": "Rotating the API key for {name} will immediately invalidate the old key and generate a new one."
+    "agentRotateKeyConfirmDescription": "Rotating the API key for {name} will immediately invalidate the old key and generate a new one.",
+    "addAdminAction": "Add Admin",
+    "addAdminConfirmAction": "Add",
+    "addAdminDialogDescription": "Promote an existing non-admin user to admin.",
+    "addAdminDialogTitle": "Add Admin",
+    "addAdminLoadingUsers": "Loading users...",
+    "addAdminSearchPlaceholder": "Search users",
+    "createError": "Create failed. Please try again.",
+    "deactivatePlanAction": "Deactivate Plan",
+    "deactivatePlanConfirm": "Deactivate {plan} and migrate subscribers to {replacement}?",
+    "noUsers": "No users found",
+    "planCodeRequired": "Plan code is required",
+    "planDescriptionEnRequired": "Description (en) is required",
+    "planDescriptionJaRequired": "Description (ja) is required",
+    "planDescriptionZhTWRequired": "Description (zh-TW) is required",
+    "planMonthlyPointsNonNegative": "Monthly points must be a non-negative number",
+    "planNameEnRequired": "Name (en) is required",
+    "planNameJaRequired": "Name (ja) is required",
+    "planNameZhTWRequired": "Name (zh-TW) is required",
+    "planPriceNonNegative": "Price must be a non-negative number",
+    "planRetirementImmediate": "Immediate",
+    "planRetirementOnExpiry": "On expiry",
+    "pointsAdjustDeltaInvalidError": "Delta must be a non-zero integer",
+    "pointsAdjustReasonRequiredError": "Reason is required",
+    "pointsAdjustSelectUserError": "Please select at least one user",
+    "pointsToolApplySelected": "Apply to selected users",
+    "pointsToolBatchTitle": "Batch points adjustment",
+    "pointsToolDeltaLabel": "Delta (+/-)",
+    "pointsToolNoUsers": "No users found",
+    "pointsToolReasonLabel": "Reason (required)",
+    "pointsToolReasonPlaceholder": "Adjustment reason",
+    "pointsToolSearchPlaceholder": "Search users for points tool",
+    "pointsToolSelectAllFiltered": "Select all filtered users",
+    "pointsToolSelectedUsers": "Selected users: {count}",
+    "replacementPlanRequiredError": "Please select a replacement plan",
+    "searchUsers": "Search users",
+    "surveyBasePointsLabel": "Survey base points",
+    "systemSettingsTitle": "System Settings",
+    "usersDescription": "Manage all users, memberships, and account status.",
+    "usersManagementTab": "Manage Users",
+    "usersPointsToolTab": "Points Tool",
+    "usersTab": "Users",
+    "usersTitle": "User Management"
   },
   "LegalTerms": {
     "title": "Terms of Service Summary",

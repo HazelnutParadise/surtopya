@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest",
+    "test": "vitest --run",
+    "test:watch": "vitest",
     "check:i18n": "bun scripts/check-i18n.mjs",
     "e2e": "playwright test"
   },

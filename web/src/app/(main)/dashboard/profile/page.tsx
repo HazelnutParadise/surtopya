@@ -11,6 +11,7 @@ import { useEffect, useState } from "react"
 import { useLocale, useTimeZone, useTranslations } from "next-intl"
 import type { UserProfile } from "@/lib/api"
 import { formatUtcDateOnly } from "@/lib/date-time"
+import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error"
 
 export default function ProfilePage() {
   const tProfile = useTranslations("Profile")
@@ -92,7 +93,7 @@ export default function ProfilePage() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}))
-        throw new Error(payload?.error || "Update failed")
+        throw new Error(resolveUiError(payload, tProfile("saveError")))
       }
       setProfile((prev) =>
         prev
@@ -106,7 +107,7 @@ export default function ProfilePage() {
           : prev
       )
     } catch (err) {
-      setError(tProfile("saveError"))
+      setError(toUiErrorMessage(err, tProfile("saveError")))
     } finally {
       setSaving(false)
     }

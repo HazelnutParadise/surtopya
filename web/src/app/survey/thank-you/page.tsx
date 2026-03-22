@@ -16,6 +16,7 @@ import {
 } from "@/lib/anonymous-claim";
 import type { UserProfile } from "@/lib/api";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
+import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error";
 
 const alreadySubmittedCode = "ALREADY_SUBMITTED"
 
@@ -113,7 +114,7 @@ export default function ThankYouPage() {
           setClaimError(t("alreadySubmittedDescription"))
           return
         }
-        throw new Error(payload?.error || t("claimError"))
+        throw new Error(resolveUiError(payload, t("claimError")))
       }
 
       setDisplayPoints(
@@ -125,7 +126,7 @@ export default function ThankYouPage() {
       setClaimResult("claimed")
       notifyPointsBalanceChanged()
     } catch (error) {
-      setClaimError(error instanceof Error ? error.message : t("claimError"))
+      setClaimError(toUiErrorMessage(error, t("claimError")))
     } finally {
       setClaimLoading(false)
     }
@@ -144,14 +145,14 @@ export default function ThankYouPage() {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(payload?.error || t("forfeitError"))
+        throw new Error(resolveUiError(payload, t("forfeitError")))
       }
 
       clearClaim(claimContext.responseId)
       setClaimResult("forfeited")
       notifyPointsBalanceChanged()
     } catch (error) {
-      setClaimError(error instanceof Error ? error.message : t("forfeitError"))
+      setClaimError(toUiErrorMessage(error, t("forfeitError")))
     } finally {
       setClaimLoading(false)
     }

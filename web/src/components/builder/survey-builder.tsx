@@ -40,6 +40,12 @@ import {
 import { useTimeZone, useTranslations } from "next-intl";
 import { localDatetimeToUtcISOString, utcToDatetimeLocal } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
+import {
+  readUiPayloadError,
+  readUiPayloadMessage,
+  resolveUiError,
+  toUiErrorMessage,
+} from "@/lib/ui-error";
 
 // Simple ID generator if nanoid causes issues or for simplicity
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -131,7 +137,14 @@ export function SurveyBuilder() {
   const [versionError, setVersionError] = useState<string | null>(null);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
   const normalizeNonNegativePoints = (value: string) => Math.max(0, Number.parseInt(value || "0", 10) || 0)
-  const mapPublishError = (rawError?: string) => {
+  const getBuilderError = (payload: unknown, fallbackKey: string) =>
+    resolveUiError(payload, tBuilder(fallbackKey))
+  const getErrorMessage = (error: unknown, fallbackKey: string) =>
+    toUiErrorMessage(error, tBuilder(fallbackKey))
+  const mapPublishError = (payload: unknown) => {
+    const apiMessage = readUiPayloadMessage(payload)
+    if (apiMessage) return apiMessage
+    const rawError = readUiPayloadError(payload)
     if (!rawError) return tBuilder("publishErrorGeneric")
     if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached")
     if (rawError === "No changes to publish") return tBuilder("noChangesToPublish")
@@ -140,7 +153,7 @@ export function SurveyBuilder() {
     if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")
     if (rawError === "Boost points cannot be negative") return tBuilder("publishErrorBoostNonNegative")
     if (rawError === "Published version expired") return tBuilder("publishedVersionExpired")
-    return rawError
+    return tBuilder("publishErrorGeneric")
   }
 
   const notifyChange = () => {
@@ -680,7 +693,7 @@ export function SurveyBuilder() {
       const response = await fetch(`/api/app/surveys/${id}/versions`, { cache: "no-store" })
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload?.error || "Failed to load survey versions")
+        throw new Error(getBuilderError(errorPayload, "versionLoadFailed"))
       }
       const payload = await response.json()
       const loadedVersions = payload.versions || []
@@ -743,7 +756,7 @@ export function SurveyBuilder() {
       })
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload?.error || "Failed to restore survey version")
+        throw new Error(getBuilderError(errorPayload, "versionRestoreFailed"))
       }
       const payload = await response.json()
       const mapped = mapApiSurveyToUi(payload)
@@ -799,7 +812,7 @@ export function SurveyBuilder() {
         if (response.status === 401) {
           throw new Error(tBuilder("saveErrorUnauthorized"));
         }
-        throw new Error(errorPayload?.error || "Failed to save survey");
+        throw new Error(resolveUiError(errorPayload, tBuilder("saveErrorGeneric")));
       }
 
       const data = await response.json();
@@ -810,9 +823,9 @@ export function SurveyBuilder() {
 
       return mapped;
     } catch (error) {
-      const message = error instanceof Error ? error.message : tBuilder("saveErrorGeneric")
+      const message = toUiErrorMessage(error, tBuilder("saveErrorGeneric"))
       const needsAuth = message === tBuilder("saveErrorUnauthorized")
-      setSaveError(message === "Failed to save survey" ? tBuilder("saveErrorGeneric") : message)
+      setSaveError(message)
       setSaveErrorRequiresAuth(needsAuth)
       throw error
     } finally {
@@ -830,7 +843,7 @@ export function SurveyBuilder() {
         currentId = saved?.id || null;
       }
       if (!currentId) {
-        throw new Error("Missing survey id");
+        throw new Error(tBuilder("publishErrorMissingSurveyId"));
       }
 
       const response = await fetch(`/api/app/surveys/${currentId}/publish`, {
@@ -851,7 +864,7 @@ export function SurveyBuilder() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        throw new Error(mapPublishError(errorPayload?.error));
+        throw new Error(mapPublishError(errorPayload));
       }
 
       const data = await response.json();
@@ -866,7 +879,7 @@ export function SurveyBuilder() {
       notifyPointsBalanceChanged();
     } catch (error) {
       console.error("Failed to publish survey:", error);
-      setPublishError(error instanceof Error ? error.message : tBuilder("publishErrorGeneric"));
+      setPublishError(getErrorMessage(error, "publishErrorGeneric"));
     } finally {
       setPublishingSurvey(false);
     }

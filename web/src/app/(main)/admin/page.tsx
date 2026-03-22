@@ -38,6 +38,7 @@ import type {
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { utcToDateOnly } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
+import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error";
 
 const PAGE_SIZE = 20;
 const AGENT_PERMISSIONS = [
@@ -150,6 +151,10 @@ export default function AdminPage() {
   const tAdmin = useTranslations("Admin");
   const tCommon = useTranslations("Common");
   const timeZone = useTimeZone()
+  const getAdminError = (payload: unknown, fallbackKey: string) =>
+    resolveUiError(payload, tAdmin(fallbackKey))
+  const getErrorMessage = (error: unknown, fallbackKey: string) =>
+    toUiErrorMessage(error, tAdmin(fallbackKey))
 
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -393,7 +398,7 @@ export default function AdminPage() {
         );
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load surveys");
+          throw new Error(getAdminError(payload, "loadError"));
         }
         const payload = await response.json();
         if (isMounted) {
@@ -436,7 +441,7 @@ export default function AdminPage() {
         );
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load datasets");
+          throw new Error(getAdminError(payload, "loadError"));
         }
         const payload = await response.json();
         if (isMounted) {
@@ -471,7 +476,7 @@ export default function AdminPage() {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load de-identification reviews");
+          throw new Error(getAdminError(payload, "loadError"));
         }
         const payload = await response.json().catch(() => ({}));
         if (!isMounted) return;
@@ -490,7 +495,7 @@ export default function AdminPage() {
         setDeidReviewJobs([]);
         setSelectedDeidReviewId(null);
         setSelectedDeidReviewDetail(null);
-        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+        setError(getErrorMessage(err, "loadError"));
       } finally {
         if (isMounted) {
           setDeidReviewLoading(false);
@@ -521,7 +526,7 @@ export default function AdminPage() {
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
           throw new Error(
-            payload?.error || "Failed to load de-identification review detail",
+            getAdminError(payload, "loadError"),
           );
         }
         const payload = (await response.json().catch(() => ({}))) as DeidReviewDetail;
@@ -541,7 +546,7 @@ export default function AdminPage() {
       } catch (err) {
         if (!isMounted) return;
         setSelectedDeidReviewDetail(null);
-        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+        setError(getErrorMessage(err, "loadError"));
       } finally {
         if (isMounted) {
           setDeidReviewDetailLoading(false);
@@ -576,7 +581,7 @@ export default function AdminPage() {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load users");
+          throw new Error(getAdminError(payload, "loadError"));
         }
         const payload = await response.json();
         if (isMounted) {
@@ -628,7 +633,7 @@ export default function AdminPage() {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load users");
+          throw new Error(getAdminError(payload, "loadError"));
         }
 
         const payload = await response.json().catch(() => ({}));
@@ -636,7 +641,7 @@ export default function AdminPage() {
         setPointsToolUsers(payload.users || []);
       } catch (err) {
         if (!isMounted) return;
-        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+        setError(getErrorMessage(err, "loadError"));
         setPointsToolUsers([]);
       } finally {
         if (isMounted) {
@@ -680,7 +685,7 @@ export default function AdminPage() {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load admin users");
+          throw new Error(getAdminError(payload, "loadError"));
         }
         const payload = await response.json();
         if (isMounted) {
@@ -724,7 +729,7 @@ export default function AdminPage() {
         });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload?.error || "Failed to load candidates");
+          throw new Error(getAdminError(payload, "loadError"));
         }
 
         const payload = await response.json().catch(() => ({}));
@@ -745,7 +750,7 @@ export default function AdminPage() {
         if (!isMounted) return;
         setAddAdminCandidates([]);
         setSelectedAddAdminUserId("");
-        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+        setError(getErrorMessage(err, "loadError"));
       } finally {
         if (isMounted) {
           setAddAdminCandidatesLoading(false);
@@ -779,7 +784,7 @@ export default function AdminPage() {
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
           throw new Error(
-            payload?.message || payload?.error || "Failed to load agents",
+            resolveUiError(payload, tAdmin("loadError")),
           );
         }
         const payload = await response.json();
@@ -1005,7 +1010,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to load survey versions");
+        throw new Error(getAdminError(payload, "loadError"));
       }
       const payload = await response.json();
       setSurveyVersions(payload.versions || []);
@@ -1035,7 +1040,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to load dataset versions");
+        throw new Error(getAdminError(payload, "loadError"));
       }
       const payload = await response.json().catch(() => ({}));
       setDatasetVersions(payload?.versions || []);
@@ -1081,7 +1086,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to update survey");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setSurveys((prev) =>
@@ -1114,7 +1119,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to publish survey");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setSurveys((prev) =>
@@ -1124,7 +1129,7 @@ export default function AdminPage() {
       await loadSurveyVersions(payload.id);
       notifyPointsBalanceChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setPublishingSurveyVersion(false);
     }
@@ -1141,7 +1146,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to toggle survey responses");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setSurveys((prev) =>
@@ -1149,7 +1154,7 @@ export default function AdminPage() {
       );
       applySurveyToEditor(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setTogglingSurveyResponses(false);
     }
@@ -1166,7 +1171,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to restore survey version");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setSurveys((prev) =>
@@ -1174,7 +1179,7 @@ export default function AdminPage() {
       );
       applySurveyToEditor(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setRestoringSurveyVersion(null);
     }
@@ -1201,7 +1206,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to update dataset");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setDatasets((prev) =>
@@ -1233,7 +1238,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to publish dataset version");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json().catch(() => ({}));
       const nextDataset = (payload?.dataset || null) as Dataset | null;
@@ -1245,7 +1250,7 @@ export default function AdminPage() {
       }
       await loadDatasetVersions(editingDataset.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setPublishingDatasetVersion(false);
     }
@@ -1275,7 +1280,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Upload failed");
+        throw new Error(getAdminError(payload, "uploadError"));
       }
       const payload = await response.json();
       setDatasets((prev) => [payload, ...prev]);
@@ -1305,7 +1310,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Delete failed");
+        throw new Error(getAdminError(payload, "deleteError"));
       }
       setSurveys((prev) => prev.filter((item) => item.id !== survey.id));
     } catch (err) {
@@ -1321,7 +1326,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Delete failed");
+        throw new Error(getAdminError(payload, "deleteError"));
       }
       setDatasets((prev) => prev.filter((item) => item.id !== dataset.id));
     } catch (err) {
@@ -1365,7 +1370,7 @@ export default function AdminPage() {
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to complete review");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json().catch(() => ({}));
       setDeidReviewMessage(
@@ -1379,7 +1384,7 @@ export default function AdminPage() {
       setSelectedDeidReviewId(null);
       setDeidReviewReloadTick((previous) => previous + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setCompletingDeidReview(false);
     }
@@ -1447,9 +1452,7 @@ export default function AdminPage() {
       );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
-          body?.message || body?.error || "Failed to save agent account",
-        );
+        throw new Error(resolveUiError(body, tAdmin("updateError")));
       }
 
       if (editingAgent) {
@@ -1472,7 +1475,7 @@ export default function AdminPage() {
       });
       closeAgentDialog();
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingAgentId(null);
     }
@@ -1488,9 +1491,7 @@ export default function AdminPage() {
       );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
-          body?.message || body?.error || "Failed to reveal agent key",
-        );
+        throw new Error(resolveUiError(body, tAdmin("updateError")));
       }
       setRotateConfirmAgent(null);
       setKeyDialogAgent(account);
@@ -1502,7 +1503,7 @@ export default function AdminPage() {
         resource_id: account.id,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingAgentId(null);
     }
@@ -1540,9 +1541,7 @@ export default function AdminPage() {
       );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(
-          body?.message || body?.error || "Failed to rotate agent key",
-        );
+        throw new Error(resolveUiError(body, tAdmin("updateError")));
       }
       setAgentAccounts((prev) =>
         prev.map((item) =>
@@ -1561,7 +1560,7 @@ export default function AdminPage() {
         resource_id: account.id,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingAgentId(null);
     }
@@ -1588,12 +1587,12 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       setUserReloadTick((value) => value + 1);
       setAdminReloadTick((value) => value + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingUserId(null);
     }
@@ -1611,12 +1610,12 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       setUserReloadTick((value) => value + 1);
       setAdminReloadTick((value) => value + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingUserId(null);
     }
@@ -1666,12 +1665,12 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       setUserReloadTick((value) => value + 1);
       setAdminReloadTick((value) => value + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setSavingUserId(null);
     }
@@ -1710,7 +1709,7 @@ export default function AdminPage() {
       return false;
     }
     if (!response.ok) {
-      throw new Error(payload?.error || "Failed to adjust points");
+      throw new Error(getAdminError(payload, "updateError"));
     }
     return true;
   };
@@ -1719,15 +1718,15 @@ export default function AdminPage() {
     const delta = Math.trunc(Number(pointsDeltaDraft));
     const reason = pointsReasonDraft.trim();
     if (selectedPointsUserIds.length === 0) {
-      setError("Please select at least one user");
+      setError(tAdmin("pointsAdjustSelectUserError"));
       return;
     }
     if (!Number.isFinite(delta) || delta === 0) {
-      setError("Delta must be a non-zero integer");
+      setError(tAdmin("pointsAdjustDeltaInvalidError"));
       return;
     }
     if (!reason) {
-      setError("Reason is required");
+      setError(tAdmin("pointsAdjustReasonRequiredError"));
       return;
     }
 
@@ -1746,7 +1745,7 @@ export default function AdminPage() {
       setUserReloadTick((value) => value + 1);
       notifyPointsBalanceChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setApplyingPointsAdjust(false);
     }
@@ -1777,7 +1776,7 @@ export default function AdminPage() {
       setUserReloadTick((value) => value + 1);
       notifyPointsBalanceChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setApplyingPointsAdjust(false);
     }
@@ -1796,7 +1795,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Failed to add admin");
+        throw new Error(getAdminError(payload, "updateError"));
       }
 
       setAddAdminDialogOpen(false);
@@ -1806,7 +1805,7 @@ export default function AdminPage() {
       setUserReloadTick((value) => value + 1);
       setAdminReloadTick((value) => value + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setAddingAdmin(false);
     }
@@ -1848,7 +1847,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
     } catch {
       setError(tAdmin("updateError"));
@@ -1878,7 +1877,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setTiers((prev) =>
@@ -1920,22 +1919,22 @@ export default function AdminPage() {
         : Math.max(0, Math.floor(Number(newPlan.maxActiveSurveys) || 0));
 
     const nextFieldErrors: Record<string, string> = {};
-    if (!normalizedCode) nextFieldErrors.code = "Plan code is required";
+    if (!normalizedCode) nextFieldErrors.code = tAdmin("planCodeRequired");
     if (!normalizedNameI18n["zh-TW"])
-      nextFieldErrors.nameZhTW = "Name (zh-TW) is required";
-    if (!normalizedNameI18n.en) nextFieldErrors.nameEn = "Name (en) is required";
-    if (!normalizedNameI18n.ja) nextFieldErrors.nameJa = "Name (ja) is required";
+      nextFieldErrors.nameZhTW = tAdmin("planNameZhTWRequired");
+    if (!normalizedNameI18n.en) nextFieldErrors.nameEn = tAdmin("planNameEnRequired");
+    if (!normalizedNameI18n.ja) nextFieldErrors.nameJa = tAdmin("planNameJaRequired");
     if (!normalizedDescriptionI18n["zh-TW"])
-      nextFieldErrors.descriptionZhTW = "Description (zh-TW) is required";
+      nextFieldErrors.descriptionZhTW = tAdmin("planDescriptionZhTWRequired");
     if (!normalizedDescriptionI18n.en)
-      nextFieldErrors.descriptionEn = "Description (en) is required";
+      nextFieldErrors.descriptionEn = tAdmin("planDescriptionEnRequired");
     if (!normalizedDescriptionI18n.ja)
-      nextFieldErrors.descriptionJa = "Description (ja) is required";
+      nextFieldErrors.descriptionJa = tAdmin("planDescriptionJaRequired");
     if (!Number.isFinite(normalizedPrice) || normalizedPrice < 0)
-      nextFieldErrors.priceCentsUsd = "Price must be a non-negative number";
+      nextFieldErrors.priceCentsUsd = tAdmin("planPriceNonNegative");
     if (!Number.isFinite(normalizedMonthlyPoints) || normalizedMonthlyPoints < 0)
       nextFieldErrors.monthlyPointsGrant =
-        "Monthly points must be a non-negative number";
+        tAdmin("planMonthlyPointsNonNegative");
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setNewPlanFieldErrors(nextFieldErrors);
@@ -1961,7 +1960,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || payload?.message || "Create failed");
+        throw new Error(resolveUiError(payload, tAdmin("createError")));
       }
       const payload = await response.json();
       setTiers((prev) => [...prev, payload]);
@@ -1978,7 +1977,7 @@ export default function AdminPage() {
         maxActiveSurveys: null,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+      setError(getErrorMessage(err, "updateError"));
     } finally {
       setCreatingPlan(false);
     }
@@ -2003,7 +2002,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json().catch(() => ({}));
       if (Number.isFinite(Number(payload?.surveyBasePoints))) {
@@ -2052,13 +2051,13 @@ export default function AdminPage() {
   const deactivatePlan = async (plan: MembershipTier) => {
     const draft = planRetirementDrafts[plan.id];
     if (!draft?.replacementTierCode) {
-      setError("Please select a replacement plan");
+      setError(tAdmin("replacementPlanRequiredError"));
       return;
     }
 
     if (
       !window.confirm(
-        `Deactivate ${plan.code} and migrate subscribers to ${draft.replacementTierCode}?`,
+        tAdmin("deactivatePlanConfirm", { plan: plan.code, replacement: draft.replacementTierCode }),
       )
     ) {
       return;
@@ -2077,7 +2076,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Deactivate failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       if (payload?.plan?.id) {
@@ -2109,7 +2108,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       const payload = await response.json();
       setCapabilities((prev) =>
@@ -2133,7 +2132,7 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Update failed");
+        throw new Error(getAdminError(payload, "updateError"));
       }
       setPolicyWriters((prev) =>
         prev.map((item) =>
@@ -2287,7 +2286,7 @@ export default function AdminPage() {
             <TabsTrigger value="datasets">{tAdmin("datasetsTab")}</TabsTrigger>
             <TabsTrigger value="deid">{tAdmin("deidReviewsTab")}</TabsTrigger>
             <TabsTrigger value="agents">{tAdmin("agentsTab")}</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="users">{tAdmin("usersTab")}</TabsTrigger>
             <TabsTrigger value="admins">{tAdmin("adminsTab")}</TabsTrigger>
             <TabsTrigger value="policies">{tAdmin("policiesTab")}</TabsTrigger>
           </TabsList>
@@ -3007,10 +3006,10 @@ export default function AdminPage() {
           <TabsContent value="users" className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
+                <CardTitle>{tAdmin("usersTitle")}</CardTitle>
                 <CardDescription>{userCountLabel}</CardDescription>
                 <p className="text-xs text-gray-500">
-                  Manage all users, memberships, and account status.
+                  {tAdmin("usersDescription")}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -3021,7 +3020,7 @@ export default function AdminPage() {
                     size="sm"
                     onClick={() => setUsersSubTab("management")}
                   >
-                    Manage Users
+                    {tAdmin("usersManagementTab")}
                   </Button>
                   <Button
                     type="button"
@@ -3029,7 +3028,7 @@ export default function AdminPage() {
                     size="sm"
                     onClick={() => setUsersSubTab("points_tool")}
                   >
-                    Points Tool
+                    {tAdmin("usersPointsToolTab")}
                   </Button>
                 </div>
 
@@ -3038,7 +3037,7 @@ export default function AdminPage() {
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-col gap-2 md:max-w-3xl md:flex-row md:items-center">
                     <Input
-                      placeholder="Search users"
+                      placeholder={tAdmin("searchUsers")}
                       value={userSearch}
                       onChange={(event) => setUserSearch(event.target.value)}
                       className="md:max-w-sm"
@@ -3094,7 +3093,7 @@ export default function AdminPage() {
                   </div>
                 ) : users.length === 0 ? (
                   <div className="text-sm text-gray-500">
-                    No users found
+                    {tAdmin("noUsers")}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -3268,7 +3267,7 @@ export default function AdminPage() {
                   <div className="space-y-4">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center">
                       <Input
-                        placeholder="Search users for points tool"
+                        placeholder={tAdmin("pointsToolSearchPlaceholder")}
                         value={pointsToolSearch}
                         onChange={(event) => setPointsToolSearch(event.target.value)}
                         className="md:max-w-sm"
@@ -3301,10 +3300,10 @@ export default function AdminPage() {
                     </div>
 
                     <div className="rounded-lg border border-gray-100 dark:border-gray-800 p-3 space-y-3">
-                      <div className="text-sm font-medium">Batch points adjustment</div>
+                      <div className="text-sm font-medium">{tAdmin("pointsToolBatchTitle")}</div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Delta (+/-)</Label>
+                          <Label className="text-xs text-gray-500">{tAdmin("pointsToolDeltaLabel")}</Label>
                           <Input
                             type="number"
                             value={pointsDeltaDraft}
@@ -3313,11 +3312,11 @@ export default function AdminPage() {
                           />
                         </div>
                         <div className="space-y-1 md:col-span-2">
-                          <Label className="text-xs text-gray-500">Reason (required)</Label>
+                          <Label className="text-xs text-gray-500">{tAdmin("pointsToolReasonLabel")}</Label>
                           <Input
                             value={pointsReasonDraft}
                             onChange={(event) => setPointsReasonDraft(event.target.value)}
-                            placeholder="Adjustment reason"
+                            placeholder={tAdmin("pointsToolReasonPlaceholder")}
                             data-testid="points-tool-reason"
                           />
                         </div>
@@ -3328,10 +3327,10 @@ export default function AdminPage() {
                           disabled={applyingPointsAdjust}
                           data-testid="points-tool-apply"
                         >
-                          {applyingPointsAdjust ? tCommon("saving") : "Apply to selected users"}
+                          {applyingPointsAdjust ? tCommon("saving") : tAdmin("pointsToolApplySelected")}
                         </Button>
                         <span className="text-xs text-gray-500">
-                          Selected users: {selectedPointsUserIds.length}
+                          {tAdmin("pointsToolSelectedUsers", { count: selectedPointsUserIds.length })}
                         </span>
                       </div>
                     </div>
@@ -3339,7 +3338,7 @@ export default function AdminPage() {
                     {pointsToolLoading ? (
                       <div className="text-sm text-gray-500">{tCommon("loading")}</div>
                     ) : pointsToolUsers.length === 0 ? (
-                      <div className="text-sm text-gray-500">No users found</div>
+                      <div className="text-sm text-gray-500">{tAdmin("pointsToolNoUsers")}</div>
                     ) : (
                       <div className="space-y-2">
                         <label className="inline-flex items-center gap-2 text-xs text-gray-500">
@@ -3358,7 +3357,7 @@ export default function AdminPage() {
                             }
                             data-testid="points-tool-select-all"
                           />
-                          Select all filtered users
+                          {tAdmin("pointsToolSelectAllFiltered")}
                         </label>
                         {pointsToolUsers.map((user) => {
                           const label = user.displayName || user.email || user.id;
@@ -3417,7 +3416,7 @@ export default function AdminPage() {
                     disabled={!currentUser?.isSuperAdmin}
                     data-testid="admin-add-button"
                   >
-                    Add Admin
+                    {tAdmin("addAdminAction")}
                   </Button>
                 </div>
               </CardHeader>
@@ -3506,14 +3505,14 @@ export default function AdminPage() {
             >
               <DialogContent data-testid="admin-add-modal">
                 <DialogHeader>
-                  <DialogTitle>Add Admin</DialogTitle>
+                  <DialogTitle>{tAdmin("addAdminDialogTitle")}</DialogTitle>
                   <DialogDescription>
-                    Promote an existing non-admin user to admin.
+                    {tAdmin("addAdminDialogDescription")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                   <Input
-                    placeholder="Search users"
+                    placeholder={tAdmin("addAdminSearchPlaceholder")}
                     value={addAdminSearch}
                     onChange={(event) => setAddAdminSearch(event.target.value)}
                     data-testid="admin-add-search"
@@ -3537,7 +3536,7 @@ export default function AdminPage() {
                     })}
                   </select>
                   {addAdminCandidatesLoading ? (
-                    <p className="text-xs text-gray-500">Loading users...</p>
+                    <p className="text-xs text-gray-500">{tAdmin("addAdminLoadingUsers")}</p>
                   ) : null}
                 </div>
                 <DialogFooter>
@@ -3554,7 +3553,7 @@ export default function AdminPage() {
                     disabled={addingAdmin || !selectedAddAdminUserId}
                     data-testid="admin-add-confirm"
                   >
-                    {addingAdmin ? tCommon("saving") : "Add"}
+                    {addingAdmin ? tCommon("saving") : tAdmin("addAdminConfirmAction")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -3571,11 +3570,11 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <div className="text-sm font-medium">System Settings</div>
+                  <div className="text-sm font-medium">{tAdmin("systemSettingsTitle")}</div>
                   <div className="flex flex-wrap items-end gap-3 border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-3">
                     <div className="space-y-1">
                       <Label className="text-xs text-gray-500">
-                        Survey base points
+                        {tAdmin("surveyBasePointsLabel")}
                       </Label>
                       <Input
                         className="w-40"
@@ -4124,8 +4123,8 @@ export default function AdminPage() {
                                   deactivatingPlanId === tier.id
                                 }
                               >
-                                <option value="immediate">Immediate</option>
-                                <option value="on_expiry">On expiry</option>
+                                <option value="immediate">{tAdmin("planRetirementImmediate")}</option>
+                                <option value="on_expiry">{tAdmin("planRetirementOnExpiry")}</option>
                               </select>
                             </div>
                             <Button
@@ -4143,7 +4142,7 @@ export default function AdminPage() {
                             >
                               {deactivatingPlanId === tier.id
                                 ? tCommon("saving")
-                                : "Deactivate Plan"}
+                                : tAdmin("deactivatePlanAction")}
                             </Button>
                           </div>
                         )}

@@ -181,7 +181,8 @@
     "authRequiredDescription": "ログインすると下書き保存、バージョン管理、公開までスムーズに進められます。",
     "authRequiredAction": "ログイン/新規登録",
     "requireLoginToRespondLabel": "回答にログイン必須",
-    "requireLoginToRespondDescription": "有効にすると、ゲストはログインしないと回答を開始できません。"
+    "requireLoginToRespondDescription": "有効にすると、ゲストはログインしないと回答を開始できません。",
+    "publishErrorMissingSurveyId": "アンケート ID が見つかりません。先に下書きを保存してから公開してください。"
   },
   "QuestionTypes": {
     "single": "単一選択",
@@ -259,7 +260,9 @@
     "purchaseButton": "購入（{price} pt）",
     "purchasing": "購入中...",
     "purchaseCompleted": "購入完了",
-    "purchaseFailed": "購入失敗"
+    "purchaseFailed": "購入失敗",
+    "downloadDefaultFilename": "データセット",
+    "downloadFailed": "ダウンロードに失敗しました。しばらくしてから再試行してください。"
   },
   "Categories": {
     "market-research": "市場調査",
@@ -594,7 +597,9 @@
     "statusInProgress": "進行中ステータス",
     "statusAbandoned": "放棄",
     "deleteSurvey": "アンケートを削除",
-    "deleteSurveyConfirm": "このアンケートを削除しますか？この操作は元に戻せません。"
+    "deleteSurveyConfirm": "このアンケートを削除しますか？この操作は元に戻せません。",
+    "deleteFailed": "削除に失敗しました。しばらくしてから再試行してください。",
+    "saveSettingsFailed": "アンケート設定の保存に失敗しました。しばらくしてから再試行してください。"
   },
   "PreviewPage": {
     "noPreviewDataTitle": "プレビューデータがありません",
@@ -788,7 +793,49 @@
     "deidReviewCompleteMessage": "レビュー完了。dataset {datasetId} の草案へ反映しました。",
     "deidMaskedCells": "{count} セルをマスク済み",
     "agentPermissionDeidRead": "匿名化レビューを閲覧",
-    "agentPermissionDeidWrite": "匿名化レビューを管理"
+    "agentPermissionDeidWrite": "匿名化レビューを管理",
+    "addAdminAction": "管理者を追加",
+    "addAdminConfirmAction": "追加",
+    "addAdminDialogDescription": "既存の一般ユーザーを管理者に昇格します。",
+    "addAdminDialogTitle": "管理者を追加",
+    "addAdminLoadingUsers": "ユーザーを読み込み中...",
+    "addAdminSearchPlaceholder": "ユーザーを検索",
+    "createError": "作成に失敗しました。しばらくしてから再試行してください。",
+    "deactivatePlanAction": "プランを無効化",
+    "deactivatePlanConfirm": "{plan} を無効化し、加入者を {replacement} に移行しますか？",
+    "noUsers": "該当するユーザーがいません",
+    "planCodeRequired": "プランコードは必須です",
+    "planDescriptionEnRequired": "説明（en）は必須です",
+    "planDescriptionJaRequired": "説明（ja）は必須です",
+    "planDescriptionZhTWRequired": "説明（zh-TW）は必須です",
+    "planMonthlyPointsNonNegative": "月次ポイントは 0 以上で入力してください",
+    "planNameEnRequired": "名称（en）は必須です",
+    "planNameJaRequired": "名称（ja）は必須です",
+    "planNameZhTWRequired": "名称（zh-TW）は必須です",
+    "planPriceNonNegative": "価格は 0 以上で入力してください",
+    "planRetirementImmediate": "即時",
+    "planRetirementOnExpiry": "有効期限時",
+    "pointsAdjustDeltaInvalidError": "増減値は 0 以外の整数で入力してください",
+    "pointsAdjustReasonRequiredError": "理由は必須です",
+    "pointsAdjustSelectUserError": "少なくとも 1 人のユーザーを選択してください",
+    "pointsToolApplySelected": "選択したユーザーに適用",
+    "pointsToolBatchTitle": "ポイント一括調整",
+    "pointsToolDeltaLabel": "増減値（+/-）",
+    "pointsToolNoUsers": "該当するユーザーがいません",
+    "pointsToolReasonLabel": "理由（必須）",
+    "pointsToolReasonPlaceholder": "調整理由を入力",
+    "pointsToolSearchPlaceholder": "ポイントツール対象ユーザーを検索",
+    "pointsToolSelectAllFiltered": "現在の絞り込み結果をすべて選択",
+    "pointsToolSelectedUsers": "選択中のユーザー: {count}",
+    "replacementPlanRequiredError": "移行先プランを選択してください",
+    "searchUsers": "ユーザーを検索",
+    "surveyBasePointsLabel": "アンケート基本ポイント",
+    "systemSettingsTitle": "システム設定",
+    "usersDescription": "すべてのユーザー、メンバーシップ、アカウント状態を管理します。",
+    "usersManagementTab": "ユーザー管理",
+    "usersPointsToolTab": "ポイントツール",
+    "usersTab": "ユーザー",
+    "usersTitle": "ユーザー管理"
   },
   "LegalTerms": {
     "title": "利用規約サマリー",

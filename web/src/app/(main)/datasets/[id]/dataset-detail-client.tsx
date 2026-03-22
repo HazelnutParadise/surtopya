@@ -14,6 +14,7 @@ import { filenameFromContentDisposition, sanitizeFilename } from "@/lib/download
 import { trackUIEvent } from "@/lib/ui-telemetry";
 import { formatUtcDateOnly } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
+import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error";
 
 interface DatasetDetailClientProps {
   id: string;
@@ -41,6 +42,10 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const tDatasets = useTranslations("Datasets");
   const tCommon = useTranslations("Common");
   const tCategories = useTranslations("Categories");
+  const getUiError = (payload: unknown, fallbackMessage: string) =>
+    resolveUiError(payload, fallbackMessage)
+  const getUiErrorMessage = (error: unknown, fallbackMessage: string) =>
+    toUiErrorMessage(error, fallbackMessage)
 
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,7 +134,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       const response = await fetch(`/api/app/datasets/${id}/download${query}`, { method: "POST" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || "Download failed");
+        throw new Error(getUiError(payload, tDatasets("downloadFailed")));
       }
 
       const contentType = response.headers.get("content-type") || ""
@@ -142,7 +147,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       const disposition = response.headers.get("content-disposition") || ""
       const filename =
         filenameFromContentDisposition(disposition) ??
-        sanitizeFilename(dataset?.fileName || "dataset")
+        sanitizeFilename(dataset?.fileName || tDatasets("downloadDefaultFilename"))
 
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -160,14 +165,14 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       })
     } catch (error) {
       console.error("Download failed:", error);
-      setDownloadError(error instanceof Error ? error.message : tCommon("error"))
+      setDownloadError(getUiErrorMessage(error, tDatasets("downloadFailed")))
       void trackUIEvent({
         screen: "dataset_detail",
         component: "download_button",
         event_name: "error",
         resource_id: id,
         metadata: {
-          message: error instanceof Error ? error.message : tCommon("error"),
+          message: getUiErrorMessage(error, tDatasets("downloadFailed")),
         },
       })
     } finally {
@@ -188,14 +193,12 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) {
-        throw new Error(payload?.error || tDatasets("purchaseFailed"))
+        throw new Error(getUiError(payload, tDatasets("purchaseFailed")))
       }
-      setPurchaseMessage(payload?.message || tDatasets("purchaseCompleted"))
+      setPurchaseMessage(getUiError(payload, tDatasets("purchaseCompleted")))
       notifyPointsBalanceChanged()
     } catch (error) {
-      setPurchaseError(
-        error instanceof Error ? error.message : tDatasets("purchaseFailed"),
-      )
+      setPurchaseError(getUiErrorMessage(error, tDatasets("purchaseFailed")))
     } finally {
       setPurchasing(false)
     }
