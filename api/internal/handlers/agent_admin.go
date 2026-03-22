@@ -8,6 +8,7 @@ import (
 
 	"github.com/TimLai666/surtopya-api/internal/agentadmin"
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/deid"
 	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,6 +36,14 @@ type uiEventRequest struct {
 	StateFrom  string         `json:"state_from"`
 	StateTo    string         `json:"state_to"`
 	Metadata   map[string]any `json:"metadata"`
+}
+
+type deidChunkAnnotateRequest struct {
+	Cells []struct {
+		RowNo  int    `json:"row_no"`
+		ColNo  int    `json:"col_no"`
+		Reason string `json:"reason"`
+	} `json:"cells"`
 }
 
 func NewAgentAdminHandler() *AgentAdminHandler {
@@ -72,6 +81,10 @@ var agentEndpointDocs = []agentEndpointDoc{
 	{Method: "GET", Path: "/api/v1/agent-admin/surveys/:id/versions/:versionNumber", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}", Purpose: "get survey version detail", Summary: "Get survey version", Permission: "surveys.read"},
 	{Method: "POST", Path: "/api/v1/agent-admin/surveys/:id/versions/:versionNumber/restore-draft", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}/restore-draft", Purpose: "restore version as draft", Summary: "Restore survey version to draft", Permission: "surveys.write"},
 	{Method: "GET", Path: "/api/v1/agent-admin/surveys/:id/responses/analytics", OpenAPIPath: "/surveys/{id}/responses/analytics", Purpose: "get survey response analytics", Summary: "Get survey response analytics", Permission: "surveys.read"},
+	{Method: "GET", Path: "/api/v1/agent-admin/deid", OpenAPIPath: "/deid", Purpose: "de-identification workflow usage and queue summary", Summary: "Get de-identification usage index", Permission: "surveys.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/deid/sessions/start", OpenAPIPath: "/deid/sessions/start", Purpose: "start next pending de-identification session", Summary: "Start de-identification session", Permission: "surveys.write"},
+	{Method: "GET", Path: "/api/v1/agent-admin/deid/sessions/:session_id", OpenAPIPath: "/deid/sessions/{session_id}", Purpose: "resume de-identification session", Summary: "Get de-identification session", Permission: "surveys.read"},
+	{Method: "POST", Path: "/api/v1/agent-admin/deid/sessions/:session_id/chunks/:chunk_index/annotate", OpenAPIPath: "/deid/sessions/{session_id}/chunks/{chunk_index}/annotate", Purpose: "annotate current chunk sensitive cells", Summary: "Annotate de-identification chunk", Permission: "surveys.write"},
 
 	{Method: "GET", Path: "/api/v1/agent-admin/datasets", OpenAPIPath: "/datasets", Purpose: "list datasets", Summary: "List datasets", Permission: "datasets.read"},
 	{Method: "POST", Path: "/api/v1/agent-admin/datasets", OpenAPIPath: "/datasets", Purpose: "create dataset", Summary: "Create dataset", Permission: "datasets.write"},
@@ -224,6 +237,161 @@ func (h *AgentAdminHandler) GetOpenAPI(c *gin.Context) {
 		},
 		"paths": buildAgentOpenAPIPaths(),
 	})
+}
+
+func (h *AgentAdminHandler) GetDeidUsage(c *gin.Context) {
+	identity := currentAgentIdentity(c)
+	if identity == nil {
+		agentJSONError(c, http.StatusUnauthorized, "unauthorized", "Agent identity missing", nil)
+		return
+	}
+
+	service := deid.NewService(h.db)
+	overview, err := service.GetUsageOverview(c.Request.Context(), identity.OwnerUserID, identity.OwnerIsSuperAdmin)
+	if err != nil {
+		agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to load de-identification usage", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"kind": "deid_usage",
+		"instructions": gin.H{
+			"summary": "Start a session, review chunk table by row/col, submit sensitive cells, continue until awaiting_review.",
+			"steps": []string{
+				"Call POST /api/v1/agent-admin/deid/sessions/start",
+				"Read the returned chunk (1-based row_no and col_no).",
+				"Submit sensitive cells to annotate endpoint.",
+				"Repeat until status becomes awaiting_review.",
+			},
+			"endpoints": []gin.H{
+				{"method": "GET", "path": "/api/v1/agent-admin/deid"},
+				{"method": "POST", "path": "/api/v1/agent-admin/deid/sessions/start"},
+				{"method": "GET", "path": "/api/v1/agent-admin/deid/sessions/{session_id}"},
+				{"method": "POST", "path": "/api/v1/agent-admin/deid/sessions/{session_id}/chunks/{chunk_index}/annotate"},
+			},
+		},
+		"queue": overview,
+	})
+}
+
+func (h *AgentAdminHandler) StartDeidSession(c *gin.Context) {
+	identity := currentAgentIdentity(c)
+	if identity == nil {
+		agentJSONError(c, http.StatusUnauthorized, "unauthorized", "Agent identity missing", nil)
+		return
+	}
+
+	service := deid.NewService(h.db)
+	session, err := service.StartPendingSession(c.Request.Context(), identity.OwnerUserID, identity.OwnerIsSuperAdmin)
+	if err != nil {
+		switch err {
+		case deid.ErrNoPendingJob:
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "no_data",
+				"message": "No pending de-identification data",
+			})
+		default:
+			agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to start de-identification session", nil)
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *AgentAdminHandler) GetDeidSession(c *gin.Context) {
+	identity := currentAgentIdentity(c)
+	if identity == nil {
+		agentJSONError(c, http.StatusUnauthorized, "unauthorized", "Agent identity missing", nil)
+		return
+	}
+
+	sessionID, err := uuid.Parse(c.Param("session_id"))
+	if err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid session_id", nil)
+		return
+	}
+
+	service := deid.NewService(h.db)
+	session, err := service.GetSession(c.Request.Context(), sessionID, identity.OwnerUserID, identity.OwnerIsSuperAdmin)
+	if err != nil {
+		switch err {
+		case deid.ErrSessionNotFound:
+			agentJSONError(c, http.StatusNotFound, "not_found", "Session not found", nil)
+		case deid.ErrSessionAccessDenied:
+			agentJSONError(c, http.StatusForbidden, "forbidden", "Session access denied", nil)
+		default:
+			agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to load de-identification session", nil)
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *AgentAdminHandler) AnnotateDeidChunk(c *gin.Context) {
+	identity := currentAgentIdentity(c)
+	if identity == nil {
+		agentJSONError(c, http.StatusUnauthorized, "unauthorized", "Agent identity missing", nil)
+		return
+	}
+
+	sessionID, err := uuid.Parse(c.Param("session_id"))
+	if err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid session_id", nil)
+		return
+	}
+	chunkIndex, err := strconv.Atoi(c.Param("chunk_index"))
+	if err != nil || chunkIndex < 0 {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid chunk_index", nil)
+		return
+	}
+
+	var req deidChunkAnnotateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid request body", nil)
+		return
+	}
+
+	cells := make([]deid.CellAnnotation, 0, len(req.Cells))
+	for _, cell := range req.Cells {
+		cells = append(cells, deid.CellAnnotation{
+			RowNo:  cell.RowNo,
+			ColNo:  cell.ColNo,
+			Reason: strings.TrimSpace(cell.Reason),
+		})
+	}
+
+	service := deid.NewService(h.db)
+	actorUserID := identity.OwnerUserID
+	actorAgentID := identity.ID
+	session, err := service.AnnotateChunk(
+		c.Request.Context(),
+		sessionID,
+		chunkIndex,
+		cells,
+		&actorUserID,
+		&actorAgentID,
+		identity.OwnerUserID,
+		identity.OwnerIsSuperAdmin,
+	)
+	if err != nil {
+		switch err {
+		case deid.ErrSessionNotFound:
+			agentJSONError(c, http.StatusNotFound, "not_found", "Session not found", nil)
+		case deid.ErrSessionAccessDenied:
+			agentJSONError(c, http.StatusForbidden, "forbidden", "Session access denied", nil)
+		case deid.ErrChunkIndexMismatch:
+			agentJSONError(c, http.StatusConflict, "chunk_index_mismatch", "Chunk index mismatch", nil)
+		case deid.ErrSessionNotInProgress:
+			agentJSONError(c, http.StatusConflict, "invalid_session_state", "Session is not in progress", nil)
+		default:
+			agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to annotate chunk", nil)
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, session)
 }
 
 func (h *AgentAdminHandler) GetMe(c *gin.Context) {

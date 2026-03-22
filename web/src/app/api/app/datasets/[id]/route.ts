@@ -15,13 +15,18 @@ export async function GET(
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
   const token = await getAuthToken()
+  const incoming = new URL(request.url)
+  const versionNumber = incoming.searchParams.get("version_number")
+  const query = versionNumber
+    ? `?version_number=${encodeURIComponent(versionNumber)}`
+    : ""
 
-  const response = await fetch(`${API_BASE_URL}/datasets/${id}/download`, {
+  const response = await fetch(`${API_BASE_URL}/datasets/${id}/download${query}`, {
     method: "POST",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })

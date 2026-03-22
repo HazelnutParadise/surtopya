@@ -19,6 +19,15 @@ interface DatasetDetailClientProps {
   id: string;
 }
 
+interface DatasetVersion {
+  id: string
+  versionNumber: number
+  accessType: "free" | "paid"
+  price: number
+  fileName?: string
+  publishedAt?: string
+}
+
 const normalizeCategory = (category: string) => {
   if (!category) return "other";
   return category.toLowerCase().replace(/\s+/g, "-");
@@ -36,7 +45,12 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [purchasing, setPurchasing] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [purchaseError, setPurchaseError] = useState<string | null>(null)
+  const [purchaseMessage, setPurchaseMessage] = useState<string | null>(null)
+  const [versions, setVersions] = useState<DatasetVersion[]>([])
+  const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
 
   useEffect(() => {
     let isMounted = true;
@@ -58,6 +72,26 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
         const payload = await response.json();
         if (isMounted) {
           setDataset(payload || null);
+        }
+
+        const versionResponse = await fetch(`/api/app/datasets/${id}/versions`, {
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        if (versionResponse.ok) {
+          const versionPayload = await versionResponse.json().catch(() => ({ versions: [] }))
+          const loadedVersions = Array.isArray(versionPayload?.versions) ? versionPayload.versions : []
+          if (isMounted) {
+            setVersions(loadedVersions)
+            const currentPublishedVersionNumber = Number(payload?.currentPublishedVersionNumber)
+            if (Number.isFinite(currentPublishedVersionNumber) && currentPublishedVersionNumber > 0) {
+              setSelectedVersionNumber(currentPublishedVersionNumber)
+            } else if (loadedVersions.length > 0) {
+              setSelectedVersionNumber(Number(loadedVersions[0].versionNumber))
+            } else {
+              setSelectedVersionNumber(null)
+            }
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -81,6 +115,7 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
   const handleDownload = async () => {
     setDownloading(true);
     setDownloadError(null)
+    setPurchaseMessage(null)
     void trackUIEvent({
       screen: "dataset_detail",
       component: "download_button",
@@ -88,7 +123,10 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       resource_id: id,
     })
     try {
-      const response = await fetch(`/api/app/datasets/${id}/download`, { method: "POST" });
+      const query = selectedVersionNumber
+        ? `?version_number=${encodeURIComponent(String(selectedVersionNumber))}`
+        : ""
+      const response = await fetch(`/api/app/datasets/${id}/download${query}`, { method: "POST" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || "Download failed");
@@ -120,7 +158,6 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
         event_name: "success",
         resource_id: id,
       })
-      notifyPointsBalanceChanged()
     } catch (error) {
       console.error("Download failed:", error);
       setDownloadError(error instanceof Error ? error.message : tCommon("error"))
@@ -137,6 +174,32 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
       setDownloading(false);
     }
   };
+
+  const handlePurchase = async () => {
+    setPurchasing(true)
+    setPurchaseError(null)
+    setPurchaseMessage(null)
+    try {
+      const query = selectedVersionNumber
+        ? `?version_number=${encodeURIComponent(String(selectedVersionNumber))}`
+        : ""
+      const response = await fetch(`/api/app/datasets/${id}/purchase${query}`, {
+        method: "POST",
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || tDatasets("purchaseFailed"))
+      }
+      setPurchaseMessage(payload?.message || tDatasets("purchaseCompleted"))
+      notifyPointsBalanceChanged()
+    } catch (error) {
+      setPurchaseError(
+        error instanceof Error ? error.message : tDatasets("purchaseFailed"),
+      )
+    } finally {
+      setPurchasing(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -159,6 +222,9 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
 
   const categorySlug = normalizeCategory(dataset.category);
   const isPaid = dataset.accessType === "paid";
+  const selectedVersion = versions.find((item) => item.versionNumber === selectedVersionNumber)
+  const effectiveIsPaid = (selectedVersion?.accessType || dataset.accessType) === "paid"
+  const effectivePrice = selectedVersion?.price ?? dataset.price
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20">
@@ -197,6 +263,46 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
               </div>
             </div>
             <div className="flex flex-col gap-3 w-full md:w-auto">
+              {versions.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">
+                    {tDatasets("versionSelectLabel")}
+                  </p>
+                  <select
+                    value={selectedVersionNumber ?? ""}
+                    onChange={(event) => {
+                      const parsed = Number(event.target.value)
+                      setSelectedVersionNumber(Number.isFinite(parsed) ? parsed : null)
+                      setPurchaseError(null)
+                      setDownloadError(null)
+                      setPurchaseMessage(null)
+                    }}
+                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900"
+                    data-testid="dataset-version-select"
+                  >
+                    {versions.map((version) => (
+                      <option key={version.id} value={version.versionNumber}>
+                        {`v${version.versionNumber}${version.accessType === "paid"
+                          ? tDatasets("versionPaidSuffix", { price: version.price })
+                          : ""
+                        }`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              {effectiveIsPaid ? (
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-semibold h-11 px-8"
+                  onClick={handlePurchase}
+                  disabled={purchasing}
+                  data-testid="dataset-purchase-button"
+                >
+                  {purchasing
+                    ? tDatasets("purchasing")
+                    : tDatasets("purchaseButton", { price: effectivePrice })}
+                </Button>
+              ) : null}
               <Button
                 className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/30 font-semibold h-11 px-8"
                 onClick={handleDownload}
@@ -206,6 +312,16 @@ export function DatasetDetailClient({ id }: DatasetDetailClientProps) {
                 <Download className="mr-2 h-4 w-4" strokeWidth={2.5} />
                 {tDatasets("download")}
               </Button>
+              {purchaseMessage ? (
+                <p data-testid="dataset-purchase-message" className="text-sm text-emerald-600">
+                  {purchaseMessage}
+                </p>
+              ) : null}
+              {purchaseError ? (
+                <p data-testid="dataset-purchase-error" className="text-sm text-red-600">
+                  {purchaseError}
+                </p>
+              ) : null}
               {downloadError ? (
                 <p data-testid="dataset-download-error" className="text-sm text-red-600">
                   {downloadError}

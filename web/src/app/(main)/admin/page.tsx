@@ -96,6 +96,52 @@ type PendingPointsAdjustRequest = {
   reason: string;
 };
 
+type AdminDatasetVersion = {
+  id: string;
+  versionNumber: number;
+  accessType: "free" | "paid";
+  price: number;
+  sampleSize: number;
+  downloadCount: number;
+  publishedAt?: string;
+};
+
+type DeidReviewJob = {
+  id: string;
+  survey_id: string;
+  survey_title: string;
+  status: string;
+  trigger_source: string;
+  current_chunk_index: number;
+  chunk_size: number;
+  total_chunks: number;
+  summary_json?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type DeidReviewColumn = {
+  col_no: number;
+  name: string;
+};
+
+type DeidReviewRowCell = {
+  col_no: number;
+  value: string;
+};
+
+type DeidReviewRow = {
+  row_no: number;
+  cells: DeidReviewRowCell[];
+};
+
+type DeidReviewDetail = {
+  job: Record<string, unknown>;
+  columns: DeidReviewColumn[];
+  preview_rows: DeidReviewRow[];
+  total_rows: number;
+};
+
 export default function AdminPage() {
   const tAdmin = useTranslations("Admin");
   const tCommon = useTranslations("Common");
@@ -231,6 +277,7 @@ export default function AdminPage() {
     price: 0,
     sampleSize: 0,
     isActive: true,
+    entitlementPolicy: "purchased_only" as "purchased_only" | "all_versions_if_any_purchase",
   });
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadForm, setUploadForm] = useState({
@@ -246,6 +293,12 @@ export default function AdminPage() {
   const [uploadingDataset, setUploadingDataset] = useState(false);
   const [savingSurvey, setSavingSurvey] = useState(false);
   const [savingDataset, setSavingDataset] = useState(false);
+  const [datasetVersions, setDatasetVersions] = useState<AdminDatasetVersion[]>(
+    [],
+  );
+  const [datasetVersionsLoading, setDatasetVersionsLoading] = useState(false);
+  const [publishingDatasetVersion, setPublishingDatasetVersion] =
+    useState(false);
   const [surveyVersions, setSurveyVersions] = useState<SurveyVersion[]>([]);
   const [surveyVersionsLoading, setSurveyVersionsLoading] = useState(false);
   const [publishingSurveyVersion, setPublishingSurveyVersion] = useState(false);
@@ -271,6 +324,33 @@ export default function AdminPage() {
     isActive: true,
     permissions: ["logs.read", "agents.read", "agents.write"] as string[],
   });
+  const [deidReviewJobs, setDeidReviewJobs] = useState<DeidReviewJob[]>([]);
+  const [deidReviewLoading, setDeidReviewLoading] = useState(true);
+  const [deidReviewDetailLoading, setDeidReviewDetailLoading] = useState(false);
+  const [selectedDeidReviewId, setSelectedDeidReviewId] = useState<
+    string | null
+  >(null);
+  const [selectedDeidReviewDetail, setSelectedDeidReviewDetail] =
+    useState<DeidReviewDetail | null>(null);
+  const [deidReviewReloadTick, setDeidReviewReloadTick] = useState(0);
+  const [deidReviewAction, setDeidReviewAction] = useState<"create" | "merge">(
+    "create",
+  );
+  const [deidReviewForm, setDeidReviewForm] = useState({
+    datasetId: "",
+    title: "",
+    description: "",
+    category: "other",
+    accessType: "free" as "free" | "paid",
+    price: 0,
+    entitlementPolicy: "purchased_only" as
+      | "purchased_only"
+      | "all_versions_if_any_purchase",
+  });
+  const [completingDeidReview, setCompletingDeidReview] = useState(false);
+  const [deidReviewMessage, setDeidReviewMessage] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -375,6 +455,101 @@ export default function AdminPage() {
       isMounted = false;
     };
   }, [datasetSearch, datasetActive, tAdmin]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadDeidReviews = async () => {
+      setDeidReviewLoading(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/app/admin/deid/reviews?limit=50&offset=0", {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload?.error || "Failed to load de-identification reviews");
+        }
+        const payload = await response.json().catch(() => ({}));
+        if (!isMounted) return;
+        const nextJobs = Array.isArray(payload?.jobs)
+          ? (payload.jobs as DeidReviewJob[])
+          : [];
+        setDeidReviewJobs(nextJobs);
+        setSelectedDeidReviewId((previous) => {
+          if (previous && nextJobs.some((job) => job.id === previous)) {
+            return previous;
+          }
+          return nextJobs.length > 0 ? nextJobs[0].id : null;
+        });
+      } catch (err) {
+        if (!isMounted) return;
+        setDeidReviewJobs([]);
+        setSelectedDeidReviewId(null);
+        setSelectedDeidReviewDetail(null);
+        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+      } finally {
+        if (isMounted) {
+          setDeidReviewLoading(false);
+        }
+      }
+    };
+
+    void loadDeidReviews();
+    return () => {
+      isMounted = false;
+    };
+  }, [deidReviewReloadTick, tAdmin]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadDeidReviewDetail = async () => {
+      if (!selectedDeidReviewId) {
+        setSelectedDeidReviewDetail(null);
+        return;
+      }
+      setDeidReviewDetailLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/app/admin/deid/reviews/${selectedDeidReviewId}`,
+          { cache: "no-store" },
+        );
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload?.error || "Failed to load de-identification review detail",
+          );
+        }
+        const payload = (await response.json().catch(() => ({}))) as DeidReviewDetail;
+        if (!isMounted) return;
+        setSelectedDeidReviewDetail(payload);
+
+        const surveyTitle = String(payload?.job?.survey_title || "").trim();
+        setDeidReviewForm((previous) => ({
+          ...previous,
+          title:
+            previous.title.trim().length > 0
+              ? previous.title
+              : surveyTitle
+                ? `${surveyTitle} - De-identified`
+                : previous.title,
+        }));
+      } catch (err) {
+        if (!isMounted) return;
+        setSelectedDeidReviewDetail(null);
+        setError(err instanceof Error ? err.message : tAdmin("loadError"));
+      } finally {
+        if (isMounted) {
+          setDeidReviewDetailLoading(false);
+        }
+      }
+    };
+
+    void loadDeidReviewDetail();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDeidReviewId, tAdmin]);
 
   useEffect(() => {
     let isMounted = true;
@@ -845,8 +1020,32 @@ export default function AdminPage() {
     void loadSurveyVersions(survey.id);
   };
 
+  const loadDatasetVersions = async (datasetId: string) => {
+    setDatasetVersionsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/app/admin/datasets/${datasetId}/versions`,
+        {
+          cache: "no-store",
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Failed to load dataset versions");
+      }
+      const payload = await response.json().catch(() => ({}));
+      setDatasetVersions(payload?.versions || []);
+    } catch {
+      setDatasetVersions([]);
+      setError(tAdmin("loadError"));
+    } finally {
+      setDatasetVersionsLoading(false);
+    }
+  };
+
   const openDatasetEditor = (dataset: Dataset) => {
     setEditingDataset(dataset);
+    setDatasetVersions([]);
     setDatasetForm({
       title: dataset.title,
       description: dataset.description || "",
@@ -855,7 +1054,9 @@ export default function AdminPage() {
       price: dataset.price,
       sampleSize: dataset.sampleSize,
       isActive: dataset.isActive,
+      entitlementPolicy: dataset.entitlementPolicy || "purchased_only",
     });
+    void loadDatasetVersions(dataset.id);
   };
 
   const saveSurvey = async () => {
@@ -991,6 +1192,7 @@ export default function AdminPage() {
           price: datasetForm.price,
           sampleSize: datasetForm.sampleSize,
           isActive: datasetForm.isActive,
+          entitlementPolicy: datasetForm.entitlementPolicy,
         }),
       });
       if (!response.ok) {
@@ -1006,6 +1208,42 @@ export default function AdminPage() {
       setError(tAdmin("updateError"));
     } finally {
       setSavingDataset(false);
+    }
+  };
+
+  const publishDatasetVersion = async () => {
+    if (!editingDataset) return;
+    setPublishingDatasetVersion(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/app/admin/datasets/${editingDataset.id}/publish`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessType: datasetForm.accessType,
+            price: datasetForm.accessType === "paid" ? datasetForm.price : 0,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Failed to publish dataset version");
+      }
+      const payload = await response.json().catch(() => ({}));
+      const nextDataset = (payload?.dataset || null) as Dataset | null;
+      if (nextDataset) {
+        setDatasets((prev) =>
+          prev.map((item) => (item.id === nextDataset.id ? nextDataset : item)),
+        );
+        setEditingDataset(nextDataset);
+      }
+      await loadDatasetVersions(editingDataset.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setPublishingDatasetVersion(false);
     }
   };
 
@@ -1084,6 +1322,62 @@ export default function AdminPage() {
       setDatasets((prev) => prev.filter((item) => item.id !== dataset.id));
     } catch (err) {
       setError(tAdmin("deleteError"));
+    }
+  };
+
+  const completeDeidReview = async () => {
+    if (!selectedDeidReviewId) return;
+
+    if (deidReviewAction === "merge" && !deidReviewForm.datasetId.trim()) {
+      setError(tAdmin("deidDatasetIdRequired"));
+      return;
+    }
+
+    setCompletingDeidReview(true);
+    setError(null);
+    setDeidReviewMessage(null);
+    try {
+      const body: Record<string, unknown> = {
+        action: deidReviewAction,
+      };
+      if (deidReviewAction === "merge") {
+        body.datasetId = deidReviewForm.datasetId.trim();
+      } else {
+        body.title = deidReviewForm.title.trim();
+        body.description = deidReviewForm.description.trim() || undefined;
+        body.category = deidReviewForm.category.trim() || "other";
+        body.accessType = deidReviewForm.accessType;
+        body.price = deidReviewForm.accessType === "paid" ? deidReviewForm.price : 0;
+        body.entitlementPolicy = deidReviewForm.entitlementPolicy;
+      }
+
+      const response = await fetch(
+        `/api/app/admin/deid/reviews/${selectedDeidReviewId}/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || "Failed to complete review");
+      }
+      const payload = await response.json().catch(() => ({}));
+      setDeidReviewMessage(
+        tAdmin("deidReviewCompleteMessage", {
+          datasetId: String(
+            payload?.dataset_id || payload?.datasetId || payload?.DatasetID || "",
+          ),
+        }),
+      );
+      setSelectedDeidReviewDetail(null);
+      setSelectedDeidReviewId(null);
+      setDeidReviewReloadTick((previous) => previous + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tAdmin("updateError"));
+    } finally {
+      setCompletingDeidReview(false);
     }
   };
 
@@ -1875,6 +2169,22 @@ export default function AdminPage() {
     () => tAdmin("policyWriterCount", { count: policyWriters.length }),
     [policyWriters.length, tAdmin],
   );
+  const deidReviewCountLabel = useMemo(
+    () => tAdmin("deidReviewCount", { count: deidReviewJobs.length }),
+    [deidReviewJobs.length, tAdmin],
+  );
+  const selectedDeidJob = useMemo(
+    () => deidReviewJobs.find((job) => job.id === selectedDeidReviewId) || null,
+    [deidReviewJobs, selectedDeidReviewId],
+  );
+  const selectedDeidMaskedCount = useMemo(() => {
+    if (!selectedDeidJob?.summary_json) return 0;
+    const rawValue = selectedDeidJob.summary_json["masked_cells"];
+    if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      return rawValue;
+    }
+    return 0;
+  }, [selectedDeidJob]);
   const canWritePolicies = useMemo(() => {
     if (!currentUser) return false;
     if (currentUser.isSuperAdmin) return true;
@@ -1971,6 +2281,7 @@ export default function AdminPage() {
           <TabsList>
             <TabsTrigger value="surveys">{tAdmin("surveysTab")}</TabsTrigger>
             <TabsTrigger value="datasets">{tAdmin("datasetsTab")}</TabsTrigger>
+            <TabsTrigger value="deid">{tAdmin("deidReviewsTab")}</TabsTrigger>
             <TabsTrigger value="agents">{tAdmin("agentsTab")}</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="admins">{tAdmin("adminsTab")}</TabsTrigger>
@@ -2182,6 +2493,20 @@ export default function AdminPage() {
                                       ? tAdmin("active")
                                       : tAdmin("inactive")}
                                   </Badge>
+                                  {dataset.currentPublishedVersionNumber ? (
+                                    <Badge variant="outline">
+                                      {tAdmin("versionLabel", {
+                                        version: dataset.currentPublishedVersionNumber,
+                                      })}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline">{tAdmin("notPublishedYet")}</Badge>
+                                  )}
+                                  {dataset.hasUnpublishedChanges ? (
+                                    <Badge className="bg-amber-100 text-amber-700">
+                                      {tAdmin("datasetUnpublishedChanges")}
+                                    </Badge>
+                                  ) : null}
                                 </div>
                                 <p className="text-sm text-gray-500 line-clamp-2">
                                   {dataset.description}
@@ -2218,6 +2543,316 @@ export default function AdminPage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="deid" className="mt-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{tAdmin("deidReviewsTitle")}</CardTitle>
+                  <CardDescription>{deidReviewCountLabel}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {deidReviewLoading ? (
+                    <div className="text-sm text-gray-500">{tCommon("loading")}</div>
+                  ) : deidReviewJobs.length === 0 ? (
+                    <div className="text-sm text-gray-500">
+                      {tAdmin("deidNoReviews")}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {deidReviewJobs.map((job) => {
+                        const summary = job.summary_json || {};
+                        const maskedCells =
+                          typeof summary.masked_cells === "number"
+                            ? summary.masked_cells
+                            : 0;
+                        return (
+                          <button
+                            key={job.id}
+                            type="button"
+                            className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                              selectedDeidReviewId === job.id
+                                ? "border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/40"
+                                : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900"
+                            }`}
+                            onClick={() => {
+                              setSelectedDeidReviewId(job.id);
+                              setDeidReviewMessage(null);
+                            }}
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {job.survey_title || job.survey_id}
+                              </p>
+                              <Badge variant="secondary">{job.trigger_source}</Badge>
+                              <Badge variant="outline">
+                                {`${
+                                  job.current_chunk_index || 0
+                                }/${job.total_chunks || 0}`}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {tAdmin("deidMaskedCells", { count: maskedCells })}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{tAdmin("deidReviewDetailTitle")}</CardTitle>
+                  <CardDescription>
+                    {selectedDeidJob
+                      ? tAdmin("deidReviewTarget", {
+                          survey: selectedDeidJob.survey_title || selectedDeidJob.survey_id,
+                        })
+                      : tAdmin("deidSelectReviewHint")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {deidReviewDetailLoading ? (
+                    <div className="text-sm text-gray-500">{tCommon("loading")}</div>
+                  ) : !selectedDeidReviewDetail || !selectedDeidJob ? (
+                    <div className="text-sm text-gray-500">
+                      {tAdmin("deidSelectReviewHint")}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                        <div className="rounded-md border border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
+                          <p className="text-gray-500">{tAdmin("deidTotalRows")}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {selectedDeidReviewDetail.total_rows || 0}
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
+                          <p className="text-gray-500">{tAdmin("deidMaskedCellsLabel")}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {selectedDeidMaskedCount}
+                          </p>
+                        </div>
+                        <div className="rounded-md border border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
+                          <p className="text-gray-500">{tAdmin("deidChunkSizeLabel")}</p>
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {selectedDeidJob.chunk_size || 0}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {tAdmin("deidPreviewRowsTitle")}
+                        </p>
+                        <div className="max-h-56 overflow-auto rounded-md border border-gray-200 dark:border-gray-800">
+                          <table className="min-w-full text-xs">
+                            <thead className="sticky top-0 bg-gray-100 dark:bg-gray-900">
+                              <tr>
+                                <th className="border-b border-gray-200 px-2 py-1 text-left dark:border-gray-800">
+                                  #
+                                </th>
+                                {selectedDeidReviewDetail.columns.map((column) => (
+                                  <th
+                                    key={`deid-column-${column.col_no}`}
+                                    className="border-b border-gray-200 px-2 py-1 text-left whitespace-nowrap dark:border-gray-800"
+                                  >
+                                    {`${column.col_no}. ${column.name}`}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedDeidReviewDetail.preview_rows.map((row) => (
+                                <tr key={`deid-row-${row.row_no}`}>
+                                  <td className="border-b border-gray-100 px-2 py-1 align-top dark:border-gray-900">
+                                    {row.row_no}
+                                  </td>
+                                  {row.cells.map((cell) => (
+                                    <td
+                                      key={`deid-cell-${row.row_no}-${cell.col_no}`}
+                                      className="max-w-48 border-b border-gray-100 px-2 py-1 align-top dark:border-gray-900"
+                                    >
+                                      <span className="line-clamp-2 break-all">
+                                        {cell.value || "-"}
+                                      </span>
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                        <div className="space-y-1">
+                          <Label>{tAdmin("deidReviewActionLabel")}</Label>
+                          <select
+                            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                            value={deidReviewAction}
+                            onChange={(event) =>
+                              setDeidReviewAction(
+                                event.target.value === "merge" ? "merge" : "create",
+                              )
+                            }
+                          >
+                            <option value="create">
+                              {tAdmin("deidActionCreateDataset")}
+                            </option>
+                            <option value="merge">
+                              {tAdmin("deidActionMergeDataset")}
+                            </option>
+                          </select>
+                        </div>
+
+                        {deidReviewAction === "merge" ? (
+                          <div className="space-y-1">
+                            <Label>{tAdmin("deidTargetDatasetLabel")}</Label>
+                            <select
+                              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                              value={deidReviewForm.datasetId}
+                              onChange={(event) =>
+                                setDeidReviewForm((previous) => ({
+                                  ...previous,
+                                  datasetId: event.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">{tAdmin("deidTargetDatasetPlaceholder")}</option>
+                              {datasets.map((dataset) => (
+                                <option key={`deid-dataset-${dataset.id}`} value={dataset.id}>
+                                  {`${dataset.title} (${dataset.id.slice(0, 8)})`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="space-y-1">
+                              <Label>{tAdmin("datasetTitle")}</Label>
+                              <Input
+                                value={deidReviewForm.title}
+                                onChange={(event) =>
+                                  setDeidReviewForm((previous) => ({
+                                    ...previous,
+                                    title: event.target.value,
+                                  }))
+                                }
+                                placeholder={tAdmin("deidTitlePlaceholder")}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>{tAdmin("datasetDescription")}</Label>
+                              <Input
+                                value={deidReviewForm.description}
+                                onChange={(event) =>
+                                  setDeidReviewForm((previous) => ({
+                                    ...previous,
+                                    description: event.target.value,
+                                  }))
+                                }
+                                placeholder={tAdmin("deidDescriptionPlaceholder")}
+                              />
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label>{tAdmin("datasetCategory")}</Label>
+                                <Input
+                                  value={deidReviewForm.category}
+                                  onChange={(event) =>
+                                    setDeidReviewForm((previous) => ({
+                                      ...previous,
+                                      category: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label>{tAdmin("accessType")}</Label>
+                                <select
+                                  className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                                  value={deidReviewForm.accessType}
+                                  onChange={(event) =>
+                                    setDeidReviewForm((previous) => ({
+                                      ...previous,
+                                      accessType:
+                                        event.target.value === "paid" ? "paid" : "free",
+                                      price:
+                                        event.target.value === "paid"
+                                          ? previous.price
+                                          : 0,
+                                    }))
+                                  }
+                                >
+                                  <option value="free">{tAdmin("accessFree")}</option>
+                                  <option value="paid">{tAdmin("accessPaid")}</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div className="space-y-1">
+                                <Label>{tAdmin("datasetPrice")}</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  value={deidReviewForm.price}
+                                  onChange={(event) =>
+                                    setDeidReviewForm((previous) => ({
+                                      ...previous,
+                                      price: Math.max(0, Number(event.target.value) || 0),
+                                    }))
+                                  }
+                                  disabled={deidReviewForm.accessType !== "paid"}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label>{tAdmin("entitlementPolicyLabel")}</Label>
+                                <select
+                                  className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900"
+                                  value={deidReviewForm.entitlementPolicy}
+                                  onChange={(event) =>
+                                    setDeidReviewForm((previous) => ({
+                                      ...previous,
+                                      entitlementPolicy:
+                                        event.target.value === "all_versions_if_any_purchase"
+                                          ? "all_versions_if_any_purchase"
+                                          : "purchased_only",
+                                    }))
+                                  }
+                                >
+                                  <option value="purchased_only">
+                                    {tAdmin("entitlementPurchasedOnly")}
+                                  </option>
+                                  <option value="all_versions_if_any_purchase">
+                                    {tAdmin("entitlementAllVersions")}
+                                  </option>
+                                </select>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        <Button
+                          onClick={completeDeidReview}
+                          disabled={completingDeidReview || !selectedDeidReviewId}
+                        >
+                          {completingDeidReview
+                            ? tCommon("saving")
+                            : tAdmin("deidCompleteReview")}
+                        </Button>
+                        {deidReviewMessage ? (
+                          <p className="text-sm text-emerald-600">{deidReviewMessage}</p>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="agents" className="mt-6">
@@ -4356,7 +4991,12 @@ export default function AdminPage() {
 
       <Dialog
         open={!!editingDataset}
-        onOpenChange={(open) => !open && setEditingDataset(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingDataset(null);
+            setDatasetVersions([]);
+          }
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -4366,6 +5006,33 @@ export default function AdminPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {editingDataset?.currentPublishedVersionNumber
+                      ? tAdmin("publishedVersion", {
+                          version: editingDataset.currentPublishedVersionNumber,
+                        })
+                      : tAdmin("notPublishedYet")}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {editingDataset?.hasUnpublishedChanges
+                      ? tAdmin("datasetUnpublishedChanges")
+                      : tAdmin("datasetNoUnpublishedChanges")}
+                  </p>
+                </div>
+                <Button
+                  onClick={publishDatasetVersion}
+                  disabled={publishingDatasetVersion || savingDataset}
+                >
+                  {publishingDatasetVersion
+                    ? tCommon("saving")
+                    : tAdmin("publishNewVersion")}
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>{tAdmin("datasetTitle")}</Label>
               <Input
@@ -4448,6 +5115,32 @@ export default function AdminPage() {
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>{tAdmin("entitlementPolicyLabel")}</Label>
+              <select
+                className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 w-full"
+                value={datasetForm.entitlementPolicy}
+                onChange={(event) =>
+                  setDatasetForm((prev) => ({
+                    ...prev,
+                    entitlementPolicy:
+                      event.target.value === "all_versions_if_any_purchase"
+                        ? "all_versions_if_any_purchase"
+                        : "purchased_only",
+                  }))
+                }
+              >
+                <option value="purchased_only">
+                  {tAdmin("entitlementPurchasedOnly")}
+                </option>
+                <option value="all_versions_if_any_purchase">
+                  {tAdmin("entitlementAllVersions")}
+                </option>
+              </select>
+              <p className="text-xs text-gray-500">
+                {tAdmin("entitlementPolicyHint")}
+              </p>
+            </div>
             <div className="flex items-center justify-between border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-2">
               <div className="space-y-1">
                 <p className="text-sm font-medium">{tAdmin("datasetActive")}</p>
@@ -4461,6 +5154,44 @@ export default function AdminPage() {
                   setDatasetForm((prev) => ({ ...prev, isActive: checked }))
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {tAdmin("datasetVersionHistoryTitle")}
+              </p>
+              {datasetVersionsLoading ? (
+                <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+              ) : datasetVersions.length === 0 ? (
+                <p className="text-xs text-gray-500">
+                  {tAdmin("datasetVersionHistoryEmpty")}
+                </p>
+              ) : (
+                <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-gray-100 p-2 dark:border-gray-800">
+                  {datasetVersions.map((version) => (
+                    <div
+                      key={version.id}
+                      className="flex items-center justify-between rounded-md border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800"
+                    >
+                      <div className="space-y-0.5">
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {tAdmin("versionLabel", { version: version.versionNumber })}
+                        </p>
+                        <p className="text-gray-500">
+                          {version.accessType === "paid"
+                            ? tAdmin("datasetVersionPaidLabel", {
+                                price: version.price,
+                              })
+                            : tAdmin("datasetVersionFreeLabel")}
+                        </p>
+                      </div>
+                      <div className="text-right text-gray-500">
+                        <p>{tAdmin("adminDownloadsLabel", { count: version.downloadCount })}</p>
+                        <p>{tAdmin("adminSamplesLabel", { count: version.sampleSize })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/deid"
 	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/TimLai666/surtopya-api/internal/platformlog"
 	"github.com/TimLai666/surtopya-api/internal/policy"
@@ -33,6 +35,18 @@ const activeSurveyLimitReachedError = "Active survey limit reached"
 const noChangesToPublishError = "No changes to publish"
 const publishedVersionExpiredError = "Published version expired"
 const expirationDatePastError = "Expiration date cannot be in the past"
+
+func queueDeidForSurvey(ctx context.Context, db *sql.DB, surveyID uuid.UUID, triggerSource string, triggeredBy *uuid.UUID) (string, *uuid.UUID, int, error) {
+	service := deid.NewService(db)
+	result, err := service.QueueSurveyJob(ctx, surveyID, triggerSource, triggeredBy)
+	if err != nil {
+		if errors.Is(err, deid.ErrNoNewResponses) {
+			return "no_data", &result.JobID, 0, nil
+		}
+		return "", nil, 0, err
+	}
+	return result.Status, &result.JobID, result.ResponseRows, nil
+}
 
 // NewSurveyHandler creates a new SurveyHandler
 func NewSurveyHandler() *SurveyHandler {
@@ -930,6 +944,19 @@ func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
 		return
 	}
 
+	triggeredBy := userID.(uuid.UUID)
+	deidStatus, deidJobID, queuedRows, err := queueDeidForSurvey(
+		c.Request.Context(),
+		h.db,
+		survey.ID,
+		"close_responses",
+		&triggeredBy,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue de-identification workflow"})
+		return
+	}
+
 	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
 		EventType:    "domain",
 		Module:       "surveys",
@@ -937,6 +964,11 @@ func (h *SurveyHandler) CloseSurveyResponses(c *gin.Context) {
 		Status:       "success",
 		ResourceType: "survey",
 		ResourceID:   survey.ID.String(),
+		Metadata: map[string]any{
+			"deid_status":      deidStatus,
+			"deid_job_id":      deidJobID,
+			"deid_queued_rows": queuedRows,
+		},
 	})
 
 	c.JSON(http.StatusOK, survey)
@@ -1170,6 +1202,19 @@ func (h *SurveyHandler) DeleteSurvey(c *gin.Context) {
 		return
 	}
 
+	triggeredBy := userID.(uuid.UUID)
+	deidStatus, deidJobID, queuedRows, err := queueDeidForSurvey(
+		c.Request.Context(),
+		h.db,
+		id,
+		"user_delete",
+		&triggeredBy,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue de-identification workflow"})
+		return
+	}
+
 	platformlog.LogFromGin(c, h.logger, platformlog.EventInput{
 		EventType:    "domain",
 		Module:       "surveys",
@@ -1177,6 +1222,11 @@ func (h *SurveyHandler) DeleteSurvey(c *gin.Context) {
 		Status:       "success",
 		ResourceType: "survey",
 		ResourceID:   id.String(),
+		Metadata: map[string]any{
+			"deid_status":      deidStatus,
+			"deid_job_id":      deidJobID,
+			"deid_queued_rows": queuedRows,
+		},
 	})
 
 	c.JSON(http.StatusOK, gin.H{"message": "Survey deleted successfully"})

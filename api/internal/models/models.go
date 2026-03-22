@@ -188,12 +188,65 @@ type Dataset struct {
 	DownloadCount int        `json:"downloadCount" db:"download_count"`
 	SampleSize    int        `json:"sampleSize" db:"sample_size"`
 	IsActive      bool       `json:"isActive" db:"is_active"`
+	CurrentPublishedVersionID     *uuid.UUID `json:"currentPublishedVersionId,omitempty" db:"current_published_version_id"`
+	CurrentPublishedVersionNumber *int       `json:"currentPublishedVersionNumber,omitempty" db:"current_published_version_number"`
+	HasUnpublishedChanges         bool       `json:"hasUnpublishedChanges" db:"has_unpublished_changes"`
+	EntitlementPolicy             string     `json:"entitlementPolicy" db:"entitlement_policy"`
 	FilePath      string     `json:"-" db:"file_path"`
 	FileName      string     `json:"fileName,omitempty" db:"file_name"`
 	FileSize      int64      `json:"fileSize,omitempty" db:"file_size"`
 	MimeType      string     `json:"mimeType,omitempty" db:"mime_type"`
 	CreatedAt     time.Time  `json:"createdAt" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updatedAt" db:"updated_at"`
+}
+
+// DatasetVersion is an immutable published dataset version.
+type DatasetVersion struct {
+	ID            uuid.UUID  `json:"id" db:"id"`
+	DatasetID     uuid.UUID  `json:"datasetId" db:"dataset_id"`
+	VersionNumber int        `json:"versionNumber" db:"version_number"`
+	Title         string     `json:"title" db:"title"`
+	Description   *string    `json:"description,omitempty" db:"description"`
+	Category      string     `json:"category" db:"category"`
+	AccessType    string     `json:"accessType" db:"access_type"`
+	Price         int        `json:"price" db:"price"`
+	SampleSize    int        `json:"sampleSize" db:"sample_size"`
+	FilePath      string     `json:"-" db:"file_path"`
+	FileName      string     `json:"fileName" db:"file_name"`
+	FileSize      int64      `json:"fileSize" db:"file_size"`
+	MimeType      string     `json:"mimeType" db:"mime_type"`
+	DownloadCount int        `json:"downloadCount" db:"download_count"`
+	PublishedAt   time.Time  `json:"publishedAt" db:"published_at"`
+	PublishedBy   *uuid.UUID `json:"publishedBy,omitempty" db:"published_by"`
+	CreatedAt     time.Time  `json:"createdAt" db:"created_at"`
+}
+
+// DatasetDraft is the mutable, unpublished dataset state.
+type DatasetDraft struct {
+	DatasetID      uuid.UUID  `json:"datasetId" db:"dataset_id"`
+	Title          string     `json:"title" db:"title"`
+	Description    *string    `json:"description,omitempty" db:"description"`
+	Category       string     `json:"category" db:"category"`
+	AccessType     string     `json:"accessType" db:"access_type"`
+	Price          int        `json:"price" db:"price"`
+	SampleSize     int        `json:"sampleSize" db:"sample_size"`
+	FilePath       string     `json:"-" db:"file_path"`
+	FileName       string     `json:"fileName" db:"file_name"`
+	FileSize       int64      `json:"fileSize" db:"file_size"`
+	MimeType       string     `json:"mimeType" db:"mime_type"`
+	SourceDeidJobID *uuid.UUID `json:"sourceDeidJobId,omitempty" db:"source_deid_job_id"`
+	UpdatedBy      *uuid.UUID `json:"updatedBy,omitempty" db:"updated_by"`
+	UpdatedAt      time.Time  `json:"updatedAt" db:"updated_at"`
+}
+
+// DatasetPurchase is a paid entitlement record.
+type DatasetPurchase struct {
+	ID               uuid.UUID `json:"id" db:"id"`
+	UserID           uuid.UUID `json:"userId" db:"user_id"`
+	DatasetID        uuid.UUID `json:"datasetId" db:"dataset_id"`
+	DatasetVersionID uuid.UUID `json:"datasetVersionId" db:"dataset_version_id"`
+	PricePaid        int       `json:"pricePaid" db:"price_paid"`
+	CreatedAt        time.Time `json:"createdAt" db:"created_at"`
 }
 
 // PointsTransaction represents a points transaction

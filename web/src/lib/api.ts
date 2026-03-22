@@ -573,6 +573,10 @@ export interface Dataset {
   downloadCount: number;
   sampleSize: number;
   isActive: boolean;
+  currentPublishedVersionId?: string;
+  currentPublishedVersionNumber?: number;
+  hasUnpublishedChanges?: boolean;
+  entitlementPolicy?: "purchased_only" | "all_versions_if_any_purchase";
   fileName?: string;
   fileSize?: number;
   mimeType?: string;

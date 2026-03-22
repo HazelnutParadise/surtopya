@@ -27,13 +27,17 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
       title: "Surtopya Dataset API",
       version: "1.0.0",
       description:
-        "Dataset marketplace API (public, versioned). Use the same-origin proxy server in this page for authenticated try-out.",
+        "Dataset marketplace API (public, versioned). Paid datasets require purchase per version before download.",
     },
     servers,
     tags: [
       {
         name: "Datasets",
-        description: "Browse dataset listings and download dataset files.",
+        description: "Browse dataset listings and inspect dataset versions.",
+      },
+      {
+        name: "Dataset Access",
+        description: "Purchase paid dataset versions and download by authorized version.",
       },
     ],
     paths: {
@@ -198,9 +202,11 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
         get: {
           tags: ["Datasets"],
           summary: "Get dataset details",
-          description: "Returns a single dataset by id.",
+          description:
+            "Returns a single dataset by id. Optional version query resolves metadata against a specific published version.",
           parameters: [
             { $ref: "#/components/parameters/DatasetIdPath" },
+            { $ref: "#/components/parameters/DatasetVersionQuery" },
             { $ref: "#/components/parameters/AcceptLanguageHeader" },
           ],
           responses: {
@@ -284,14 +290,177 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
           },
         },
       },
-      "/datasets/{id}/download": {
-        post: {
+      "/datasets/{id}/versions": {
+        get: {
           tags: ["Datasets"],
-          summary: "Download dataset file",
+          summary: "List published dataset versions",
           description:
-            "Triggers dataset download. In this docs page, try-out is intentionally blocked for paid datasets.",
+            "Returns published immutable versions for the dataset. Use version_number with other endpoints to target one version.",
           parameters: [
             { $ref: "#/components/parameters/DatasetIdPath" },
+            { $ref: "#/components/parameters/AcceptLanguageHeader" },
+          ],
+          responses: {
+            200: {
+              description: "Version list returned.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/DatasetVersionListResponse" },
+                  examples: {
+                    success: {
+                      value: {
+                        versions: [
+                          {
+                            id: "a5b7d76d-301f-4ea1-b7d4-cb957a6b41a2",
+                            datasetId: "d94e86b5-3a22-422d-8f2b-bf79d59f18ec",
+                            versionNumber: 3,
+                            title: "Consumer Lifestyle Pulse 2026",
+                            description: "De-identified responses on shopping habits.",
+                            category: "market-research",
+                            accessType: "paid",
+                            price: 60,
+                            sampleSize: 1380,
+                            fileName: "consumer-lifestyle-pulse-2026-v3.csv",
+                            fileSize: 391024,
+                            mimeType: "text/csv",
+                            downloadCount: 41,
+                            publishedAt: "2026-03-10T00:00:00Z",
+                            createdAt: "2026-03-10T00:00:00Z",
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "Invalid dataset id. error code: invalid_dataset_id",
+              "x-error-code": "invalid_dataset_id",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Dataset not found. error code: not_found",
+              "x-error-code": "not_found",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            500: {
+              description: "Server error. error code: server_error",
+              "x-error-code": "server_error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/datasets/{id}/purchase": {
+        post: {
+          tags: ["Dataset Access"],
+          summary: "Purchase paid dataset version",
+          description:
+            "Creates a purchase entitlement for a paid dataset version. Free versions return success without charging points.",
+          parameters: [
+            { $ref: "#/components/parameters/DatasetIdPath" },
+            { $ref: "#/components/parameters/DatasetVersionQuery" },
+            { $ref: "#/components/parameters/AcceptLanguageHeader" },
+          ],
+          responses: {
+            200: {
+              description: "Purchase completed or already owned.",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/PurchaseResponse" },
+                  examples: {
+                    purchased: {
+                      value: {
+                        message: "Purchase completed",
+                        dataset_id: "d94e86b5-3a22-422d-8f2b-bf79d59f18ec",
+                        dataset_version: 3,
+                        dataset_version_id: "a5b7d76d-301f-4ea1-b7d4-cb957a6b41a2",
+                        price_paid: 60,
+                        already_owned: false,
+                      },
+                    },
+                    alreadyOwned: {
+                      value: {
+                        message: "Dataset version already purchased",
+                        dataset_id: "d94e86b5-3a22-422d-8f2b-bf79d59f18ec",
+                        version_number: 3,
+                        already_owned: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "Invalid input. error code: bad_request",
+              "x-error-code": "bad_request",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            401: {
+              description: "Authentication required. error code: unauthorized",
+              "x-error-code": "unauthorized",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            402: {
+              description: "Insufficient points. error code: insufficient_points",
+              "x-error-code": "insufficient_points",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Dataset or version not found. error code: not_found",
+              "x-error-code": "not_found",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            500: {
+              description: "Server error. error code: server_error",
+              "x-error-code": "server_error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/datasets/{id}/download": {
+        post: {
+          tags: ["Dataset Access"],
+          summary: "Download dataset file",
+          description:
+            "Downloads a dataset file. For paid versions, the requester must already have valid purchase entitlement.",
+          parameters: [
+            { $ref: "#/components/parameters/DatasetIdPath" },
+            { $ref: "#/components/parameters/DatasetVersionQuery" },
             { $ref: "#/components/parameters/AcceptLanguageHeader" },
           ],
           responses: {
@@ -331,7 +500,7 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
               },
             },
             401: {
-              description: "Authentication required for paid dataset. error code: unauthorized",
+              description: "Authentication required for paid dataset versions. error code: unauthorized",
               "x-error-code": "unauthorized",
               content: {
                 "application/json": {
@@ -339,7 +508,7 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
                   examples: {
                     unauthorized: {
                       value: {
-                        error: "Authentication required for paid datasets",
+                        error: "Authentication required for paid dataset versions",
                       },
                     },
                   },
@@ -347,15 +516,15 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
               },
             },
             402: {
-              description: "Insufficient points for paid dataset. error code: insufficient_points",
-              "x-error-code": "insufficient_points",
+              description: "Purchase required for this version. error code: purchase_required",
+              "x-error-code": "purchase_required",
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/ErrorResponse" },
                   examples: {
-                    insufficientPoints: {
+                    purchaseRequired: {
                       value: {
-                        error: "Insufficient points",
+                        error: "Purchase required for this dataset version",
                       },
                     },
                   },
@@ -387,7 +556,7 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
                   examples: {
                     serverError: {
                       value: {
-                        error: "Failed to process purchase",
+                        error: "Failed to resolve dataset version",
                       },
                     },
                   },
@@ -407,6 +576,15 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
           schema: { type: "string", format: "uuid" },
           description: "Dataset id.",
           example: "d94e86b5-3a22-422d-8f2b-bf79d59f18ec",
+        },
+        DatasetVersionQuery: {
+          name: "version_number",
+          in: "query",
+          required: false,
+          schema: { type: "integer", minimum: 1 },
+          description:
+            "Published dataset version number. Defaults to the latest published version.",
+          example: 3,
         },
         AcceptLanguageHeader: {
           name: "Accept-Language",
@@ -444,6 +622,14 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
             downloadCount: { type: "integer" },
             sampleSize: { type: "integer" },
             isActive: { type: "boolean" },
+            currentPublishedVersionId: { type: "string", format: "uuid", nullable: true },
+            currentPublishedVersionNumber: { type: "integer", nullable: true },
+            hasUnpublishedChanges: { type: "boolean" },
+            entitlementPolicy: {
+              type: "string",
+              enum: ["purchased_only", "all_versions_if_any_purchase"],
+              nullable: true,
+            },
             fileName: { type: "string", nullable: true },
             fileSize: { type: "integer", nullable: true },
             mimeType: { type: "string", nullable: true },
@@ -486,6 +672,65 @@ export const buildDatasetsOpenApiSpec = ({ publicApiUrl }: BuildDatasetsOpenApiS
               type: "array",
               items: { $ref: "#/components/schemas/Category" },
             },
+          },
+        },
+        DatasetVersion: {
+          type: "object",
+          required: [
+            "id",
+            "datasetId",
+            "versionNumber",
+            "title",
+            "category",
+            "accessType",
+            "price",
+            "sampleSize",
+            "fileName",
+            "fileSize",
+            "mimeType",
+            "downloadCount",
+            "publishedAt",
+            "createdAt",
+          ],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            datasetId: { type: "string", format: "uuid" },
+            versionNumber: { type: "integer", minimum: 1 },
+            title: { type: "string" },
+            description: { type: "string", nullable: true },
+            category: { type: "string" },
+            accessType: { type: "string", enum: ["free", "paid"] },
+            price: { type: "integer", minimum: 0 },
+            sampleSize: { type: "integer", minimum: 0 },
+            fileName: { type: "string" },
+            fileSize: { type: "integer" },
+            mimeType: { type: "string" },
+            downloadCount: { type: "integer", minimum: 0 },
+            publishedAt: { type: "string", format: "date-time" },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        DatasetVersionListResponse: {
+          type: "object",
+          required: ["versions"],
+          properties: {
+            versions: {
+              type: "array",
+              items: { $ref: "#/components/schemas/DatasetVersion" },
+            },
+          },
+        },
+        PurchaseResponse: {
+          type: "object",
+          required: ["message", "already_owned"],
+          properties: {
+            message: { type: "string" },
+            dataset_id: { type: "string", format: "uuid", nullable: true },
+            dataset_version: { type: "integer", nullable: true },
+            dataset_version_id: { type: "string", format: "uuid", nullable: true },
+            version_number: { type: "integer", nullable: true },
+            price_paid: { type: "integer", nullable: true },
+            already_owned: { type: "boolean" },
           },
         },
         DownloadJsonResponse: {

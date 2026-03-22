@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
+	"github.com/TimLai666/surtopya-api/internal/deid"
 	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/TimLai666/surtopya-api/internal/policy"
 	"github.com/TimLai666/surtopya-api/internal/repository"
@@ -64,13 +65,30 @@ type AdminSurveyUpdateRequest struct {
 }
 
 type AdminDatasetUpdateRequest struct {
-	Title       *string `json:"title"`
-	Description *string `json:"description"`
-	Category    *string `json:"category"`
-	AccessType  *string `json:"accessType"`
-	Price       *int    `json:"price"`
-	SampleSize  *int    `json:"sampleSize"`
-	IsActive    *bool   `json:"isActive"`
+	Title             *string `json:"title"`
+	Description       *string `json:"description"`
+	Category          *string `json:"category"`
+	AccessType        *string `json:"accessType"`
+	Price             *int    `json:"price"`
+	SampleSize        *int    `json:"sampleSize"`
+	IsActive          *bool   `json:"isActive"`
+	EntitlementPolicy *string `json:"entitlementPolicy"`
+}
+
+type AdminDatasetPublishRequest struct {
+	AccessType *string `json:"accessType"`
+	Price      *int    `json:"price"`
+}
+
+type AdminDeidReviewDecisionRequest struct {
+	Action            string  `json:"action"`
+	DatasetID         *string `json:"datasetId"`
+	Title             *string `json:"title"`
+	Description       *string `json:"description"`
+	Category          *string `json:"category"`
+	AccessType        *string `json:"accessType"`
+	Price             *int    `json:"price"`
+	EntitlementPolicy *string `json:"entitlementPolicy"`
 }
 
 type AdminUser struct {
@@ -409,12 +427,49 @@ func (h *AdminHandler) DeleteSurvey(c *gin.Context) {
 		return
 	}
 
-	if err := h.surveys.HardDelete(id); err != nil {
+	force := strings.EqualFold(strings.TrimSpace(c.Query("force")), "true")
+	if force {
+		if err := h.surveys.HardDelete(id); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete survey"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Survey hard-deleted successfully"})
+		return
+	}
+
+	survey, err := h.surveys.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey"})
+		return
+	}
+	if survey == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Survey not found"})
+		return
+	}
+
+	if err := h.surveys.SoftDelete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete survey"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Survey deleted successfully"})
+	deidStatus, deidJobID, queuedRows, err := queueDeidForSurvey(
+		c.Request.Context(),
+		database.GetDB(),
+		id,
+		"admin_delete",
+		&survey.UserID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to queue de-identification workflow"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Survey archived successfully",
+		"deid_status":    deidStatus,
+		"deid_job_id":    deidJobID,
+		"deid_row_count": queuedRows,
+	})
 }
 
 // GetDatasets handles GET /api/v1/admin/datasets
@@ -462,6 +517,7 @@ func (h *AdminHandler) CreateDataset(c *gin.Context) {
 	accessType := strings.TrimSpace(c.DefaultPostForm("accessType", "free"))
 	priceStr := strings.TrimSpace(c.DefaultPostForm("price", "0"))
 	sampleSizeStr := strings.TrimSpace(c.DefaultPostForm("sampleSize", "0"))
+	entitlementPolicy := strings.TrimSpace(c.DefaultPostForm("entitlementPolicy", "purchased_only"))
 
 	var surveyID *uuid.UUID
 	if title == "" {
@@ -470,6 +526,10 @@ func (h *AdminHandler) CreateDataset(c *gin.Context) {
 	}
 	if accessType != "free" && accessType != "paid" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid access type"})
+		return
+	}
+	if entitlementPolicy != "purchased_only" && entitlementPolicy != "all_versions_if_any_purchase" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entitlement policy"})
 		return
 	}
 
@@ -496,6 +556,9 @@ func (h *AdminHandler) CreateDataset(c *gin.Context) {
 	if err != nil || price < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
 		return
+	}
+	if accessType == "free" {
+		price = 0
 	}
 
 	sampleSize, err := strconv.Atoi(sampleSizeStr)
@@ -555,30 +618,113 @@ func (h *AdminHandler) CreateDataset(c *gin.Context) {
 
 	descriptionValue := description
 	dataset := &models.Dataset{
-		ID:         datasetID,
-		SurveyID:   surveyID,
-		Title:      title,
-		Category:   category,
-		AccessType: accessType,
-		Price:      price,
-		SampleSize: sampleSize,
-		IsActive:   true,
-		FilePath:   targetPath,
-		FileName:   fileHeader.Filename,
-		FileSize:   fileSize,
-		MimeType:   mimeType,
+		ID:                    datasetID,
+		SurveyID:              surveyID,
+		Title:                 title,
+		Category:              category,
+		AccessType:            accessType,
+		Price:                 price,
+		SampleSize:            sampleSize,
+		IsActive:              true,
+		FilePath:              targetPath,
+		FileName:              fileHeader.Filename,
+		FileSize:              fileSize,
+		MimeType:              mimeType,
+		HasUnpublishedChanges: false,
+		EntitlementPolicy:     entitlementPolicy,
 	}
 	if descriptionValue != "" {
 		dataset.Description = &descriptionValue
 	}
 
-	if err := h.datasets.Create(dataset); err != nil {
+	tx, err := database.GetDB().BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	if err := h.datasets.CreateWithTx(tx, dataset); err != nil {
 		_ = os.Remove(targetPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, dataset)
+	var publishedBy *uuid.UUID
+	if rawUserID, exists := c.Get("userID"); exists {
+		if parsed, ok := rawUserID.(uuid.UUID); ok {
+			publishedBy = &parsed
+		}
+	}
+
+	version := &models.DatasetVersion{
+		ID:            uuid.New(),
+		DatasetID:     dataset.ID,
+		VersionNumber: 1,
+		Title:         dataset.Title,
+		Description:   dataset.Description,
+		Category:      dataset.Category,
+		AccessType:    dataset.AccessType,
+		Price:         dataset.Price,
+		SampleSize:    dataset.SampleSize,
+		FilePath:      dataset.FilePath,
+		FileName:      dataset.FileName,
+		FileSize:      dataset.FileSize,
+		MimeType:      dataset.MimeType,
+		DownloadCount: 0,
+		PublishedAt:   time.Now().UTC(),
+		PublishedBy:   publishedBy,
+	}
+	if err := h.datasets.CreateVersionTx(tx, version); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset version"})
+		return
+	}
+	if err := h.datasets.SetCurrentPublishedVersionTx(tx, dataset.ID, version.ID, version.VersionNumber); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize dataset publish state"})
+		return
+	}
+
+	draft := &models.DatasetDraft{
+		DatasetID:   dataset.ID,
+		Title:       dataset.Title,
+		Description: dataset.Description,
+		Category:    dataset.Category,
+		AccessType:  dataset.AccessType,
+		Price:       dataset.Price,
+		SampleSize:  dataset.SampleSize,
+		FilePath:    dataset.FilePath,
+		FileName:    dataset.FileName,
+		FileSize:    dataset.FileSize,
+		MimeType:    dataset.MimeType,
+		UpdatedBy:   publishedBy,
+	}
+	if err := h.datasets.UpsertDraftTx(tx, draft); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize dataset draft"})
+		return
+	}
+	if err := h.datasets.MarkDatasetHasUnpublishedChangesTx(tx, dataset.ID, false); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize dataset draft state"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = os.Remove(targetPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit dataset creation"})
+		return
+	}
+
+	refreshed, err := h.datasets.GetByID(dataset.ID)
+	if err != nil || refreshed == nil {
+		c.JSON(http.StatusCreated, dataset)
+		return
+	}
+
+	c.JSON(http.StatusCreated, refreshed)
 }
 
 // UpdateDataset handles PATCH /api/v1/admin/datasets/:id
@@ -606,38 +752,139 @@ func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 		return
 	}
 
+	tx, err := database.GetDB().BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	draft, err := h.datasets.GetDraft(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load dataset draft"})
+		return
+	}
+	if draft == nil {
+		var updatedBy *uuid.UUID
+		if rawUserID, exists := c.Get("userID"); exists {
+			if parsed, ok := rawUserID.(uuid.UUID); ok {
+				updatedBy = &parsed
+			}
+		}
+		if err := h.datasets.CopyDatasetAsDraftTx(tx, id, updatedBy); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize dataset draft"})
+			return
+		}
+		draft, err = h.datasets.GetDraft(id)
+		if err != nil || draft == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize dataset draft"})
+			return
+		}
+	}
+
+	draftChanged := false
 	if req.Title != nil {
-		dataset.Title = *req.Title
+		draft.Title = strings.TrimSpace(*req.Title)
+		draftChanged = true
 	}
 	if req.Description != nil {
-		dataset.Description = req.Description
+		trimmed := strings.TrimSpace(*req.Description)
+		if trimmed == "" {
+			draft.Description = nil
+		} else {
+			draft.Description = &trimmed
+		}
+		draftChanged = true
 	}
 	if req.Category != nil {
-		dataset.Category = *req.Category
+		draft.Category = strings.TrimSpace(*req.Category)
+		draftChanged = true
 	}
 	if req.AccessType != nil {
 		if *req.AccessType != "free" && *req.AccessType != "paid" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid access type"})
 			return
 		}
-		dataset.AccessType = *req.AccessType
+		draft.AccessType = *req.AccessType
+		if draft.AccessType == "free" {
+			draft.Price = 0
+		}
+		draftChanged = true
 	}
 	if req.Price != nil {
-		dataset.Price = *req.Price
+		if *req.Price < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
+			return
+		}
+		draft.Price = *req.Price
+		draftChanged = true
 	}
 	if req.SampleSize != nil {
-		dataset.SampleSize = *req.SampleSize
+		if *req.SampleSize < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sample size"})
+			return
+		}
+		draft.SampleSize = *req.SampleSize
+		draftChanged = true
 	}
+	if draft.AccessType == "free" {
+		draft.Price = 0
+	}
+
+	var updatedBy *uuid.UUID
+	if rawUserID, exists := c.Get("userID"); exists {
+		if parsed, ok := rawUserID.(uuid.UUID); ok {
+			updatedBy = &parsed
+		}
+	}
+	draft.UpdatedBy = updatedBy
+
+	if draftChanged {
+		if err := h.datasets.UpsertDraftTx(tx, draft); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset draft"})
+			return
+		}
+	}
+
 	if req.IsActive != nil {
 		dataset.IsActive = *req.IsActive
 	}
+	if req.EntitlementPolicy != nil {
+		policy := strings.TrimSpace(*req.EntitlementPolicy)
+		if policy != "purchased_only" && policy != "all_versions_if_any_purchase" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entitlement policy"})
+			return
+		}
+		dataset.EntitlementPolicy = policy
+	}
 
-	if err := h.datasets.Update(dataset); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset"})
+	if req.IsActive != nil || req.EntitlementPolicy != nil {
+		if _, err := tx.Exec(
+			`UPDATE datasets
+			 SET is_active = $2,
+			     entitlement_policy = $3,
+			     updated_at = NOW()
+			 WHERE id = $1`,
+			dataset.ID,
+			dataset.IsActive,
+			dataset.EntitlementPolicy,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset metadata"})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit dataset update"})
 		return
 	}
 
-	c.JSON(http.StatusOK, dataset)
+	updatedDataset, err := h.datasets.GetByID(id)
+	if err != nil || updatedDataset == nil {
+		c.JSON(http.StatusOK, dataset)
+		return
+	}
+	c.JSON(http.StatusOK, updatedDataset)
 }
 
 // DeleteDataset handles DELETE /api/v1/admin/datasets/:id
@@ -655,6 +902,269 @@ func (h *AdminHandler) DeleteDataset(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Dataset deleted successfully"})
+}
+
+// ListDatasetVersions handles GET /api/v1/admin/datasets/:id/versions
+func (h *AdminHandler) ListDatasetVersions(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid dataset ID"})
+		return
+	}
+
+	dataset, err := h.datasets.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get dataset"})
+		return
+	}
+	if dataset == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Dataset not found"})
+		return
+	}
+
+	versions, err := h.datasets.ListVersions(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list dataset versions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"versions": versions})
+}
+
+// PublishDatasetVersion handles POST /api/v1/admin/datasets/:id/publish
+func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid dataset ID"})
+		return
+	}
+
+	dataset, err := h.datasets.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get dataset"})
+		return
+	}
+	if dataset == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Dataset not found"})
+		return
+	}
+
+	draft, err := h.datasets.GetDraft(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load dataset draft"})
+		return
+	}
+	if draft == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dataset draft not found"})
+		return
+	}
+
+	var req AdminDatasetPublishRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+	}
+
+	if req.AccessType != nil {
+		value := strings.TrimSpace(*req.AccessType)
+		if value != "free" && value != "paid" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid access type"})
+			return
+		}
+		draft.AccessType = value
+	}
+	if req.Price != nil {
+		if *req.Price < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
+			return
+		}
+		draft.Price = *req.Price
+	}
+	if draft.AccessType == "free" {
+		draft.Price = 0
+	}
+
+	var publishedBy *uuid.UUID
+	if rawUserID, exists := c.Get("userID"); exists {
+		if parsed, ok := rawUserID.(uuid.UUID); ok {
+			publishedBy = &parsed
+		}
+	}
+
+	tx, err := database.GetDB().BeginTx(c.Request.Context(), nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	if err := h.datasets.UpsertDraftTx(tx, draft); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare dataset draft"})
+		return
+	}
+
+	nextVersionNumber, err := h.datasets.GetNextVersionNumberTx(tx, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate dataset version"})
+		return
+	}
+
+	version := &models.DatasetVersion{
+		ID:            uuid.New(),
+		DatasetID:     id,
+		VersionNumber: nextVersionNumber,
+		Title:         draft.Title,
+		Description:   draft.Description,
+		Category:      draft.Category,
+		AccessType:    draft.AccessType,
+		Price:         draft.Price,
+		SampleSize:    draft.SampleSize,
+		FilePath:      draft.FilePath,
+		FileName:      draft.FileName,
+		FileSize:      draft.FileSize,
+		MimeType:      draft.MimeType,
+		DownloadCount: 0,
+		PublishedAt:   time.Now().UTC(),
+		PublishedBy:   publishedBy,
+	}
+	if err := h.datasets.CreateVersionTx(tx, version); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset version"})
+		return
+	}
+
+	if err := h.datasets.SetCurrentPublishedVersionTx(tx, id, version.ID, version.VersionNumber); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update current published version"})
+		return
+	}
+	if err := h.datasets.UpdateCurrentFromDraftTx(tx, id, draft); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize dataset snapshot"})
+		return
+	}
+	if err := h.datasets.MarkDatasetHasUnpublishedChangesTx(tx, id, false); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear unpublished changes"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit dataset publish"})
+		return
+	}
+
+	updated, err := h.datasets.GetByID(id)
+	if err != nil || updated == nil {
+		c.JSON(http.StatusOK, gin.H{"version": version})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"dataset": updated,
+		"version": version,
+	})
+}
+
+// ListDeidReviewJobs handles GET /api/v1/admin/deid/reviews
+func (h *AdminHandler) ListDeidReviewJobs(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit > 100 {
+		limit = 100
+	}
+	service := deid.NewService(database.GetDB())
+	result, err := service.ListAwaitingReviewJobs(c.Request.Context(), uuid.Nil, true, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load de-identification reviews"})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// GetDeidReviewJob handles GET /api/v1/admin/deid/reviews/:jobId
+func (h *AdminHandler) GetDeidReviewJob(c *gin.Context) {
+	jobID, err := uuid.Parse(c.Param("jobId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		return
+	}
+
+	service := deid.NewService(database.GetDB())
+	result, err := service.GetReviewDetail(c.Request.Context(), jobID, uuid.Nil, true)
+	if err != nil {
+		switch err {
+		case deid.ErrSessionNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": "Review job not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load de-identification review job"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+// CompleteDeidReview handles POST /api/v1/admin/deid/reviews/:jobId/complete
+func (h *AdminHandler) CompleteDeidReview(c *gin.Context) {
+	jobID, err := uuid.Parse(c.Param("jobId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		return
+	}
+
+	var req AdminDeidReviewDecisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	var datasetID *uuid.UUID
+	if req.DatasetID != nil && strings.TrimSpace(*req.DatasetID) != "" {
+		parsed, err := uuid.Parse(strings.TrimSpace(*req.DatasetID))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid dataset ID"})
+			return
+		}
+		datasetID = &parsed
+	}
+
+	reviewerID, _, ok := managementActor(c, database.GetDB())
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	input := deid.ReviewDecisionInput{
+		Action:            strings.TrimSpace(req.Action),
+		DatasetID:         datasetID,
+		Title:             stringPointerValue(req.Title),
+		Description:       req.Description,
+		Category:          stringPointerValue(req.Category),
+		AccessType:        stringPointerValue(req.AccessType),
+		Price:             req.Price,
+		EntitlementPolicy: stringPointerValue(req.EntitlementPolicy),
+		ReviewerID:        reviewerID,
+	}
+	if strings.TrimSpace(input.Action) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Review action is required"})
+		return
+	}
+
+	service := deid.NewService(database.GetDB())
+	result, err := service.CompleteReview(c.Request.Context(), jobID, input)
+	if err != nil {
+		switch err {
+		case deid.ErrInvalidReviewOperation:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid review action"})
+		case deid.ErrReviewNotReady:
+			c.JSON(http.StatusConflict, gin.H{"error": "Review job is not ready"})
+		case deid.ErrSessionNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"error": "Review job not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete de-identification review"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // GetBootstrapStatus handles GET /api/v1/bootstrap
