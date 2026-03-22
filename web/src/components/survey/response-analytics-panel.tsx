@@ -31,16 +31,18 @@ export function ResponseAnalyticsPanel({
   const pageScrollRef = useRef<HTMLDivElement | null>(null)
 
   const [selectedPageID, setSelectedPageID] = useState("")
-
-  useEffect(() => {
-    setSelectedPageID(safeAnalytics.pages[0]?.pageId || "")
-  }, [safeAnalytics.pages, selectedVersion])
+  const effectiveSelectedPageID = useMemo(() => {
+    if (safeAnalytics.pages.some((page) => page.pageId === selectedPageID)) {
+      return selectedPageID
+    }
+    return safeAnalytics.pages[0]?.pageId || ""
+  }, [safeAnalytics.pages, selectedPageID])
 
   useEffect(() => {
     if (pageScrollRef.current) {
       pageScrollRef.current.scrollTop = 0
     }
-  }, [selectedPageID, selectedVersion])
+  }, [effectiveSelectedPageID, selectedVersion])
 
   if (loading) {
     return (
@@ -76,7 +78,9 @@ export function ResponseAnalyticsPanel({
     })),
   ]
   const activePage =
-    safeAnalytics.pages.find((page) => page.pageId === selectedPageID) || safeAnalytics.pages[0] || null
+    safeAnalytics.pages.find((page) => page.pageId === effectiveSelectedPageID) ||
+    safeAnalytics.pages[0] ||
+    null
 
   return (
     <section className="space-y-4">

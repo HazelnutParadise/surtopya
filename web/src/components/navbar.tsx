@@ -303,10 +303,10 @@ export function Navbar() {
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm">
-                  <a href="/api/logto/sign-in">{t("login")}</a>
+                  <Link href="/api/logto/sign-in">{t("login")}</Link>
                 </Button>
                 <Button asChild size="sm" className="transform-gpu bg-purple-600 text-white shadow-md shadow-purple-500/20 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-purple-700 active:scale-[0.98]">
-                  <a href="/api/logto/sign-in">{t("getStarted")}</a>
+                  <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
                 </Button>
               </>
             )}
@@ -384,10 +384,10 @@ export function Navbar() {
               ) : (
                 <div className="flex flex-col gap-3">
                   <Button asChild variant="outline" className="h-12 w-full rounded-xl text-base">
-                    <a href="/api/logto/sign-in">{t("login")}</a>
+                    <Link href="/api/logto/sign-in">{t("login")}</Link>
                   </Button>
                   <Button asChild className="h-12 w-full transform-gpu rounded-xl bg-purple-600 text-base text-white shadow-lg shadow-purple-500/20 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-purple-700 active:scale-[0.98]">
-                    <a href="/api/logto/sign-in">{t("getStarted")}</a>
+                    <Link href="/api/logto/sign-in">{t("getStarted")}</Link>
                   </Button>
                 </div>
               )}

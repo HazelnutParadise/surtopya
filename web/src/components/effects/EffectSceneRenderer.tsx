@@ -110,24 +110,18 @@ function HomeScene({ tier, palette }: { tier: EffectQualityTier; palette: ThemeP
 }
 
 function ExploreScene({ tier, palette }: { tier: EffectQualityTier; palette: ThemePalette }) {
+  const gridRef = useRef<THREE.Mesh | null>(null)
   const scanRef = useRef<THREE.Mesh | null>(null)
   const shouldAnimate = useAnimationGate(tier)
   const segments = pickCountByTier(tier, 56, 36, 24)
 
-  const gridGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(11, 7, segments, Math.floor(segments * 0.65))
-  }, [segments])
-
-  useEffect(() => {
-    return () => {
-      gridGeometry.dispose()
-    }
-  }, [gridGeometry])
-
   useFrame((state, delta) => {
     if (!shouldAnimate(delta)) return
     const elapsed = state.clock.elapsedTime
-    const positions = gridGeometry.attributes.position as THREE.BufferAttribute
+    const geometry = gridRef.current?.geometry
+    const positions = geometry?.attributes.position
+
+    if (!(positions instanceof THREE.BufferAttribute)) return
 
     for (let index = 0; index < positions.count; index += 1) {
       const x = positions.getX(index)
@@ -147,7 +141,8 @@ function ExploreScene({ tier, palette }: { tier: EffectQualityTier; palette: The
 
   return (
     <group>
-      <mesh rotation={[-0.9, 0, 0]} position={[0, -0.3, -0.7]} geometry={gridGeometry}>
+      <mesh ref={gridRef} rotation={[-0.9, 0, 0]} position={[0, -0.3, -0.7]}>
+        <planeGeometry args={[11, 7, segments, Math.floor(segments * 0.65)]} />
         <meshBasicMaterial color={palette.line} wireframe transparent opacity={0.26} />
       </mesh>
       <mesh ref={scanRef} position={[0, -3.8, 0.4]}>

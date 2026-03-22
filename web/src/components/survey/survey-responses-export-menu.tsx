@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,12 +38,6 @@ export function SurveyResponsesExportDialog({
   const [open, setOpen] = useState(false)
   const [selectedScope, setSelectedScope] = useState<SurveyResponsesExportScope>("all")
 
-  useEffect(() => {
-    if (open) {
-      setSelectedScope("all")
-    }
-  }, [open])
-
   const handleExport = (encoding: SurveyResponsesExportEncoding) => {
     onExport(selectedScope, encoding)
     setOpen(false)
@@ -55,7 +49,10 @@ export function SurveyResponsesExportDialog({
         variant="outline"
         disabled={disabled}
         data-testid="dashboard-responses-export"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setSelectedScope("all")
+          setOpen(true)
+        }}
       >
         {t("exportCsv")}
       </Button>

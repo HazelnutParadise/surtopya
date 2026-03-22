@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Canvas, useFrame, useThree } from "@react-three/fiber"
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
+import { Canvas, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 
 type HeroSceneProps = {
@@ -12,6 +12,54 @@ type HeroSceneProps = {
 }
 
 const POINT_SIZE_SCALE = 1.35
+const HERO_MEDIA_QUERIES = {
+  reducedMotion: "(prefers-reduced-motion: reduce)",
+  mobile: "(max-width: 768px)",
+  pointerFine: "(pointer: fine)",
+} as const
+
+const HERO_SNAPSHOT_READY = 1 << 0
+const HERO_SNAPSHOT_REDUCED_MOTION = 1 << 1
+const HERO_SNAPSHOT_MOBILE = 1 << 2
+const HERO_SNAPSHOT_POINTER_INTERACTION = 1 << 3
+
+type HeroViewportSnapshot = number
+
+const heroViewportServerSnapshot: HeroViewportSnapshot = 0
+
+const getHeroViewportSnapshot = (): HeroViewportSnapshot => {
+  if (typeof window === "undefined") return heroViewportServerSnapshot
+
+  const reducedMotion = window.matchMedia(HERO_MEDIA_QUERIES.reducedMotion).matches
+  const mobile = window.matchMedia(HERO_MEDIA_QUERIES.mobile).matches
+  const pointerFine = window.matchMedia(HERO_MEDIA_QUERIES.pointerFine).matches
+
+  let snapshot = HERO_SNAPSHOT_READY
+  if (reducedMotion) snapshot |= HERO_SNAPSHOT_REDUCED_MOTION
+  if (mobile) snapshot |= HERO_SNAPSHOT_MOBILE
+  if (pointerFine && !mobile) snapshot |= HERO_SNAPSHOT_POINTER_INTERACTION
+
+  return snapshot
+}
+
+const subscribeHeroViewportSnapshot = (onStoreChange: () => void) => {
+  if (typeof window === "undefined") return () => {}
+
+  const reducedMotion = window.matchMedia(HERO_MEDIA_QUERIES.reducedMotion)
+  const mobile = window.matchMedia(HERO_MEDIA_QUERIES.mobile)
+  const pointerFine = window.matchMedia(HERO_MEDIA_QUERIES.pointerFine)
+  const listener = () => onStoreChange()
+
+  reducedMotion.addEventListener("change", listener)
+  mobile.addEventListener("change", listener)
+  pointerFine.addEventListener("change", listener)
+
+  return () => {
+    reducedMotion.removeEventListener("change", listener)
+    mobile.removeEventListener("change", listener)
+    pointerFine.removeEventListener("change", listener)
+  }
+}
 
 const createLayerPositions = ({
   count,
@@ -35,7 +83,6 @@ const createLayerPositions = ({
 }
 
 function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: HeroSceneProps) {
-  const { camera } = useThree()
   const nearGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute(
@@ -80,10 +127,6 @@ function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: H
   const rotationalVelocity = useRef(new THREE.Vector2(0, 0))
   const lastPointer = useRef(new THREE.Vector2(0, 0))
   const hasPointerSample = useRef(false)
-
-  useEffect(() => {
-    camera.position.z = 7.2
-  }, [camera])
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -162,9 +205,6 @@ function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: H
       farMaterialRef.current.opacity = 0.36 + Math.cos(elapsed * 0.8) * 0.06
     }
 
-    camera.position.x = pointerCurrent.current.x * 0.42
-    camera.position.y = pointerCurrent.current.y * 0.3
-    camera.lookAt(0, 0, 0)
   })
 
   return (
@@ -198,21 +238,15 @@ function HeroScene({ allowPointerInteraction, nearCount, farCount, isMobile }: H
 }
 
 export function HeroThreeBackground() {
-  const [isReady, setIsReady] = useState(false)
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [allowPointerInteraction, setAllowPointerInteraction] = useState(false)
-
-  useEffect(() => {
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    const mobile = window.matchMedia("(max-width: 768px)").matches
-    const pointerFine = window.matchMedia("(pointer: fine)").matches
-
-    setPrefersReducedMotion(reducedMotion)
-    setIsMobile(mobile)
-    setAllowPointerInteraction(pointerFine && !mobile)
-    setIsReady(true)
-  }, [])
+  const viewportSnapshot = useSyncExternalStore(
+    subscribeHeroViewportSnapshot,
+    getHeroViewportSnapshot,
+    () => heroViewportServerSnapshot
+  )
+  const isReady = (viewportSnapshot & HERO_SNAPSHOT_READY) !== 0
+  const prefersReducedMotion = (viewportSnapshot & HERO_SNAPSHOT_REDUCED_MOTION) !== 0
+  const isMobile = (viewportSnapshot & HERO_SNAPSHOT_MOBILE) !== 0
+  const allowPointerInteraction = (viewportSnapshot & HERO_SNAPSHOT_POINTER_INTERACTION) !== 0
 
   if (!isReady || prefersReducedMotion) {
     return null

@@ -30,15 +30,12 @@ export function MotionReveal({
   const prefersReducedMotion = usePrefersReducedMotion()
   const [isVisible, setIsVisible] = useState(prefersReducedMotion)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const hasIntersectionObserver =
+    typeof window !== "undefined" && typeof IntersectionObserver !== "undefined"
+  const shouldShow = prefersReducedMotion || !hasIntersectionObserver || isVisible
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      setIsVisible(true)
-      return
-    }
-
-    if (typeof IntersectionObserver === "undefined") {
-      setIsVisible(true)
+    if (prefersReducedMotion || !hasIntersectionObserver) {
       return
     }
 
@@ -69,13 +66,13 @@ export function MotionReveal({
     return () => {
       observer.disconnect()
     }
-  }, [once, prefersReducedMotion, threshold])
+  }, [hasIntersectionObserver, once, prefersReducedMotion, threshold])
 
   return (
     <div
       {...rest}
       ref={containerRef}
-      className={cn("motion-reveal", isVisible && "motion-reveal-visible", className)}
+      className={cn("motion-reveal", shouldShow && "motion-reveal-visible", className)}
       style={{ ...(style ?? {}), "--motion-delay": `${delayMs}ms` } as CSSProperties}
     >
       {children}
