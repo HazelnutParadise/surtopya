@@ -1,39 +1,34 @@
-# INTERNAL BACKEND KNOWLEDGE BASE
+# Surtopya API Internal Agent Guide
 
-**Location:** `api/internal/`  
-**Focus:** Core business logic, data persistence, and API transport.
+## Overview
+`api/internal/` contains core backend implementation: routing, middleware, handlers, repository, and domain modules.
 
-## OVERVIEW
-Hexagonal-lite architecture implementing core Surtopya domain logic (Surveys, Datasets, Points) using Gin and PostgreSQL.
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Full endpoint map | `routes/router.go` | Canonical `/v1` and `/api/app` wiring |
+| Auth and guards | `middleware/auth.go`, `middleware/admin.go`, `middleware/agent_admin.go`, `middleware/internal_app.go`, `middleware/db_ready.go` | Access control and runtime safety |
+| HTTP mapping | `handlers/` | Request binding/validation/response translation |
+| SQL persistence | `repository/` | Query logic and transactional writes |
+| Shared schema models | `models/models.go` | API/domain structs and tags |
+| Domain packages | `agentadmin/`, `deid/`, `platformlog/`, `policy/`, `surveyanalytics/`, `timeutil/` | Reusable domain-level behavior |
+| DB wiring | `database/` | Connection and migration bootstrap helpers |
 
-## STRUCTURE
-- `database/`: PostgreSQL connection pool management (`sql.DB`).
-- `handlers/`: HTTP transport layer; handles request binding, validation, and response mapping.
-- `middleware/`: Auth logic (Logto JWT extraction) and CORS.
-- `models/`: Central domain entities (User, Survey, Question, Response, Dataset, etc.) with DB/JSON tags.
-- `repository/`: Data access layer; handles SQL queries, JSON marshaling, and DB transactions.
-- `routes/`: Centralized API routing and endpoint grouping.
+## Current Contracts
+- Repository boundary is strict: handlers call repositories/services, not `sql.DB` directly.
+- Transactional integrity for multi-entity writes belongs in repository code.
+- Request auth context flows through Gin context; middleware sets identity and role data.
+- DB readiness gate is enforced before v1/internal app business routes.
+- Internal app routes require valid timestamp + HMAC signature checks.
+- Keep JSON/API field naming in `snake_case` for external contracts.
 
-## WHERE TO LOOK
-| Logic Type | Primary Directory | Notes |
-|------------|-------------------|-------|
-| API Endpoints | `routes/router.go` | Source of truth for all `/v1` routes |
-| Business Validation | `handlers/` | Enforces privacy-sharing rules (e.g., public survey requirements) |
-| SQL Queries | `repository/` | Direct SQL implementation; manages question sorting and JSON fields |
-| Auth Context | `middleware/auth.go` | Populates `userID` in `gin.Context` from Logto JWT |
-| Domain Schema | `models/models.go` | Defines UUID-based entities and valid enum values |
-| JSONB Handling | All repositories | Uses `[]byte` serialization for JSONB columns |
+## Anti-Patterns
+- Adding business logic to `routes/`.
+- Pushing SQL into handlers or middleware.
+- Skipping permission middleware and relying on best-effort checks in handlers.
+- Introducing hidden global state for request-scoped values.
 
-## CONVENTIONS
-- **Constructor Injection**: Handlers are initialized with Repositories (e.g., `NewSurveyHandler()`). Avoid global singletons for business logic.
-- **No ORM**: Uses standard `database/sql` for transparency and performance. Complex structures (Themes, Logic Rules) are stored as JSONB.
-- **Context Handling**: Always retrieve `userID` from `gin.Context` for authenticated operations.
-- **Transaction Safety**: Multi-step operations (like saving a survey with questions) MUST use `tx.Begin()` within the repository layer.
-- **Error Mapping**: Handlers are responsible for mapping internal errors to appropriate HTTP status codes.
-- **Byte Serialization**: JSONB columns use `[]byte` for efficient serialization/deserialization.
-
-## ANTI-PATTERNS
-- **Logic Leaks**: Avoid placing business logic or SQL in `routes/` or `models/`.
-- **Direct DB Access**: Handlers must never call `sql.DB` directly; always use a Repository.
-- **Implicit States**: Avoid using global variables for request-scoped data; use `gin.Context`.
-- **Fat Handlers**: Business logic should move to service layer as handlers approach 500+ lines.
+## Update Discipline
+- Update this file when internal package map, guard model, or route contracts change.
+- Ensure references point to existing files/directories only.
+- Keep invariants short and enforceable; avoid architecture prose that drifts from code.

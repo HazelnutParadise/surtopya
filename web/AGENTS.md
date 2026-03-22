@@ -1,49 +1,38 @@
-# Surtopya - WEB FRONTEND KNOWLEDGE BASE
+# Surtopya Web Agent Guide
 
-**Location:** `web/`
-**Service:** Next.js (App Router)
+## Overview
+`web/` is the Next.js App Router frontend and BFF handler layer for Surtopya.
 
-## OVERVIEW
-High-performance frontend providing a premium survey builder and de-identified dataset marketplace.
+- Package manager/runtime: Bun (`bun@1.3.5`)
+- UI stack: React + TypeScript + Tailwind CSS + Radix UI
+- Includes App Router pages and `api/app` route handlers that proxy to backend
 
-## STRUCTURE
-```
-web/
-├── src/
-│   ├── app/           # App Router ( (main)/ group, [locale]/ routing )
-│   ├── components/    # UI components (ui/, builder/, survey/)
-│   ├── lib/           # Logic (api.ts, runtime-config.ts, utils.ts)
-│   └── types/         # TypeScript definitions
-├── messages/          # i18n JSON files (Source: zh-TW.json)
-```
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| App routes/layouts | `src/app` | Page structure and server/client composition |
+| BFF route handlers | `src/app/api/app/**` | Frontend-owned API gateway surface |
+| Shared web integrations | `src/lib` | API base resolution, internal signatures, i18n helpers |
+| UI components | `src/components/ui` | Reusable primitives |
+| Builder feature | `src/components/builder` | Survey authoring logic and technical debt hotspot |
+| Locale messages | `messages/` | Translation files (`zh-TW` source of truth) |
 
-## WHERE TO LOOK
-| Feature | Path | Notes |
-|---------|------|-------|
-| Routing | `src/app/` | Uses `(main)` group for shared layouts |
-| Survey Builder | `src/components/builder/` | Main logic in `survey-builder.tsx` |
-| Survey Rendering | `src/components/survey/` | Dynamic renderer for responses |
-| API Integration | `src/lib/api.ts` | Backend communication client |
-| Translations | `messages/` | Manual sync from zh-TW.json |
+## Current Contracts
+- Routing model is App Router route groups and folders; locale behavior is not implemented via a `src/app/[locale]` segment.
+- Server-side internal API calls use signed `/api/app` flow via `src/lib/internal-app-fetch.ts`.
+- API base resolution:
+  - Server: `INTERNAL_API_URL` -> `PUBLIC_API_URL` -> fallback
+  - Browser/client helpers may use `NEXT_PUBLIC_API_URL` before other fallbacks
+- i18n source is `messages/zh-TW.json`; keep `en.json` and `ja.json` in sync manually.
+- Follow local file style conventions instead of global assumptions (some files use semicolons, some do not).
 
-## CONVENTIONS
+## Anti-Patterns
+- Reintroducing stale assumptions about locale folder structure.
+- Hardcoding a single API origin in code paths that already support runtime env resolution.
+- Shipping new user-facing strings without message file updates.
+- Growing `survey-builder.tsx` further without extraction.
 
-### 1. Code Style
-- **No Semicolons**: Rely on ASI (Automatic Semicolon Insertion).
-- **Leading Semicolons**: Mandatory only for lines starting with `(`, `[`, `` ` ``, `/`, `+`, `-`.
-- **Naming**: `kebab-case` for files, `PascalCase` for components/types.
-
-### 2. Runtime Environment Variables
-- **Problem**: `NEXT_PUBLIC_` vars are baked at build time, breaking Docker portability.
-- **Solution**: Read `process.env` in **Server Components** and pass to Client Components via props.
-- **Example**: See `src/app/(main)/datasets/[id]/page.tsx`.
-
-### 3. Internationalization (i18n)
-- **Source of Truth**: `messages/zh-TW.json`.
-- **Maintenance**: Manually keep `en.json` and `ja.json` in sync.
-- **Routing**: Dynamic `[locale]` prefixing for SEO and locale persistence.
-
-## ANTI-PATTERNS
-- **NEXT_PUBLIC_ Leakage**: Avoid using `NEXT_PUBLIC_API_URL` directly in client components if it must change per environment. Use the injection pattern.
-- **Monolithic Builder**: `survey-builder.tsx` is currently oversized (>1100 lines); new features should be extracted to sub-components.
-- **Hardcoded Strings**: All user-facing text must reside in `messages/` for i18n support.
+## Update Discipline
+- Update this file when app route topology, env resolution, or message workflow changes.
+- Keep this layer focused on web-wide contracts; domain-specific details belong in nested `AGENTS.md` files.
+- Keep text concise and path-accurate for agent handoff.

@@ -1,39 +1,32 @@
-# Surtopya - WEB LIB KNOWLEDGE BASE
+# Web Lib Agent Guide
 
-**Location:** `web/src/lib/`
-**Focus:** Cross-cutting utilities, API client, and platform integration
+## Overview
+`web/src/lib/` contains shared runtime helpers for API access, auth tokens, internal app signing, i18n, and UI utilities.
 
-## OVERVIEW
-Shared utilities and platform integration layer providing styling helpers, i18n management, API communication, and authentication bridges for the Surtopya frontend.
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Browser-side API client | `api.ts` | Client request helpers and typed payloads |
+| Server-side API base/auth token | `api-server.ts` | Server API base resolution and auth token generation |
+| Internal app request signing | `internal-app-fetch.ts` | HMAC signature/timestamp for `/api/app` calls |
+| Locale and message helpers | `locale.ts`, `i18n-server.ts` | Locale matching and server-side translation loading |
+| User setting sync contracts | `user-settings.ts`, `date-time.ts` | Locale/timezone persistence and normalization |
+| Shared UI helpers | `utils.ts`, `ui-error.ts`, `ui-telemetry.ts` | Class merge and UI-facing utility logic |
 
-## STRUCTURE
-- `utils.ts` — Styling utilities (`cn()` merge, contrast color calculation)
-- `locale.ts` — Path-based locale management and URL helpers
-- `i18n-server.ts` — Server-side translation bridge for Next.js
-- `api.ts` — Centralized backend API client with token management
-- `logto.ts` — Logto OIDC configuration
-- `data.ts`, `datasets-data.ts` — Mock data providers (legacy)
+## Current Contracts
+- API base URL resolution must remain environment-driven (do not collapse to one hardcoded origin).
+- Internal app requests must preserve signature and timestamp behavior (`X-Surtopya-App-*` headers).
+- Locale support is currently `zh-TW`, `en`, `ja` and should stay centralized in `locale.ts`.
+- Shared library code should be reusable and side-effect-light; keep feature-specific UI logic outside this folder.
+- Prefer real API contracts over ad-hoc mock data paths.
 
-## WHERE TO LOOK
-| Concern | File | Purpose |
-|----------|------|---------|
-| Styling | `utils.ts` | `cn()` for Tailwind class merging, `getContrastColor()` for accessibility |
-| i18n Client | `locale.ts` | `getLocaleFromPath()`, `withLocale()` for route-aware locale handling |
-| i18n Server | `i18n-server.ts` | `getServerTranslator()` for Server Component translations |
-| API Integration | `api.ts` | Singleton API client with error handling and token management |
-| Auth | `logto.ts` | Logto OIDC configuration and token helpers |
+## Anti-Patterns
+- Bypassing `internal-app-fetch.ts` for server-side app-internal operations.
+- Duplicating locale resolution logic in pages/components instead of reusing `locale.ts`.
+- Adding new API wrappers with inconsistent error handling semantics.
+- Leaving stale utility files that are no longer referenced.
 
-## CONVENTIONS
-- **No Semicolons**: Follow frontend's ASI-based style (no trailing semicolons)
-- **Functional Utilities**: Pure functions in `utils.ts` for maximum reusability
-- **Server-First i18n**: Server Components use `i18n-server.ts`, Client Components use `next-intl`
-- **Mock Data Transition**: `data.ts` files exist but API is ready - prefer `api.ts`
-
-## ANTI-PATTERNS
-- **Hardcoded Strings**: User-facing text must go through i18n system, not direct strings
-- **Mock Data Usage**: API is functional - avoid `lib/data.ts` for new features
-
-## UNIQUE PATTERNS
-- **Runtime Env Injection**: `api.ts` reads `process.env.PUBLIC_API_URL` at request time for Docker portability
-- **Locale Persistence**: Translation files at `../messages/` mounted as Docker bind mount for persistence
-- **Accessibility First**: `getContrastColor()` ensures text readability across dynamic themes
+## Update Discipline
+- Update this file when key library entrypoints or env/signature/locale contracts change.
+- Keep the inventory focused on actively used modules; remove references to deleted files.
+- Ensure listed contracts map directly to current code paths.

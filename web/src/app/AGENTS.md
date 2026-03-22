@@ -1,43 +1,30 @@
-# Surtopya - APP ROUTER KNOWLEDGE BASE
+# App Router Agent Guide
 
-**Location:** `web/src/app/`
-**Focus:** Next.js App Router with i18n and route groups
+## Overview
+`web/src/app/` contains Next.js App Router pages, layouts, and route handlers for both UI pages and BFF APIs.
 
-## OVERVIEW
-Next.js App Router implementation with file-system based routing, route groups for shared layouts, and dynamic internationalization support.
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Root layout and bootstrap flow | `layout.tsx` | Locale, auth bootstrap, global providers |
+| Main site pages | `(main)/**` | Marketing, dashboard, datasets, docs, pricing |
+| Survey builder and response pages | `create/**`, `survey/**` | Build/take survey flows |
+| App-internal API handlers | `api/app/**` | BFF endpoints consumed by web app |
+| Docs/auth handlers | `api/docs/**`, `api/logto/**` | OpenAPI and auth action routes |
 
-## STRUCTURE
-```
-app/
-├── (main)/               # Route group for authenticated dashboard pages
-├── survey/                # Public survey access and responses
-├── create/                 # Survey creation flow
-├── api/                    # Next.js Route Handlers (BFF layer)
-└── [locale]/                # Dynamic i18n routes (when active)
-```
+## Current Contracts
+- Use route handlers in `api/app/**` as the frontend BFF boundary for app operations.
+- Keep route handler semantics aligned with backend router contracts (`/api/app/*` and `/v1/*`).
+- Locale behavior is controlled by cookies/headers/path utilities (`LocaleSync`, `locale.ts`), not a dedicated `[locale]` route folder.
+- Root layout owns global concerns (messages, timezone, bootstrap auth redirect, effects/providers).
 
-## WHERE TO LOOK
-| Feature | Path Pattern | Purpose |
-|---------|--------------|---------|
-| Dashboard | `(main)/*` | Authenticated user area with shared layout |
-| Survey Taking | `survey/[id]` | Public survey access and response submission |
-| Survey Creation | `create/*` | Multi-step survey building process |
-| BFF APIs | `api/*` | Frontend-backend integration layer |
-| Internationalization | `[locale]/*` | Dynamic locale routing for SEO |
+## Anti-Patterns
+- Duplicating backend business logic inside route handlers.
+- Creating parallel API paths outside `api/app/**` for app features without clear justification.
+- Introducing route structures that conflict with current `(main)` grouping and shared layouts.
+- Adding new app pages with untranslated user-facing copy.
 
-## CONVENTIONS
-- **File-System Routing**: Page structure defines routes automatically (no explicit router config)
-- **Route Groups**: `(main)` groups pages under shared layout/auth logic
-- **Dynamic Routes**: `[id]` for resources, `[locale]` for i18n prefix
-- **Layout Inheritance**: Child layouts inherit from parent `layout.tsx`
-
-## ANTI-PATTERNS
-- **Route Pollution**: Don't mix static pages with dynamic routes in same directory
-- **Missing Locale**: Ensure all pages support i18n routing pattern
-- **Layout Conflicts**: Avoid nested route groups that create layout inheritance issues
-
-## UNIQUE PATTERNS
-- **BFF Coexistence**: Next.js API routes coexist with Go backend for frontend-specific logic
-- **SEO-First i18n**: Dynamic locale routes support search engine optimization
-- **Server Components**: Root layout uses Server Components for i18n message merging
-- **Draft Management**: Create flow uses multi-step patterns with draft persistence
+## Update Discipline
+- Update this file when route topology changes (new groups, moved handlers, removed sections).
+- Keep references to concrete folder patterns that currently exist.
+- If bootstrap/auth/locale ownership moves out of `layout.tsx`, update contracts here immediately.

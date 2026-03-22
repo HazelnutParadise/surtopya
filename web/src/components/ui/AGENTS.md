@@ -1,27 +1,30 @@
-# UI Components Knowledge Base
+# UI Components Agent Guide
 
-## OVERVIEW
-Atomic UI primitive library built on Radix UI and Tailwind CSS v4, serving as the design system's foundation.
+## Overview
+`web/src/components/ui/` provides shared UI primitives built on Radix UI and Tailwind utility classes.
 
-## WHERE TO LOOK
-| Component | Responsibility | Key Pattern |
-|-----------|----------------|-------------|
-| `button.tsx` | Primary actions | `cva` variant management + `asChild` |
-| `dialog.tsx` | Modals/Overlays | Radix composition (Portal/Overlay/Content) |
-| `input.tsx` | Form controls | Raw element wrapping with shared styles |
-| `dropdown-menu.tsx` | Menus/Actions | Multi-part Radix export pattern |
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Variant-driven actions | `button.tsx`, `badge.tsx` | CVA-based variants and shared semantics |
+| Form primitives | `input.tsx`, `textarea.tsx`, `checkbox.tsx`, `radio-group.tsx`, `select.tsx`, `switch.tsx` | Consistent field building blocks |
+| Overlay/menu primitives | `dialog.tsx`, `dropdown-menu.tsx`, `tooltip.tsx` | Accessible layered interactions |
+| Layout primitives | `card.tsx`, `tabs.tsx`, `separator.tsx`, `progress.tsx`, `avatar.tsx`, `label.tsx` | Reusable structure components |
 
-## CONVENTIONS
-- **Naming**: File names MUST be `kebab-case.tsx` (e.g., `dropdown-menu.tsx`). Exported components MUST be `PascalCase` (e.g., `DropdownMenu`).
-- **Styling (v4)**: Use Tailwind CSS v4 design tokens (e.g., `bg-primary/90`, `ring-ring/50`).
-- **Data Slots**: Include `data-slot` attributes on all components (e.g., `data-slot="button"`) for consistency and global targeting.
-- **Prop Injection**: Use `React.ComponentProps<"element">` or `React.ComponentProps<typeof Primitive.X>` for type safety.
-- **Composition**: Prefer exporting individual sub-components (Trigger, Content, Item) over monolithic props.
-- **Class Merging**: ALWAYS use the `cn()` utility from `@/lib/utils` for `className` merging.
-- **Ref Handling**: Relies on React 19's native `ref` prop support; `forwardRef` is generally omitted in favor of spreading `props` (which includes `ref` in `ComponentProps`).
+## Current Contracts
+- Use named exports for primitives; avoid default exports for shared UI building blocks.
+- Use `cn()` from `@/lib/utils` for class merging.
+- Keep `data-slot` attributes consistent for styling/debug hooks.
+- Component typing should use `React.ComponentProps<...>` (or Radix primitive props) for composability.
+- `forwardRef` is allowed where needed by Radix primitives and existing component behavior; do not force a single ref pattern across all components.
 
-## ANTI-PATTERNS
-- **Hardcoded Styles**: DO NOT use hex/rgb codes; use CSS variables defined in the theme.
-- **Manual String Concatenation**: DO NOT use template literals for classes; use `cn()`.
-- **Breaking Radix Structure**: DO NOT omit `Portal` or `Overlay` in overlays (Dialog, Popover) as it breaks accessibility/stacking.
-- **Inconsistent Exports**: DO NOT export defaults; use named exports for all UI primitives.
+## Anti-Patterns
+- Inline hardcoded color values instead of design tokens/classes.
+- Ad-hoc class string concatenation when `cn()` is available.
+- Breaking Radix composition contracts (for example, missing required portal/overlay structure).
+- Diverging naming conventions from existing `kebab-case` files and `PascalCase` component names.
+
+## Update Discipline
+- Update this file when primitive inventory or composition rules change.
+- Keep guidance aligned with the currently implemented ref/composition patterns.
+- Record only enforceable conventions that are visible in the codebase.

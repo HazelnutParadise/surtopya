@@ -1,39 +1,39 @@
-# Surtopya API - Backend Knowledge Base
+# Surtopya API Agent Guide
 
-## OVERVIEW
-Go-based REST API service using Gin framework and PostgreSQL for the Surtopya privacy survey platform.
+## Overview
+`api/` hosts the Go service for public APIs (`/v1`) and the internal signed app surface (`/api/app`).
 
-## STRUCTURE
-```
-api/
-├── cmd/server/          # Application entry point (main.go)
-├── internal/            # Private core logic
-│   ├── handlers/        # HTTP transport layer (Request/Response)
-│   ├── middleware/      # Gin middleware (Auth, CORS, Logging)
-│   ├── models/          # Domain entities and Database schemas
-│   ├── repository/      # Data access layer (PostgreSQL/SQL queries)
-│   └── routes/          # API route registration
-└── migrations/          # PostgreSQL schema initialization scripts
-```
+- Runtime: Go 1.25
+- HTTP framework: Gin
+- Data store: PostgreSQL via `database/sql`
 
-## WHERE TO LOOK
-| Component | Path | Responsibility |
-|-----------|------|----------------|
-| Entry Point | `cmd/server/main.go` | Dependency wiring and server bootstrap |
-| API Routes | `internal/routes/router.go` | Central endpoint mapping |
-| Auth Logic | `internal/middleware/auth.go` | Logto JWT verification |
-| DB Logic | `internal/repository/` | SQL implementation and persistence |
-| Models | `internal/models/models.go` | Struct definitions for GORM/JSON |
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Server bootstrap | `cmd/server/main.go` | Dependency wiring, config, startup |
+| Router surface | `internal/routes/router.go` | Full route and middleware registration |
+| Handlers | `internal/handlers` | Transport layer and HTTP mapping |
+| Middleware | `internal/middleware` | Auth/admin/agent/internal-app gates and request guards |
+| Repositories | `internal/repository` | SQL persistence and transaction boundaries |
+| Domain modules | `internal/agentadmin`, `internal/deid`, `internal/platformlog`, `internal/policy`, `internal/surveyanalytics` | Service-level domain behavior |
 
-## CONVENTIONS
-- **Internal Only**: All core logic MUST be under `internal/` to enforce Go's visibility rules.
-- **Constructor Injection**: Use `NewRepository(db)` and `NewHandler(repo)` patterns; avoid global singletons.
-- **Context Propagation**: Always pass `context.Context` as the first argument to I/O and repository functions.
-- **Error Wrapping**: Use `fmt.Errorf("...: %w", err)` to preserve error chains.
-- **SQL Naming**: Database columns and JSON tags MUST use `snake_case`.
+## Current Contracts
+- Route surfaces:
+  - `/v1/*` for public/partner access.
+  - `/api/app/*` for frontend internal BFF usage (requires internal signature).
+- Middleware chain is centralized in router setup and must remain consistent (CORS, logging/correlation, DB-ready guard, auth token processing).
+- Handler layer must not execute raw SQL directly; repository layer owns DB access.
+- Multi-step write operations must run in repository-managed DB transactions.
+- API payload keys are `snake_case`.
+- Agent-admin and admin endpoints are permission-gated via middleware, not handler-local shortcuts.
 
-## ANTI-PATTERNS
-- **Fat Handlers**: Do not put business logic in handlers; delegate to domain or repository layers.
-- **Global DB Variables**: Never use a global `db` variable; inject the database connection via constructors.
-- **Bypassing Repository**: Handlers should never execute raw SQL or call the database driver directly.
-- **Magic Strings**: API paths and error messages should be defined as constants or centralized.
+## Anti-Patterns
+- Bypassing router middleware by creating ad-hoc endpoints.
+- Duplicating permission logic in handlers instead of middleware guards.
+- Introducing package-level mutable globals for request-scoped behavior.
+- Moving persistence logic from repositories into handlers.
+
+## Update Discipline
+- Update this file when route groups, middleware order, or major domain modules change.
+- Keep this file API-layer specific; put deeper rules in `api/internal/AGENTS.md`.
+- Keep examples aligned with actual code paths that exist in this repo.

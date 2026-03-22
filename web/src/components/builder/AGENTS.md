@@ -1,35 +1,30 @@
-# Component: Survey Builder
+# Builder Components Agent Guide
 
-## OVERVIEW
-Drag-and-drop interface for survey construction, incorporating question management, logic branching, and visual theme customization.
+## Overview
+`web/src/components/builder/` contains the survey authoring experience, including drag-and-drop editing, settings, preview, and publish flows.
 
-## WHERE TO LOOK
-| Component | Responsibility |
-|-----------|----------------|
-| `survey-builder.tsx` | **Monolithic Root**: Manages state, dnd-kit context, and the Consent Modal. |
-| `canvas.tsx` | Main drop zone and sortable list container for survey questions. |
-| `question-card.tsx` | Individual question renderer with edit/delete/duplicate controls. |
-| `toolbox.tsx` | Sidebar menu containing draggable question types (Text, MCQ, Rating, etc.). |
-| `logic-editor.tsx` | Interface for defining skip logic and conditional branching rules. |
-| `theme-editor.tsx` | Controls for visual styling (colors, typography, background). |
-| `preview-modal.tsx` | Interactive simulation of the survey draft for validation. |
+## Where to Look
+| Area | Path | Why |
+| --- | --- | --- |
+| Root orchestrator | `survey-builder.tsx` | Central state, DnD orchestration, save/publish/version flows |
+| Canvas + sorting surface | `canvas.tsx`, `question-card.tsx` | Question list rendering and item interactions |
+| Input sidebars | `toolbox.tsx`, `logic-editor.tsx`, `theme-editor.tsx` | Question insertion, rule editing, theme controls |
+| Preview path | `preview-modal.tsx` | In-builder draft preview UI |
 
-## CONVENTIONS
-- **Drag-and-Drop**: Implemented via `@dnd-kit/core` and `@dnd-kit/sortable`. Uses `PointerSensor` and `verticalListSortingStrategy`.
-- **Consent Pattern**: Access to the builder is gated by a "Data Usage Consent" modal (currently inline in `survey-builder.tsx`).
-- **State Management**: Uses a single `survey` object state. Updates are performed via deep cloning or immutability helpers.
-- **Question Types**: New question types must be registered in `toolbox.tsx` and handled in `question-card.tsx`.
+## Current Contracts
+- `survey-builder.tsx` is currently large (~1688 lines) and remains the primary technical debt node.
+- DnD behavior uses `@dnd-kit/core` + `@dnd-kit/sortable` with typed drag events and sortable context.
+- Publish/share behavior must respect survey publish lock and dataset sharing lock helpers from `@/lib/survey-publish-locks`.
+- Builder flow includes consent gating before entering full editing UI.
+- New question types require synchronized updates across toolbox, card rendering, validation, and payload mapping.
 
-## ANTI-PATTERNS
-- **Giant File**: `survey-builder.tsx` (1163 lines) is the primary technical debt; it combines business logic, dnd orchestration, and UI layout.
-- **State Coupling**: Question editing logic is tightly coupled with the sorting logic in the root component.
-- **Inlined Components**: Several sub-sections (Toolbar, Status Bar) are not yet extracted into separate files.
+## Anti-Patterns
+- Adding more unrelated concerns directly into `survey-builder.tsx`.
+- Coupling UI rendering logic with persistence/network logic when extraction is feasible.
+- Introducing question type support in only one location (toolbox or renderer) and leaving partial behavior.
+- Bypassing existing publish-lock helpers with local conditionals.
 
-## REFACTORING TASKS
-1. **Extract Logic Hook**: Move survey manipulation (add/remove/update question) to `use-survey-builder.ts`.
-2. **Componentize Modals**: Move the Consent Modal and various settings dialogs to standalone files.
-3. **Decompose Root**: Break `survey-builder.tsx` into:
-   - `builder-toolbar.tsx`: Action buttons (Preview, Save, Publish).
-   - `builder-sidebar.tsx`: Wraps `Toolbox`, `LogicEditor`, and `ThemeEditor`.
-   - `builder-canvas-wrapper.tsx`: Manages `DndContext` and `SortableContext`.
-4. **Typed Events**: Define explicit TypeScript interfaces for dnd-kit event payloads to improve type safety during drag operations.
+## Update Discipline
+- Any change to builder architecture should update this file with current extraction status and remaining debt.
+- Keep technical debt metrics factual (line counts, ownership boundaries, active modules).
+- Prefer behavior-level notes over speculative refactor plans.
