@@ -3629,8 +3629,7 @@ export default function AdminPage() {
                     </Button>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Base points awarded to authenticated respondents when
-                    completing a survey.
+                    {tAdmin("surveyBasePointsHint")}
                   </p>
                   <p className="text-xs text-gray-500">
                     {tAdmin("signupInitialPointsHint")}
@@ -3720,7 +3719,9 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-sm font-medium">Subscription Plans</div>
+                  <div className="text-sm font-medium">
+                    {tAdmin("subscriptionPlansTitle")}
+                  </div>
                   <div className="grid grid-cols-1 gap-3">
                     {activeTiers.map((tier) => (
                       <div
@@ -3740,14 +3741,16 @@ export default function AdminPage() {
                           </Badge>
                           {tier.replacementTierCode && (
                             <span className="text-xs text-gray-500">
-                              on expiry to {tier.replacementTierCode}
+                              {tAdmin("planRetirementOnExpiryTo", {
+                                code: tier.replacementTierCode,
+                              })}
                             </span>
                           )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Name (zh-TW)
+                              {tAdmin("planNameZhTWLabel")}
                             </Label>
                             <Input
                               value={tier.nameI18n?.["zh-TW"] || ""}
@@ -3766,13 +3769,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name zh-TW"
+                              placeholder={tAdmin("planNameZhTWPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Plan Name (en)
+                              {tAdmin("planNameEnLabel")}
                             </Label>
                             <Input
                               value={tier.nameI18n?.en || ""}
@@ -3791,13 +3794,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name en"
+                              placeholder={tAdmin("planNameEnPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Name (ja)
+                              {tAdmin("planNameJaLabel")}
                             </Label>
                             <Input
                               value={tier.nameI18n?.ja || ""}
@@ -3816,7 +3819,7 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name ja"
+                              placeholder={tAdmin("planNameJaPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
@@ -3824,7 +3827,7 @@ export default function AdminPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Description (zh-TW)
+                              {tAdmin("planDescriptionZhTWLabel")}
                             </Label>
                             <Input
                               value={tier.descriptionI18n?.["zh-TW"] || ""}
@@ -3843,13 +3846,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description zh-TW"
+                              placeholder={tAdmin("planDescriptionZhTWPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Description (en)
+                              {tAdmin("planDescriptionEnLabel")}
                             </Label>
                             <Input
                               value={tier.descriptionI18n?.en || ""}
@@ -3868,13 +3871,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description en"
+                              placeholder={tAdmin("planDescriptionEnPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Description (ja)
+                              {tAdmin("planDescriptionJaLabel")}
                             </Label>
                             <Input
                               value={tier.descriptionI18n?.ja || ""}
@@ -3893,7 +3896,7 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description ja"
+                              placeholder={tAdmin("planDescriptionJaPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
@@ -3901,7 +3904,7 @@ export default function AdminPage() {
                         <div className="flex flex-wrap items-end gap-3">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Price (USD cents)
+                              {tAdmin("planPriceCentsLabel")}
                             </Label>
                             <Input
                               className="w-40"
@@ -3926,7 +3929,7 @@ export default function AdminPage() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Monthly points grant
+                              {tAdmin("planMonthlyPointsGrantLabel")}
                             </Label>
                             <Input
                               className="w-40"
@@ -3951,7 +3954,7 @@ export default function AdminPage() {
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Max active surveys
+                              {tAdmin("planMaxActiveSurveysLabel")}
                             </Label>
                             <Input
                               className="w-40"
@@ -3980,7 +3983,7 @@ export default function AdminPage() {
                             />
                           </div>
                           <Label className="text-xs">
-                            Unlimited active surveys
+                            {tAdmin("planUnlimitedActiveSurveysLabel")}
                           </Label>
                           <Switch
                             checked={tier.maxActiveSurveys == null}
@@ -4003,7 +4006,9 @@ export default function AdminPage() {
                             }
                             disabled={!canWritePolicies}
                           />
-                          <Label className="text-xs">Show on pricing</Label>
+                          <Label className="text-xs">
+                            {tAdmin("planShowOnPricingLabel")}
+                          </Label>
                           <Switch
                             checked={tier.showOnPricing ?? false}
                             onCheckedChange={(checked) =>
@@ -4017,7 +4022,9 @@ export default function AdminPage() {
                             }
                             disabled={!canWritePolicies}
                           />
-                          <Label className="text-xs">Purchasable</Label>
+                          <Label className="text-xs">
+                            {tAdmin("planPurchasableLabel")}
+                          </Label>
                           <Switch
                             checked={tier.isPurchasable ?? false}
                             onCheckedChange={(checked) =>
@@ -4031,7 +4038,9 @@ export default function AdminPage() {
                             }
                             disabled={!canWritePolicies}
                           />
-                          <Label className="text-xs">Renewal</Label>
+                          <Label className="text-xs">
+                            {tAdmin("planRenewalLabel")}
+                          </Label>
                           <Switch
                             checked={tier.allowRenewalForExisting ?? false}
                             onCheckedChange={(checked) =>
@@ -4083,7 +4092,9 @@ export default function AdminPage() {
                                   deactivatingPlanId === tier.id
                                 }
                               >
-                                <option value="">Select</option>
+                                <option value="">
+                                  {tAdmin("planSelectPlaceholder")}
+                                </option>
                                 {tiers
                                   .filter(
                                     (candidate) =>
@@ -4102,7 +4113,7 @@ export default function AdminPage() {
                             </div>
                             <div className="space-y-1">
                               <Label className="text-xs text-gray-500">
-                                Execute
+                                {tAdmin("planExecutionLabel")}
                               </Label>
                               <select
                                 className="border border-gray-200 dark:border-gray-800 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 min-w-36"
@@ -4182,11 +4193,13 @@ export default function AdminPage() {
                   ) : null}
 
                   <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-3">
-                    <div className="text-sm font-medium">New Plan</div>
+                    <div className="text-sm font-medium">
+                      {tAdmin("newPlanTitle")}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Plan Code
+                          {tAdmin("planCodeLabel")}
                         </Label>
                         <Input
                           value={newPlan.code}
@@ -4197,7 +4210,7 @@ export default function AdminPage() {
                               code: event.target.value,
                             }));
                           }}
-                          placeholder="code"
+                          placeholder={tAdmin("planCodePlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.code ? (
@@ -4208,7 +4221,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Price (USD cents)
+                          {tAdmin("planPriceCentsLabel")}
                         </Label>
                         <Input
                           type="number"
@@ -4231,7 +4244,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Monthly points grant
+                          {tAdmin("planMonthlyPointsGrantLabel")}
                         </Label>
                         <Input
                           type="number"
@@ -4254,7 +4267,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Max active surveys
+                          {tAdmin("planMaxActiveSurveysLabel")}
                         </Label>
                         <Input
                           type="number"
@@ -4285,9 +4298,9 @@ export default function AdminPage() {
                       </Button>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <Label className="text-xs">
-                        Unlimited active surveys
-                      </Label>
+                        <Label className="text-xs">
+                          {tAdmin("planUnlimitedActiveSurveysLabel")}
+                        </Label>
                       <Switch
                         checked={newPlan.maxActiveSurveys == null}
                         onCheckedChange={(checked) =>
@@ -4304,7 +4317,7 @@ export default function AdminPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Name (zh-TW)
+                          {tAdmin("planNameZhTWLabel")}
                         </Label>
                         <Input
                           value={newPlan.nameI18n["zh-TW"]}
@@ -4318,7 +4331,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="name zh-TW"
+                          placeholder={tAdmin("planNameZhTWPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.nameZhTW ? (
@@ -4329,7 +4342,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Plan Name (en)
+                          {tAdmin("planNameEnLabel")}
                         </Label>
                         <Input
                           value={newPlan.nameI18n.en}
@@ -4343,7 +4356,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="name en"
+                          placeholder={tAdmin("planNameEnPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.nameEn ? (
@@ -4354,7 +4367,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Name (ja)
+                          {tAdmin("planNameJaLabel")}
                         </Label>
                         <Input
                           value={newPlan.nameI18n.ja}
@@ -4368,7 +4381,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="name ja"
+                          placeholder={tAdmin("planNameJaPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.nameJa ? (
@@ -4381,7 +4394,7 @@ export default function AdminPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Description (zh-TW)
+                          {tAdmin("planDescriptionZhTWLabel")}
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n["zh-TW"]}
@@ -4395,7 +4408,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="description zh-TW"
+                          placeholder={tAdmin("planDescriptionZhTWPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.descriptionZhTW ? (
@@ -4406,7 +4419,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Description (en)
+                          {tAdmin("planDescriptionEnLabel")}
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n.en}
@@ -4420,7 +4433,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="description en"
+                          placeholder={tAdmin("planDescriptionEnPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.descriptionEn ? (
@@ -4431,7 +4444,7 @@ export default function AdminPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">
-                          Description (ja)
+                          {tAdmin("planDescriptionJaLabel")}
                         </Label>
                         <Input
                           value={newPlan.descriptionI18n.ja}
@@ -4445,7 +4458,7 @@ export default function AdminPage() {
                               },
                             }));
                           }}
-                          placeholder="description ja"
+                          placeholder={tAdmin("planDescriptionJaPlaceholder")}
                           disabled={!canWritePolicies}
                         />
                         {newPlanFieldErrors.descriptionJa ? (
@@ -4459,7 +4472,9 @@ export default function AdminPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-sm font-medium">Capability Display</div>
+                  <div className="text-sm font-medium">
+                    {tAdmin("capabilityDisplayTitle")}
+                  </div>
                   <div className="space-y-2">
                     {capabilities.map((capability) => (
                       <div
@@ -4472,7 +4487,7 @@ export default function AdminPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Name (zh-TW)
+                              {tAdmin("benefitNameZhTWLabel")}
                             </Label>
                             <Input
                               value={capability.nameI18n?.["zh-TW"] || ""}
@@ -4491,13 +4506,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name zh-TW"
+                              placeholder={tAdmin("benefitNameZhTWPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Name (en)
+                              {tAdmin("benefitNameEnLabel")}
                             </Label>
                             <Input
                               value={capability.nameI18n?.en || ""}
@@ -4516,13 +4531,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name en"
+                              placeholder={tAdmin("benefitNameEnPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Name (ja)
+                              {tAdmin("benefitNameJaLabel")}
                             </Label>
                             <Input
                               value={capability.nameI18n?.ja || ""}
@@ -4541,7 +4556,7 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="name ja"
+                              placeholder={tAdmin("benefitNameJaPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
@@ -4549,7 +4564,7 @@ export default function AdminPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Description (zh-TW)
+                              {tAdmin("benefitDescriptionZhTWLabel")}
                             </Label>
                             <Input
                               value={
@@ -4570,13 +4585,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description zh-TW"
+                              placeholder={tAdmin("benefitDescriptionZhTWPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Description (en)
+                              {tAdmin("benefitDescriptionEnLabel")}
                             </Label>
                             <Input
                               value={capability.descriptionI18n?.en || ""}
@@ -4595,13 +4610,13 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description en"
+                              placeholder={tAdmin("benefitDescriptionEnPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">
-                              Benefit Description (ja)
+                              {tAdmin("benefitDescriptionJaLabel")}
                             </Label>
                             <Input
                               value={capability.descriptionI18n?.ja || ""}
@@ -4620,13 +4635,15 @@ export default function AdminPage() {
                                   ),
                                 )
                               }
-                              placeholder="description ja"
+                              placeholder={tAdmin("benefitDescriptionJaPlaceholder")}
                               disabled={!canWritePolicies}
                             />
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                          <Label className="text-xs">Show on pricing</Label>
+                          <Label className="text-xs">
+                            {tAdmin("planShowOnPricingLabel")}
+                          </Label>
                           <Switch
                             checked={capability.showOnPricing ?? false}
                             onCheckedChange={(checked) =>
@@ -4722,10 +4739,9 @@ export default function AdminPage() {
       >
         <DialogContent data-testid="points-tool-insufficient-dialog">
           <DialogHeader>
-            <DialogTitle>Insufficient points detected</DialogTitle>
+            <DialogTitle>{tAdmin("pointsInsufficientTitle")}</DialogTitle>
             <DialogDescription>
-              Some selected users do not have enough points for this deduction.
-              Choose how to proceed for this batch.
+              {tAdmin("pointsInsufficientDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -4734,9 +4750,19 @@ export default function AdminPage() {
                 key={`${item.userId}-${item.pointsBalance}`}
                 className="rounded-md border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
               >
-                <div>User: {item.userId}</div>
-                <div>Balance: {item.pointsBalance}</div>
-                <div>Required deduction: {item.requiredDeduction}</div>
+                <div>
+                  {tAdmin("pointsInsufficientUser", { userId: item.userId })}
+                </div>
+                <div>
+                  {tAdmin("pointsInsufficientBalance", {
+                    balance: item.pointsBalance,
+                  })}
+                </div>
+                <div>
+                  {tAdmin("pointsInsufficientRequiredDeduction", {
+                    requiredDeduction: item.requiredDeduction,
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -4747,7 +4773,7 @@ export default function AdminPage() {
               onClick={() => applyPointsAdjustmentStrategy("reject_all")}
               disabled={applyingPointsAdjust}
             >
-              Reject all
+              {tAdmin("pointsStrategyRejectAll")}
             </Button>
             <Button
               type="button"
@@ -4756,7 +4782,7 @@ export default function AdminPage() {
               disabled={applyingPointsAdjust}
               data-testid="points-tool-strategy-skip"
             >
-              Skip insufficient
+              {tAdmin("pointsStrategySkipInsufficient")}
             </Button>
             <Button
               type="button"
@@ -4764,7 +4790,7 @@ export default function AdminPage() {
               disabled={applyingPointsAdjust}
               data-testid="points-tool-strategy-floor"
             >
-              Floor to zero
+              {tAdmin("pointsStrategyFloorToZero")}
             </Button>
           </DialogFooter>
         </DialogContent>
