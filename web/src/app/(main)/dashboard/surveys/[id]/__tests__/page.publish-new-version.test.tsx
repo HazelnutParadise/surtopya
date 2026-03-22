@@ -158,43 +158,44 @@ const buildVersionsPayload = (versionNumbers: number[]) => ({
   })),
 })
 
-const buildJsonResponse = (body: unknown, ok = true) => ({
-  ok,
-  json: vi.fn().mockResolvedValue(body),
-})
+const buildJsonResponse = (body: unknown, ok = true) =>
+  new Response(JSON.stringify(body), {
+    status: ok ? 200 : 500,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  })
 
 describe("SurveyManagementPage publish new version", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.open = openMock
+    let versionsFetchCount = 0
 
-    global.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = typeof input === "string" ? input : input.toString()
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>
 
       if (url === "/api/app/surveys/survey-1" && !init?.method) {
         return Promise.resolve(buildJsonResponse(buildSurveyPayload()))
       }
 
       if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
-        return Promise.resolve(
-          buildJsonResponse({
-            responses: [
-              {
-                id: "response-1",
-                surveyId: "survey-1",
-                surveyVersionId: "version-3",
-                surveyVersionNumber: 3,
-                status: "completed",
-                pointsAwarded: 0,
-                startedAt: "2026-03-10T00:00:00Z",
-                completedAt: "2026-03-10T00:05:00Z",
-                createdAt: "2026-03-10T00:00:00Z",
-                answers: [],
-              },
-            ],
-          })
-        )
+        return Promise.resolve(buildJsonResponse({
+          responses: [
+            {
+              id: "response-1",
+              surveyId: "survey-1",
+              surveyVersionId: "version-3",
+              surveyVersionNumber: 3,
+              status: "completed",
+              pointsAwarded: 0,
+              startedAt: "2026-03-10T00:00:00Z",
+              completedAt: "2026-03-10T00:05:00Z",
+              createdAt: "2026-03-10T00:00:00Z",
+              answers: [],
+            },
+          ],
+        }))
       }
 
       if (url === "/api/app/me") {
@@ -202,43 +203,38 @@ describe("SurveyManagementPage publish new version", () => {
       }
 
       if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
-        const callCount = fetchMock.mock.calls.filter(
-          ([calledUrl, calledInit]) =>
-            calledUrl === "/api/app/surveys/survey-1/versions" && !(calledInit as RequestInit | undefined)?.method
-        ).length
-        return Promise.resolve(buildJsonResponse(buildVersionsPayload(callCount > 1 ? [4, 3] : [3])))
+        versionsFetchCount += 1
+        return Promise.resolve(buildJsonResponse(buildVersionsPayload(versionsFetchCount > 1 ? [4, 3] : [3])))
       }
 
       if (url === "/api/app/surveys/survey-1/responses/analytics") {
-        return Promise.resolve(
-          buildJsonResponse({
-            selectedVersion: "all",
-            availableVersions: [3],
-            summary: {
-              totalCompletedResponses: 1,
-              questionCount: 1,
-              generatedAt: "2026-03-10T00:05:00Z",
-            },
-            pages: [],
-            warnings: [],
-          })
-        )
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 1,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
       }
 
       if (url === "/api/app/surveys/survey-1/publish" && init?.method === "POST") {
-        return Promise.resolve(
-          buildJsonResponse(
-            buildSurveyPayload({
-              publishedCount: 2,
-              currentPublishedVersionNumber: 4,
-              hasUnpublishedChanges: false,
-            })
-          )
-        )
+        return Promise.resolve(buildJsonResponse(
+          buildSurveyPayload({
+            publishedCount: 2,
+            currentPublishedVersionNumber: 4,
+            hasUnpublishedChanges: false,
+          })
+        ))
       }
 
       throw new Error(`Unhandled fetch request: ${url}`)
-    }) as typeof fetch
+    })
+
+    global.fetch = fetchMock as unknown as typeof fetch
   })
 
   it("publishes a new version and reloads versions after success", async () => {

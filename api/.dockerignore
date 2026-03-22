@@ -1,0 +1,13 @@
+bin
+main
+.env
+.env.*
+*.log
+*.out
+*.test
+coverage*
+tmp
+temp
+.git
+.gitignore
+AGENTS.md

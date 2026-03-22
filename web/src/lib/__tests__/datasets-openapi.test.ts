@@ -1,4 +1,5 @@
 import { buildDatasetsOpenApiSpec } from "@/lib/datasets-openapi"
+import { describe, expect, it } from "vitest"
 
 describe("datasets openapi spec", () => {
   it("contains required top-level fields and servers", () => {

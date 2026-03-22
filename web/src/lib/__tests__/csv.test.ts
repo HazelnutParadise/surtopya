@@ -1,4 +1,5 @@
 import { buildCsvContent, escapeCsvCell } from "@/lib/csv"
+import { describe, expect, it } from "vitest"
 
 describe("csv helpers", () => {
   it("escapes quotes and commas", () => {

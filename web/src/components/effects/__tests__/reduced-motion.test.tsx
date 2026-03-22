@@ -34,7 +34,7 @@ const installMatchMediaMock = (reducedMotion: boolean) => {
 describe("SiteEffectsLayer reduced-motion fallback", () => {
   beforeEach(() => {
     installMatchMediaMock(true)
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as CanvasRenderingContext2D)
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null)
   })
 
   afterEach(() => {
