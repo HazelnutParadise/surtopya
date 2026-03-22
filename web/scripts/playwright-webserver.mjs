@@ -12,6 +12,8 @@ const envDefaults = {
   LOGTO_APP_ID: "test-app-id",
   LOGTO_APP_SECRET: "test-app-secret",
   LOGTO_COOKIE_SECRET: "test-cookie-secret",
+  INTERNAL_APP_SIGNING_SECRET: "test-internal-app-secret",
+  JWT_SECRET: "test-jwt-secret",
 }
 for (const [key, value] of Object.entries(envDefaults)) {
   if (!process.env[key]) {

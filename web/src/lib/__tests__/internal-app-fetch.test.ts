@@ -107,5 +107,43 @@ describe("fetchInternalApp", () => {
       )
     )
   })
+
+  it("uses JWT_SECRET when INTERNAL_APP_SIGNING_SECRET is not set", async () => {
+    if (originalSecret === undefined) {
+      delete process.env.INTERNAL_APP_SIGNING_SECRET
+    } else {
+      process.env.INTERNAL_APP_SIGNING_SECRET = originalSecret
+    }
+
+    process.env.INTERNAL_APP_SIGNING_SECRET = ""
+    process.env.JWT_SECRET = "jwt-secret-for-test"
+
+    vi.resetModules()
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { fetchInternalApp } = await import("@/lib/internal-app-fetch")
+
+    await fetchInternalApp("/admin/check", { method: "GET" })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const headers = new Headers(init.headers)
+    const timestamp = headers.get("X-Surtopya-App-Timestamp") || ""
+    const signature = headers.get("X-Surtopya-App-Signature") || ""
+
+    expect(timestamp).not.toBe("")
+    expect(signature).toBe(
+      signCanonical(
+        "jwt-secret-for-test",
+        "GET",
+        "/api/app/admin/check",
+        timestamp,
+        ""
+      )
+    )
+
+    delete process.env.JWT_SECRET
+  })
 })
 

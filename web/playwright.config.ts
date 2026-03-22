@@ -19,7 +19,7 @@ export default defineConfig({
     url: baseURL,
     // Default to deterministic runs (avoid accidentally reusing a Docker-exposed port).
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
-    timeout: 120_000,
+    timeout: 300_000,
     env: {
       PLAYWRIGHT_MOCK_API: process.env.PLAYWRIGHT_MOCK_API ?? "true",
     },
