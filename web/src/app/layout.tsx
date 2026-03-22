@@ -25,10 +25,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_TITLE = "Surtopya | Publish Surveys That Keep Growing"
+const SITE_DESCRIPTION =
+  "Turn every survey into a searchable page, collect responses over time, and contribute de-identified data to a research community marketplace."
+
 export const metadata: Metadata = {
-  title: "Surtopya | Privacy-Preserving Survey & Dataset Marketplace",
-  description:
-    "Create privacy-preserving surveys, collect responses, and publish de-identified datasets in a searchable marketplace.",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",

@@ -195,7 +195,7 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 shadow-sm backdrop-blur-md transition-all duration-300 dark:border-gray-800 dark:bg-gray-950/80">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         {/* Logo */}
-        <Link href={withLocalePath("/")} className="flex items-center gap-1.5 transition-transform duration-300 ease-out hover:scale-[1.01]">
+        <Link href={withLocalePath("/")} className="flex items-center gap-2 transition-transform duration-300 ease-out hover:scale-[1.01]">
           <Image
             src="/logo-full.svg"
             alt="Surtopya logo"
@@ -204,9 +204,11 @@ export function Navbar() {
             className="h-10 w-10 rounded-lg object-contain"
             priority
           />
-          <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Surtopya</span>
-          <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
-            beta
+          <span className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold tracking-tight text-gray-900 leading-none dark:text-white">Surtopya</span>
+            <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-amber-800 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+              beta
+            </span>
           </span>
         </Link>
 
