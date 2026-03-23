@@ -12,16 +12,29 @@ export async function POST(
   }
 
   const { id } = await params
-  const body = await request.json().catch(() => ({}))
+  const contentType = request.headers.get("content-type") || ""
 
-  const response = await fetchInternalApp(`/admin/datasets/${id}/publish`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  })
+  let response: Response
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData()
+    response = await fetchInternalApp(`/admin/datasets/${id}/publish`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    })
+  } else {
+    const body = await request.json().catch(() => ({}))
+    response = await fetchInternalApp(`/admin/datasets/${id}/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+  }
 
   const payload = await response.json().catch(() => ({}))
   return NextResponse.json(payload, { status: response.status })

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -289,6 +289,8 @@ export default function AdminPage() {
     isActive: true,
     entitlementPolicy: "purchased_only" as "purchased_only" | "all_versions_if_any_purchase",
   });
+  const [datasetVersionUploadFile, setDatasetVersionUploadFile] = useState<File | null>(null);
+  const datasetVersionFileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadForm, setUploadForm] = useState({
     surveyId: "",
@@ -1056,6 +1058,10 @@ export default function AdminPage() {
   const openDatasetEditor = (dataset: Dataset) => {
     setEditingDataset(dataset);
     setDatasetVersions([]);
+    setDatasetVersionUploadFile(null);
+    if (datasetVersionFileInputRef.current) {
+      datasetVersionFileInputRef.current.value = "";
+    }
     setDatasetForm({
       title: dataset.title,
       description: dataset.description || "",
@@ -1235,16 +1241,30 @@ export default function AdminPage() {
     setError(null);
     setStatusMessage(null);
     try {
+      const priceForPublish =
+        datasetForm.accessType === "paid" ? datasetForm.price : 0;
+      const requestInit: RequestInit = datasetVersionUploadFile
+        ? (() => {
+            const formData = new FormData();
+            formData.append("file", datasetVersionUploadFile);
+            formData.append("accessType", datasetForm.accessType);
+            formData.append("price", String(priceForPublish));
+            return {
+              method: "POST",
+              body: formData,
+            };
+          })()
+        : {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accessType: datasetForm.accessType,
+              price: priceForPublish,
+            }),
+          };
       const response = await fetch(
         `/api/app/admin/datasets/${editingDataset.id}/publish`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            accessType: datasetForm.accessType,
-            price: datasetForm.accessType === "paid" ? datasetForm.price : 0,
-          }),
-        },
+        requestInit,
       );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -1257,6 +1277,10 @@ export default function AdminPage() {
           prev.map((item) => (item.id === nextDataset.id ? nextDataset : item)),
         );
         setEditingDataset(nextDataset);
+      }
+      setDatasetVersionUploadFile(null);
+      if (datasetVersionFileInputRef.current) {
+        datasetVersionFileInputRef.current.value = "";
       }
       setStatusMessage(typeof payload?.message === "string" ? payload.message : null);
       await loadDatasetVersions(editingDataset.id);
@@ -5038,6 +5062,10 @@ export default function AdminPage() {
           if (!open) {
             setEditingDataset(null);
             setDatasetVersions([]);
+            setDatasetVersionUploadFile(null);
+            if (datasetVersionFileInputRef.current) {
+              datasetVersionFileInputRef.current.value = "";
+            }
           }
         }}
       >
@@ -5080,6 +5108,41 @@ export default function AdminPage() {
                     : tAdmin("publishNewVersion")}
                 </Button>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{tAdmin("datasetFile")}</Label>
+              <Input
+                ref={datasetVersionFileInputRef}
+                type="file"
+                data-testid="dataset-version-file-input"
+                onChange={(event) =>
+                  setDatasetVersionUploadFile(event.target.files?.[0] ?? null)
+                }
+              />
+              {datasetVersionUploadFile ? (
+                <div
+                  className="flex items-center justify-between rounded-md border border-gray-100 px-2 py-1.5 text-xs dark:border-gray-800"
+                  data-testid="dataset-version-file-selection"
+                >
+                  <span className="truncate pr-2">
+                    {`${datasetVersionUploadFile.name} (${datasetVersionUploadFile.size.toLocaleString()})`}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDatasetVersionUploadFile(null);
+                      if (datasetVersionFileInputRef.current) {
+                        datasetVersionFileInputRef.current.value = "";
+                      }
+                    }}
+                  >
+                    {tCommon("delete")}
+                  </Button>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -5247,7 +5310,16 @@ export default function AdminPage() {
             className="border-t border-gray-100 pt-2 dark:border-gray-800"
             data-testid="dataset-edit-modal-footer"
           >
-            <Button variant="outline" onClick={() => setEditingDataset(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingDataset(null);
+                setDatasetVersionUploadFile(null);
+                if (datasetVersionFileInputRef.current) {
+                  datasetVersionFileInputRef.current.value = "";
+                }
+              }}
+            >
               {tCommon("cancel")}
             </Button>
             <Button onClick={saveDataset} disabled={savingDataset}>

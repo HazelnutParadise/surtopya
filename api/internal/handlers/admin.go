@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -977,7 +978,87 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 	}
 
 	var req AdminDatasetPublishRequest
-	if c.Request.ContentLength > 0 {
+	var uploadedFilePath string
+	cleanupUploadedFile := false
+	defer func() {
+		if cleanupUploadedFile && uploadedFilePath != "" {
+			_ = os.Remove(uploadedFilePath)
+		}
+	}()
+
+	if c.ContentType() == "multipart/form-data" {
+		if raw := strings.TrimSpace(c.PostForm("accessType")); raw != "" {
+			req.AccessType = &raw
+		}
+		if raw := strings.TrimSpace(c.PostForm("price")); raw != "" {
+			parsedPrice, err := strconv.Atoi(raw)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
+				return
+			}
+			req.Price = &parsedPrice
+		}
+
+		fileHeader, err := c.FormFile("file")
+		switch {
+		case err == nil:
+			dataDir := os.Getenv("DATASETS_DIR")
+			if dataDir == "" {
+				dataDir = "/data/datasets"
+			}
+			if err := os.MkdirAll(dataDir, 0o755); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare dataset storage"})
+				return
+			}
+
+			file, err := fileHeader.Open()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read dataset file"})
+				return
+			}
+			defer file.Close()
+
+			storedFileID := uuid.New().String()
+			ext := filepath.Ext(fileHeader.Filename)
+			storedName := storedFileID
+			if ext != "" {
+				storedName += ext
+			}
+			targetPath := filepath.Join(dataDir, storedName)
+
+			out, err := os.Create(targetPath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store dataset file"})
+				return
+			}
+			defer out.Close()
+
+			fileSize, err := io.Copy(out, file)
+			if err != nil {
+				_ = os.Remove(targetPath)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to store dataset file"})
+				return
+			}
+
+			mimeType := strings.TrimSpace(fileHeader.Header.Get("Content-Type"))
+			if mimeType == "" {
+				mimeType = "application/octet-stream"
+			}
+
+			draft.FilePath = targetPath
+			draft.FileName = fileHeader.Filename
+			draft.FileSize = fileSize
+			draft.MimeType = mimeType
+
+			uploadedFilePath = targetPath
+			cleanupUploadedFile = true
+		case errors.Is(err, http.ErrMissingFile):
+			// multipart payload can intentionally skip file for metadata-only publish
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid dataset file"})
+			return
+		}
+	} else if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 			return
@@ -1086,6 +1167,7 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit dataset publish"})
 		return
 	}
+	cleanupUploadedFile = false
 
 	updated, err := h.datasets.GetByID(id)
 	if err != nil || updated == nil {

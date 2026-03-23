@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import AdminPage from "../page"
@@ -188,5 +188,50 @@ describe("AdminPage publish metadata-only result", () => {
       await screen.findByText("Settings saved. No new version was created."),
     ).toBeInTheDocument()
     expect(screen.queryByText("updateError")).not.toBeInTheDocument()
+  })
+
+  it("publishes dataset version with FormData when a new file is selected", async () => {
+    render(<AdminPage />)
+
+    await screen.findByText("Dataset A")
+    const editButtons = await screen.findAllByRole("button", { name: "edit" })
+    fireEvent.click(editButtons[0])
+
+    const modal = await screen.findByTestId("dataset-edit-modal")
+    const fileInput = within(modal).getByTestId("dataset-version-file-input")
+    const replacementFile = new File(["col1,col2\n1,2\n"], "replacement.csv", {
+      type: "text/csv",
+    })
+    fireEvent.change(fileInput, { target: { files: [replacementFile] } })
+
+    expect(within(modal).getByTestId("dataset-version-file-selection")).toHaveTextContent(
+      "replacement.csv",
+    )
+
+    fireEvent.click(within(modal).getByRole("button", { name: "publishNewVersion" }))
+
+    await waitFor(() => {
+      const publishCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+        ([url, init]) =>
+          url === "/api/app/admin/datasets/dataset-1/publish" &&
+          (init as RequestInit | undefined)?.method === "POST",
+      )
+      expect(publishCalls).toHaveLength(1)
+    })
+
+    const publishCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([url, init]) =>
+        url === "/api/app/admin/datasets/dataset-1/publish" &&
+        (init as RequestInit | undefined)?.method === "POST",
+    )
+    const publishRequest = publishCall?.[1] as RequestInit
+    expect(publishRequest.body).toBeInstanceOf(FormData)
+
+    const formData = publishRequest.body as FormData
+    expect(formData.get("accessType")).toBe("free")
+    expect(formData.get("price")).toBe("0")
+    const sentFile = formData.get("file")
+    expect(sentFile).toBeInstanceOf(File)
+    expect((sentFile as File).name).toBe("replacement.csv")
   })
 })
