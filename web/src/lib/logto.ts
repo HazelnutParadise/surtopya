@@ -19,19 +19,49 @@ const resolveConfiguredBaseUrl = () =>
 
 const normalizeForwardedValue = (value: string | null) => value?.split(",")[0]?.trim() || ""
 
+const isLoopbackHostname = (hostname: string) => {
+  const normalized = hostname.trim().toLowerCase()
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
+}
+
+const getHostname = (url: string) => {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
+}
+
 const resolveBaseUrl = async () => {
+  const headerList = await headers()
+  const forwardedHost =
+    normalizeForwardedValue(headerList.get("x-forwarded-host")) ||
+    ""
+  const host = forwardedHost || normalizeForwardedValue(headerList.get("host"))
+  const proto = normalizeForwardedValue(headerList.get("x-forwarded-proto")) || "http"
+  const headerResolvedBaseUrl = host ? trimTrailingSlash(`${proto}://${host}`) : ""
+
   const configuredBaseUrl = resolveConfiguredBaseUrl()
   if (configuredBaseUrl) {
+    const configuredHostname = getHostname(configuredBaseUrl)
+    const headerHostname = getHostname(headerResolvedBaseUrl)
+    if (
+      configuredHostname &&
+      headerHostname &&
+      isLoopbackHostname(configuredHostname) &&
+      !isLoopbackHostname(headerHostname)
+    ) {
+      console.warn(
+        `[auth] Ignoring loopback configured base URL "${configuredBaseUrl}" in favor of forwarded host "${headerResolvedBaseUrl}"`
+      )
+      return headerResolvedBaseUrl
+    }
+
     return trimTrailingSlash(configuredBaseUrl)
   }
 
-  const headerList = await headers()
-  const host =
-    normalizeForwardedValue(headerList.get("x-forwarded-host")) ||
-    normalizeForwardedValue(headerList.get("host"))
-  if (host) {
-    const proto = normalizeForwardedValue(headerList.get("x-forwarded-proto")) || "http"
-    return trimTrailingSlash(`${proto}://${host}`)
+  if (headerResolvedBaseUrl) {
+    return headerResolvedBaseUrl
   }
 
   throw new Error(

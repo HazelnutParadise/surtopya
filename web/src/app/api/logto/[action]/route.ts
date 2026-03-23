@@ -22,6 +22,67 @@ const sanitizeReturnTo = (value: string | null) => {
   return value
 }
 
+const resolveConfiguredBaseUrl = () =>
+  process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+  process.env.PUBLIC_BASE_URL?.trim() ||
+  process.env.APP_BASE_URL?.trim() ||
+  ""
+
+const normalizeForwardedValue = (value: string | null) => value?.split(",")[0]?.trim() || ""
+
+const isLoopbackHostname = (hostname: string) => {
+  const normalized = hostname.trim().toLowerCase()
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
+}
+
+const resolveFallbackOrigin = (request: NextRequest) => {
+  const forwardedHost = normalizeForwardedValue(request.headers.get("x-forwarded-host"))
+  const forwardedProto = normalizeForwardedValue(request.headers.get("x-forwarded-proto")) || "https"
+  const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : ""
+
+  const configuredBaseUrl = resolveConfiguredBaseUrl()
+  if (configuredBaseUrl) {
+    try {
+      const configuredUrl = new URL(configuredBaseUrl)
+      if (forwardedOrigin && isLoopbackHostname(configuredUrl.hostname)) {
+        const forwardedUrl = new URL(forwardedOrigin)
+        if (!isLoopbackHostname(forwardedUrl.hostname)) {
+          return forwardedUrl.origin
+        }
+      }
+      return configuredUrl.origin
+    } catch {
+      // Fall through to forwarded headers.
+    }
+  }
+
+  if (forwardedOrigin) {
+    return forwardedOrigin
+  }
+
+  const host = normalizeForwardedValue(request.headers.get("host"))
+  if (host) {
+    const proto =
+      normalizeForwardedValue(request.headers.get("x-forwarded-proto")) ||
+      request.nextUrl.protocol.replace(":", "") ||
+      "http"
+    return `${proto}://${host}`
+  }
+
+  return request.nextUrl.origin
+}
+
+const createAuthErrorFallbackUrl = (request: NextRequest) => {
+  const fallbackUrl = new URL("/", resolveFallbackOrigin(request))
+  fallbackUrl.searchParams.set("authError", "logto_configuration")
+  return fallbackUrl
+}
+
+const createCallbackUrl = (request: NextRequest, baseUrl: string) => {
+  const callbackUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, baseUrl)
+  return callbackUrl.toString()
+}
+
 export const GET = async (
   request: NextRequest,
   { params }: { params: Promise<{ action: string }> }
@@ -51,7 +112,7 @@ export const GET = async (
       return NextResponse.redirect(url)
     }
     if (action === "sign-in-callback") {
-      await client.handleSignInCallback(request.url)
+      await client.handleSignInCallback(createCallbackUrl(request, config.baseUrl))
       const returnToRaw = request.cookies.get(RETURN_TO_COOKIE)?.value
       const returnTo = sanitizeReturnTo(returnToRaw ? decodeURIComponent(returnToRaw) : null)
       const response = NextResponse.redirect(returnTo ? new URL(returnTo, config.baseUrl) : new URL(config.baseUrl))
@@ -62,9 +123,7 @@ export const GET = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    const fallbackUrl = new URL("/", request.url)
-    fallbackUrl.searchParams.set("authError", "logto_configuration")
-    return NextResponse.redirect(fallbackUrl)
+    return NextResponse.redirect(createAuthErrorFallbackUrl(request))
   }
 }
 
@@ -100,8 +159,6 @@ export const POST = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    const fallbackUrl = new URL("/", request.url)
-    fallbackUrl.searchParams.set("authError", "logto_configuration")
-    return NextResponse.redirect(fallbackUrl)
+    return NextResponse.redirect(createAuthErrorFallbackUrl(request))
   }
 }

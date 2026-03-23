@@ -89,6 +89,21 @@ describe("getLogtoConfig", () => {
     expect(config.baseUrl).toBe("https://prod.surtopya.com")
   })
 
+  it("prefers forwarded public host over configured localhost base URL", async () => {
+    setRequiredLogtoEnv()
+    process.env.NEXT_PUBLIC_BASE_URL = "https://localhost:3000"
+    setHeaderValues({
+      "x-forwarded-host": "surtopya.com",
+      "x-forwarded-proto": "https",
+    })
+
+    const { getLogtoConfig } = await import("@/lib/logto")
+    const config = await getLogtoConfig()
+
+    expect(config.baseUrl).toBe("https://surtopya.com")
+    expect(config.cookieSecure).toBe(true)
+  })
+
   it("throws a clear error when no base URL can be resolved", async () => {
     setRequiredLogtoEnv()
     setHeaderValues({})

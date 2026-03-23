@@ -15,7 +15,7 @@
 
 ## Current Contracts
 - API base URL resolution must remain environment-driven (do not collapse to one hardcoded origin).
-- Logto auth `baseUrl` resolution prefers configured env origins (`NEXT_PUBLIC_BASE_URL` -> `PUBLIC_BASE_URL` -> `APP_BASE_URL`) before forwarded host headers.
+- Logto auth `baseUrl` resolution prefers configured env origins (`NEXT_PUBLIC_BASE_URL` -> `PUBLIC_BASE_URL` -> `APP_BASE_URL`) before forwarded host headers, except loopback configured origins (e.g. `localhost`) can be overridden by forwarded public host/proto.
 - Internal app requests must preserve signature and timestamp behavior (`X-Surtopya-App-*` headers).
 - Locale support is currently `zh-TW`, `en`, `ja` and should stay centralized in `locale.ts`.
 - Shared library code should be reusable and side-effect-light; keep feature-specific UI logic outside this folder.
