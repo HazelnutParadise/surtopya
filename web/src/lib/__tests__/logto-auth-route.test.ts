@@ -45,36 +45,14 @@ describe("GET /api/logto/[action]", () => {
     mocks.handleSignIn.mockReset()
     mocks.handleSignOut.mockReset()
     mocks.handleSignInCallback.mockReset()
-    delete process.env.NEXT_PUBLIC_BASE_URL
+    process.env.NEXT_PUBLIC_BASE_URL = "https://surtopya.com"
   })
 
-  it("redirects auth configuration failures to forwarded public origin", async () => {
+  it("redirects auth configuration failures to NEXT_PUBLIC_BASE_URL", async () => {
     mocks.getLogtoConfig.mockRejectedValue(new Error("missing_logto_env"))
 
     const request = asNextRequest("http://localhost:3000/api/logto/sign-in", {
       host: "localhost:3000",
-      "x-forwarded-host": "surtopya.com",
-      "x-forwarded-proto": "https",
-    })
-
-    const response = await GET(request, {
-      params: Promise.resolve({ action: "sign-in" }),
-    })
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get("location")).toBe(
-      "https://surtopya.com/?authError=logto_configuration"
-    )
-  })
-
-  it("ignores loopback configured base URL for fallback redirect when forwarded host is public", async () => {
-    process.env.NEXT_PUBLIC_BASE_URL = "https://localhost:3000"
-    mocks.getLogtoConfig.mockRejectedValue(new Error("missing_logto_env"))
-
-    const request = asNextRequest("http://localhost:3000/api/logto/sign-in", {
-      host: "localhost:3000",
-      "x-forwarded-host": "surtopya.com",
-      "x-forwarded-proto": "https",
     })
 
     const response = await GET(request, {

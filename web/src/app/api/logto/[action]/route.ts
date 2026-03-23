@@ -22,58 +22,25 @@ const sanitizeReturnTo = (value: string | null) => {
   return value
 }
 
-const resolveConfiguredBaseUrl = () =>
-  process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-  process.env.PUBLIC_BASE_URL?.trim() ||
-  process.env.APP_BASE_URL?.trim() ||
-  ""
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "")
 
-const normalizeForwardedValue = (value: string | null) => value?.split(",")[0]?.trim() || ""
+const resolveConfiguredBaseUrl = () => {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim() || ""
+  if (!configuredBaseUrl) {
+    throw new Error("Missing base URL configuration. Set NEXT_PUBLIC_BASE_URL.")
+  }
 
-const isLoopbackHostname = (hostname: string) => {
-  const normalized = hostname.trim().toLowerCase()
-  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1"
+  try {
+    new URL(configuredBaseUrl)
+  } catch {
+    throw new Error("Invalid NEXT_PUBLIC_BASE_URL. Set NEXT_PUBLIC_BASE_URL to an absolute URL.")
+  }
+
+  return trimTrailingSlash(configuredBaseUrl)
 }
 
-const resolveFallbackOrigin = (request: NextRequest) => {
-  const forwardedHost = normalizeForwardedValue(request.headers.get("x-forwarded-host"))
-  const forwardedProto = normalizeForwardedValue(request.headers.get("x-forwarded-proto")) || "https"
-  const forwardedOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : ""
-
-  const configuredBaseUrl = resolveConfiguredBaseUrl()
-  if (configuredBaseUrl) {
-    try {
-      const configuredUrl = new URL(configuredBaseUrl)
-      if (forwardedOrigin && isLoopbackHostname(configuredUrl.hostname)) {
-        const forwardedUrl = new URL(forwardedOrigin)
-        if (!isLoopbackHostname(forwardedUrl.hostname)) {
-          return forwardedUrl.origin
-        }
-      }
-      return configuredUrl.origin
-    } catch {
-      // Fall through to forwarded headers.
-    }
-  }
-
-  if (forwardedOrigin) {
-    return forwardedOrigin
-  }
-
-  const host = normalizeForwardedValue(request.headers.get("host"))
-  if (host) {
-    const proto =
-      normalizeForwardedValue(request.headers.get("x-forwarded-proto")) ||
-      request.nextUrl.protocol.replace(":", "") ||
-      "http"
-    return `${proto}://${host}`
-  }
-
-  return request.nextUrl.origin
-}
-
-const createAuthErrorFallbackUrl = (request: NextRequest) => {
-  const fallbackUrl = new URL("/", resolveFallbackOrigin(request))
+const createAuthErrorFallbackUrl = () => {
+  const fallbackUrl = new URL("/", resolveConfiguredBaseUrl())
   fallbackUrl.searchParams.set("authError", "logto_configuration")
   return fallbackUrl
 }
@@ -123,7 +90,7 @@ export const GET = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    return NextResponse.redirect(createAuthErrorFallbackUrl(request))
+    return NextResponse.redirect(createAuthErrorFallbackUrl())
   }
 }
 
@@ -159,6 +126,6 @@ export const POST = async (
     return new NextResponse("Not Found", { status: 404 })
   } catch (error) {
     console.error("Logto route error:", error)
-    return NextResponse.redirect(createAuthErrorFallbackUrl(request))
+    return NextResponse.redirect(createAuthErrorFallbackUrl())
   }
 }

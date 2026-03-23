@@ -1,21 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const mocks = vi.hoisted(() => ({
-  headers: vi.fn(),
-}))
-
-vi.mock("next/headers", () => ({
-  headers: mocks.headers,
-}))
-
 const REQUIRED_ENV_KEYS = [
   "LOGTO_ENDPOINT",
   "LOGTO_APP_ID",
   "LOGTO_APP_SECRET",
   "LOGTO_COOKIE_SECRET",
 ] as const
-
-const BASE_URL_ENV_KEYS = ["NEXT_PUBLIC_BASE_URL", "PUBLIC_BASE_URL", "APP_BASE_URL"] as const
 
 const setRequiredLogtoEnv = () => {
   process.env.LOGTO_ENDPOINT = "https://auth.example.com/oidc"
@@ -24,36 +14,23 @@ const setRequiredLogtoEnv = () => {
   process.env.LOGTO_COOKIE_SECRET = "cookie-secret"
 }
 
-const setHeaderValues = (values: Record<string, string | null>) => {
-  mocks.headers.mockResolvedValue({
-    get: (key: string) => values[key] ?? null,
-  })
-}
-
 describe("getLogtoConfig", () => {
   beforeEach(() => {
     vi.resetModules()
-    mocks.headers.mockReset()
 
     for (const key of REQUIRED_ENV_KEYS) {
       delete process.env[key]
     }
-    for (const key of BASE_URL_ENV_KEYS) {
-      delete process.env[key]
-    }
+    delete process.env.NEXT_PUBLIC_BASE_URL
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it("prefers configured base URL env over forwarded host headers", async () => {
+  it("uses NEXT_PUBLIC_BASE_URL and trims trailing slash", async () => {
     setRequiredLogtoEnv()
     process.env.NEXT_PUBLIC_BASE_URL = "https://app.surtopya.com/"
-    setHeaderValues({
-      "x-forwarded-host": "preview.surtopya.dev",
-      "x-forwarded-proto": "https",
-    })
 
     const { getLogtoConfig } = await import("@/lib/logto")
     const config = await getLogtoConfig()
@@ -62,56 +39,34 @@ describe("getLogtoConfig", () => {
     expect(config.cookieSecure).toBe(true)
   })
 
-  it("uses forwarded headers when base URL env is not configured", async () => {
+  it("sets cookieSecure false for non-https base URL", async () => {
     setRequiredLogtoEnv()
-    setHeaderValues({
-      "x-forwarded-host": "prod.surtopya.com",
-      "x-forwarded-proto": "https",
-    })
+    process.env.NEXT_PUBLIC_BASE_URL = "http://localhost:3000"
 
     const { getLogtoConfig } = await import("@/lib/logto")
     const config = await getLogtoConfig()
 
-    expect(config.baseUrl).toBe("https://prod.surtopya.com")
-    expect(config.cookieSecure).toBe(true)
+    expect(config.baseUrl).toBe("http://localhost:3000")
+    expect(config.cookieSecure).toBe(false)
   })
 
-  it("normalizes multi-hop forwarded headers by taking the first value", async () => {
+  it("throws a clear error when NEXT_PUBLIC_BASE_URL is missing", async () => {
     setRequiredLogtoEnv()
-    setHeaderValues({
-      "x-forwarded-host": "prod.surtopya.com, internal-gateway.local",
-      "x-forwarded-proto": "https, http",
-    })
-
     const { getLogtoConfig } = await import("@/lib/logto")
-    const config = await getLogtoConfig()
 
-    expect(config.baseUrl).toBe("https://prod.surtopya.com")
+    await expect(getLogtoConfig()).rejects.toThrow(
+      "Missing base URL configuration. Set NEXT_PUBLIC_BASE_URL."
+    )
   })
 
-  it("prefers forwarded public host over configured localhost base URL", async () => {
+  it("throws a clear error when NEXT_PUBLIC_BASE_URL is invalid", async () => {
     setRequiredLogtoEnv()
-    process.env.NEXT_PUBLIC_BASE_URL = "https://localhost:3000"
-    setHeaderValues({
-      "x-forwarded-host": "surtopya.com",
-      "x-forwarded-proto": "https",
-    })
-
-    const { getLogtoConfig } = await import("@/lib/logto")
-    const config = await getLogtoConfig()
-
-    expect(config.baseUrl).toBe("https://surtopya.com")
-    expect(config.cookieSecure).toBe(true)
-  })
-
-  it("throws a clear error when no base URL can be resolved", async () => {
-    setRequiredLogtoEnv()
-    setHeaderValues({})
+    process.env.NEXT_PUBLIC_BASE_URL = "not-a-url"
 
     const { getLogtoConfig } = await import("@/lib/logto")
 
     await expect(getLogtoConfig()).rejects.toThrow(
-      "Missing base URL configuration. Set NEXT_PUBLIC_BASE_URL, PUBLIC_BASE_URL, or APP_BASE_URL."
+      "Invalid NEXT_PUBLIC_BASE_URL. Set NEXT_PUBLIC_BASE_URL to an absolute URL."
     )
   })
 })

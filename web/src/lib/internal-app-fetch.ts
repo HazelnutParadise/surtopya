@@ -183,21 +183,16 @@ export const fetchInternalApp = async (path: string | URL, init: RequestInit = {
 }
 
 export const validateBrowserOrigin = (request: Request) => {
-  const configuredBase =
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    process.env.PUBLIC_BASE_URL?.trim() ||
-    process.env.APP_BASE_URL?.trim() ||
-    ""
-
+  const configuredBase = process.env.NEXT_PUBLIC_BASE_URL?.trim() || ""
   if (!configuredBase) {
-    return true
+    return false
   }
 
   let expectedOrigin: string
   try {
     expectedOrigin = new URL(configuredBase).origin
   } catch {
-    return true
+    return false
   }
 
   const origin = request.headers.get("origin")

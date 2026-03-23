@@ -294,3 +294,53 @@ describe("fetchInternalApp", () => {
   })
 })
 
+describe("validateBrowserOrigin", () => {
+  beforeEach(() => {
+    vi.resetModules()
+    delete process.env.NEXT_PUBLIC_BASE_URL
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("fails closed when NEXT_PUBLIC_BASE_URL is missing", async () => {
+    const { validateBrowserOrigin } = await import("@/lib/internal-app-fetch")
+    const request = new Request("https://surtopya.com/api/app/bootstrap", {
+      headers: { origin: "https://surtopya.com" },
+    })
+
+    expect(validateBrowserOrigin(request)).toBe(false)
+  })
+
+  it("allows matching origin when NEXT_PUBLIC_BASE_URL is configured", async () => {
+    process.env.NEXT_PUBLIC_BASE_URL = "https://surtopya.com"
+    const { validateBrowserOrigin } = await import("@/lib/internal-app-fetch")
+    const request = new Request("https://surtopya.com/api/app/bootstrap", {
+      headers: { origin: "https://surtopya.com" },
+    })
+
+    expect(validateBrowserOrigin(request)).toBe(true)
+  })
+
+  it("allows matching referer when origin header is missing", async () => {
+    process.env.NEXT_PUBLIC_BASE_URL = "https://surtopya.com"
+    const { validateBrowserOrigin } = await import("@/lib/internal-app-fetch")
+    const request = new Request("https://surtopya.com/api/app/bootstrap", {
+      headers: { referer: "https://surtopya.com/dashboard" },
+    })
+
+    expect(validateBrowserOrigin(request)).toBe(true)
+  })
+
+  it("rejects mismatched origin", async () => {
+    process.env.NEXT_PUBLIC_BASE_URL = "https://surtopya.com"
+    const { validateBrowserOrigin } = await import("@/lib/internal-app-fetch")
+    const request = new Request("https://surtopya.com/api/app/bootstrap", {
+      headers: { origin: "https://evil.example.com" },
+    })
+
+    expect(validateBrowserOrigin(request)).toBe(false)
+  })
+})
+
