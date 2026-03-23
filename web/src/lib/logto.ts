@@ -9,15 +9,34 @@ const requiredEnv = (key: string) => {
   return value
 }
 
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "")
+
+const resolveConfiguredBaseUrl = () =>
+  process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+  process.env.PUBLIC_BASE_URL?.trim() ||
+  process.env.APP_BASE_URL?.trim() ||
+  ""
+
+const normalizeForwardedValue = (value: string | null) => value?.split(",")[0]?.trim() || ""
+
 const resolveBaseUrl = async () => {
-  const headerList = await headers()
-  const host = headerList.get("x-forwarded-host") || headerList.get("host")
-  if (host) {
-    const proto = headerList.get("x-forwarded-proto") || "http"
-    return `${proto}://${host}`
+  const configuredBaseUrl = resolveConfiguredBaseUrl()
+  if (configuredBaseUrl) {
+    return trimTrailingSlash(configuredBaseUrl)
   }
 
-  return requiredEnv("NEXT_PUBLIC_BASE_URL")
+  const headerList = await headers()
+  const host =
+    normalizeForwardedValue(headerList.get("x-forwarded-host")) ||
+    normalizeForwardedValue(headerList.get("host"))
+  if (host) {
+    const proto = normalizeForwardedValue(headerList.get("x-forwarded-proto")) || "http"
+    return trimTrailingSlash(`${proto}://${host}`)
+  }
+
+  throw new Error(
+    "Missing base URL configuration. Set NEXT_PUBLIC_BASE_URL, PUBLIC_BASE_URL, or APP_BASE_URL."
+  )
 }
 
 const resolveCookieSecure = (baseUrl: string) => baseUrl.startsWith("https://")
