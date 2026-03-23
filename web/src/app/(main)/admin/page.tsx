@@ -5027,14 +5027,20 @@ export default function AdminPage() {
           }
         }}
       >
-        <DialogContent>
+        <DialogContent
+          className="grid-rows-[auto_minmax(0,1fr)_auto] max-h-[calc(100vh-2rem)] overflow-hidden sm:max-w-4xl"
+          data-testid="dataset-edit-modal"
+        >
           <DialogHeader>
             <DialogTitle>{tAdmin("editDataset")}</DialogTitle>
             <DialogDescription>
               {tAdmin("editDatasetDescription")}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div
+            className="min-h-0 space-y-4 overflow-y-auto pr-1"
+            data-testid="dataset-edit-modal-body"
+          >
             <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -5223,7 +5229,10 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter
+            className="border-t border-gray-100 pt-2 dark:border-gray-800"
+            data-testid="dataset-edit-modal-footer"
+          >
             <Button variant="outline" onClick={() => setEditingDataset(null)}>
               {tCommon("cancel")}
             </Button>

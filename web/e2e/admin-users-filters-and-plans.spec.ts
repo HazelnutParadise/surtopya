@@ -665,3 +665,161 @@ test("points tool retries with selected underflow strategy and refreshes navbar 
   })
   await expect.poll(() => meCalls).toBeGreaterThan(1)
 })
+
+test("dataset edit modal keeps footer visible and scrolls content within viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+
+  await page.route("**/api/app/me*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "me",
+        email: "me@example.com",
+        displayName: "Super Admin",
+        pointsBalance: 0,
+        membershipTier: "free",
+        capabilities: {},
+        isAdmin: true,
+        isSuperAdmin: true,
+        locale: "en",
+        createdAt: new Date().toISOString(),
+        surveysCompleted: 0,
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/surveys?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ surveys: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/datasets?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        datasets: [
+          {
+            id: "dataset-1",
+            title: "Dataset One",
+            description: "Long dataset description",
+            category: "other",
+            accessType: "free",
+            price: 0,
+            sampleSize: 100,
+            downloadCount: 10,
+            isActive: true,
+            entitlementPolicy: "purchased_only",
+            currentPublishedVersionNumber: 12,
+            hasUnpublishedChanges: false,
+          },
+        ],
+        meta: { limit: 20, offset: 0 },
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/datasets/dataset-1/versions", async (route) => {
+    const versions = Array.from({ length: 30 }, (_, index) => ({
+      id: `version-${index + 1}`,
+      versionNumber: 30 - index,
+      accessType: "free",
+      price: 0,
+      sampleSize: 100 + index,
+      downloadCount: index,
+      publishedAt: new Date().toISOString(),
+    }))
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ versions }),
+    })
+  })
+  await page.route("**/api/app/admin/users?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ users: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/agents?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ accounts: [], meta: { limit: 20, offset: 0 } }),
+    })
+  })
+  await page.route("**/api/app/admin/policies", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tiers: [{ id: "t-free", code: "free", name: "Free", isActive: true }],
+        capabilities: [],
+        matrix: [],
+      }),
+    })
+  })
+  await page.route("**/api/app/admin/policy-writers", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ users: [] }),
+    })
+  })
+  await page.route("**/api/app/admin/system-settings", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ surveyBasePoints: 1, signupInitialPoints: 0 }),
+    })
+  })
+  await page.route("**/api/app/admin/deid/reviews?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ jobs: [], meta: { limit: 50, offset: 0 } }),
+    })
+  })
+
+  await page.goto("/en/admin")
+  await page.getByRole("tab", { name: "Datasets" }).click()
+  await page.getByRole("button", { name: "Edit" }).first().click()
+
+  const modal = page.getByTestId("dataset-edit-modal")
+  const body = page.getByTestId("dataset-edit-modal-body")
+  const footer = page.getByTestId("dataset-edit-modal-footer")
+
+  await expect(modal).toBeVisible()
+  await expect(body).toBeVisible()
+  await expect(footer).toBeVisible()
+
+  const modalBox = await modal.boundingBox()
+  expect(modalBox).not.toBeNull()
+  if (modalBox) {
+    expect(modalBox.y + modalBox.height).toBeLessThanOrEqual(720)
+  }
+
+  const bodyMetrics = await body.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }))
+  expect(bodyMetrics.scrollHeight).toBeGreaterThan(bodyMetrics.clientHeight)
+
+  await body.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+
+  await expect(footer.getByRole("button", { name: "Save" })).toBeVisible()
+
+  const footerBox = await footer.boundingBox()
+  expect(footerBox).not.toBeNull()
+  if (modalBox && footerBox) {
+    expect(footerBox.y + footerBox.height).toBeLessThanOrEqual(
+      modalBox.y + modalBox.height
+    )
+  }
+})
