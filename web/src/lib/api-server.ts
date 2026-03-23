@@ -61,28 +61,23 @@ export const getAuthToken = async () => {
       return null
     }
 
-    if (!LOGTO_AUDIENCE) {
+    if (LOGTO_AUDIENCE) {
+      try {
+        const token = await getAccessToken(config, LOGTO_AUDIENCE)
+        if (token) {
+          logTokenSourceOnce("logto")
+          return token
+        }
+        logTokenSourceOnce("fallback", "empty_logto_access_token")
+      } catch {
+        logTokenSourceOnce("fallback", "logto_access_token_error")
+      }
+    } else {
       logWarningOnce(
         "missing_logto_audience",
-        "[auth] LOGTO_AUDIENCE is empty, requesting Logto default access token resource before local fallback"
+        "[auth] LOGTO_AUDIENCE is empty, skipping Logto access-token request and using local fallback"
       )
-    }
-
-    try {
-      const token = await getAccessToken(config, LOGTO_AUDIENCE || undefined)
-      if (token) {
-        logTokenSourceOnce("logto")
-        return token
-      }
-      logTokenSourceOnce(
-        "fallback",
-        LOGTO_AUDIENCE ? "empty_logto_access_token" : "empty_logto_access_token_default_resource"
-      )
-    } catch {
-      logTokenSourceOnce(
-        "fallback",
-        LOGTO_AUDIENCE ? "logto_access_token_error" : "logto_access_token_error_default_resource"
-      )
+      logTokenSourceOnce("fallback", "missing_logto_audience")
     }
 
     const subject = context.claims?.sub
