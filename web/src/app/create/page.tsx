@@ -1,7 +1,6 @@
 "use client"
 
 import { SurveyBuilder } from "@/components/builder/survey-builder"
-import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
@@ -56,8 +55,11 @@ export default function CreatePage() {
             <CardDescription>{tBuilder("authRequiredDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white">
-              <Link href="/api/logto/sign-in">{tBuilder("authRequiredAction")}</Link>
+            <Button
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => window.location.assign("/api/logto/sign-in")}
+            >
+              {tBuilder("authRequiredAction")}
             </Button>
           </CardContent>
         </Card>
