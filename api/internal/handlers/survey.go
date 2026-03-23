@@ -102,6 +102,88 @@ type QuestionRequest struct {
 	Logic       []models.LogicRule `json:"logic"`
 }
 
+func normalizeQuestionDescription(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func buildSnapshotQuestionsFromModels(questions []models.Question) []surveySnapshotQuestion {
+	snapshotQuestions := make([]surveySnapshotQuestion, len(questions))
+	for i, q := range questions {
+		snapshotQuestions[i] = surveySnapshotQuestion{
+			ID:          q.ID,
+			Type:        q.Type,
+			Title:       q.Title,
+			Description: q.Description,
+			Options:     q.Options,
+			Required:    q.Required,
+			MaxRating:   q.MaxRating,
+			Logic:       q.Logic,
+			SortOrder:   i,
+		}
+	}
+	return snapshotQuestions
+}
+
+func buildSnapshotQuestionsFromRequests(questions []QuestionRequest) ([]surveySnapshotQuestion, bool) {
+	snapshotQuestions := make([]surveySnapshotQuestion, len(questions))
+	for i, q := range questions {
+		parsedID, err := uuid.Parse(q.ID)
+		if err != nil || parsedID == uuid.Nil {
+			return nil, false
+		}
+		description := q.Description
+		snapshotQuestions[i] = surveySnapshotQuestion{
+			ID:          parsedID,
+			Type:        q.Type,
+			Title:       q.Title,
+			Description: &description,
+			Options:     q.Options,
+			Required:    q.Required,
+			MaxRating:   q.MaxRating,
+			Logic:       q.Logic,
+			SortOrder:   i,
+		}
+	}
+	return snapshotQuestions, true
+}
+
+func areQuestionSnapshotsEqual(left []surveySnapshotQuestion, right []surveySnapshotQuestion) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].ID != right[i].ID {
+			return false
+		}
+		if left[i].Type != right[i].Type || left[i].Title != right[i].Title {
+			return false
+		}
+		if normalizeQuestionDescription(left[i].Description) != normalizeQuestionDescription(right[i].Description) {
+			return false
+		}
+		if left[i].Required != right[i].Required || left[i].MaxRating != right[i].MaxRating {
+			return false
+		}
+		if left[i].SortOrder != right[i].SortOrder {
+			return false
+		}
+		leftOptionsJSON, _ := json.Marshal(left[i].Options)
+		rightOptionsJSON, _ := json.Marshal(right[i].Options)
+		if string(leftOptionsJSON) != string(rightOptionsJSON) {
+			return false
+		}
+		leftLogicJSON, _ := json.Marshal(left[i].Logic)
+		rightLogicJSON, _ := json.Marshal(right[i].Logic)
+		if string(leftLogicJSON) != string(rightLogicJSON) {
+			return false
+		}
+	}
+	return true
+}
+
 // CreateSurvey handles POST /v1/surveys
 func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 	var req CreateSurveyRequest
@@ -378,19 +460,13 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
-	hasDraftChanges := false
+	questionChanges := false
 
 	// Update fields if provided
 	if req.Title != nil {
-		if survey.Title != *req.Title {
-			hasDraftChanges = true
-		}
 		survey.Title = *req.Title
 	}
 	if req.Description != nil {
-		if survey.Description != *req.Description {
-			hasDraftChanges = true
-		}
 		survey.Description = *req.Description
 	}
 	if req.Visibility != nil {
@@ -402,9 +478,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
 		}
-		if survey.Visibility != *req.Visibility {
-			hasDraftChanges = true
-		}
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
@@ -414,9 +487,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		}
 	}
 	if req.RequireLoginToRespond != nil {
-		if survey.RequireLoginToRespond != *req.RequireLoginToRespond {
-			hasDraftChanges = true
-		}
 		survey.RequireLoginToRespond = *req.RequireLoginToRespond
 	}
 	if req.IncludeInDatasets != nil {
@@ -424,22 +494,13 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
-		previousIncludeInDatasets := survey.IncludeInDatasets
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
 		}
-		if previousIncludeInDatasets != survey.IncludeInDatasets {
-			hasDraftChanges = true
-		}
 	}
 	if req.Theme != nil {
-		currentThemeJSON, _ := json.Marshal(survey.Theme)
-		incomingThemeJSON, _ := json.Marshal(req.Theme)
-		if string(currentThemeJSON) != string(incomingThemeJSON) {
-			hasDraftChanges = true
-		}
 		survey.Theme = req.Theme
 	}
 	if req.PointsReward != nil {
@@ -450,9 +511,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		if survey.PublishedCount > 0 && *req.PointsReward < survey.PointsReward {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points can only increase after first publish"})
 			return
-		}
-		if survey.PointsReward != *req.PointsReward {
-			hasDraftChanges = true
 		}
 		survey.PointsReward = *req.PointsReward
 	}
@@ -466,16 +524,18 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if surveyExpiresAtChanged(survey.ExpiresAt, parsedExpiresAt) {
-			hasDraftChanges = true
-		}
 		survey.ExpiresAt = parsedExpiresAt
 	}
 
-	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 && hasDraftChanges {
-		survey.HasUnpublishedChanges = true
+	if len(req.Questions) > 0 {
+		currentQuestionSnapshot := buildSnapshotQuestionsFromModels(survey.Questions)
+		nextQuestionSnapshot, ok := buildSnapshotQuestionsFromRequests(req.Questions)
+		if !ok || !areQuestionSnapshotsEqual(currentQuestionSnapshot, nextQuestionSnapshot) {
+			questionChanges = true
+		}
 	}
-	if len(req.Questions) > 0 && survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
+
+	if questionChanges && survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true
 	}
 
@@ -578,41 +638,12 @@ type surveySnapshotQuestion struct {
 }
 
 type surveySnapshot struct {
-	Title             string                   `json:"title"`
-	Description       string                   `json:"description"`
-	Visibility        string                   `json:"visibility"`
-	IncludeInDatasets bool                     `json:"includeInDatasets"`
-	Theme             *models.SurveyTheme      `json:"theme,omitempty"`
-	PointsReward      int                      `json:"pointsReward"`
-	ExpiresAt         *time.Time               `json:"expiresAt,omitempty"`
-	Questions         []surveySnapshotQuestion `json:"questions"`
+	Questions []surveySnapshotQuestion `json:"questions"`
 }
 
 func buildSurveySnapshot(survey *models.Survey) ([]byte, error) {
-	questions := make([]surveySnapshotQuestion, len(survey.Questions))
-	for i, q := range survey.Questions {
-		questions[i] = surveySnapshotQuestion{
-			ID:          q.ID,
-			Type:        q.Type,
-			Title:       q.Title,
-			Description: q.Description,
-			Options:     q.Options,
-			Required:    q.Required,
-			MaxRating:   q.MaxRating,
-			Logic:       q.Logic,
-			SortOrder:   q.SortOrder,
-		}
-	}
-
 	snapshot := surveySnapshot{
-		Title:             survey.Title,
-		Description:       survey.Description,
-		Visibility:        survey.Visibility,
-		IncludeInDatasets: survey.IncludeInDatasets,
-		Theme:             survey.Theme,
-		PointsReward:      survey.PointsReward,
-		ExpiresAt:         survey.ExpiresAt,
-		Questions:         questions,
+		Questions: buildSnapshotQuestionsFromModels(survey.Questions),
 	}
 
 	return json.Marshal(snapshot)
@@ -754,6 +785,26 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	isSameSnapshot, err := h.repo.IsCurrentVersionSnapshotEqual(survey.ID, snapshotJSON)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to compare publish snapshot"})
+		return
+	}
+	if isSameSnapshot && survey.PublishedCount > 0 {
+		if err := h.repo.UpdateCurrentPublishedVersionStateTx(tx, survey.ID, survey.PointsReward, survey.ExpiresAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize current published version settings"})
+			return
+		}
+		survey.HasUnpublishedChanges = false
+		if err := h.repo.UpdateTx(tx, survey); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save survey settings"})
+			return
+		}
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize publish"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"survey":  survey,
+			"message": "Settings saved. No new version was created.",
+		})
 		return
 	}
 	if isSameSnapshot {
@@ -1124,16 +1175,6 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 		}
 	}
 
-	survey.Title = snapshot.Title
-	survey.Description = snapshot.Description
-	survey.Visibility = snapshot.Visibility
-	survey.IncludeInDatasets = snapshot.IncludeInDatasets
-	survey.Theme = snapshot.Theme
-	survey.PointsReward = snapshot.PointsReward
-	survey.ExpiresAt = snapshot.ExpiresAt
-	if snapshot.Visibility == "public" {
-		survey.EverPublic = true
-	}
 	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true
 	}

@@ -270,18 +270,10 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 
-	hasDraftChanges := false
-
 	if req.Title != nil {
-		if survey.Title != *req.Title {
-			hasDraftChanges = true
-		}
 		survey.Title = *req.Title
 	}
 	if req.Description != nil {
-		if survey.Description != *req.Description {
-			hasDraftChanges = true
-		}
 		survey.Description = *req.Description
 	}
 	if req.Visibility != nil {
@@ -292,9 +284,6 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 		if survey.PublishedCount > 0 && survey.Visibility != *req.Visibility {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change visibility after first publish"})
 			return
-		}
-		if survey.Visibility != *req.Visibility {
-			hasDraftChanges = true
 		}
 		survey.Visibility = *req.Visibility
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
@@ -309,14 +298,10 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot change dataset sharing after first publish"})
 			return
 		}
-		previousIncludeInDatasets := survey.IncludeInDatasets
 		if survey.Visibility == "public" && !canOptOutPublicDataset {
 			survey.IncludeInDatasets = true
 		} else {
 			survey.IncludeInDatasets = *req.IncludeInDatasets
-		}
-		if previousIncludeInDatasets != survey.IncludeInDatasets {
-			hasDraftChanges = true
 		}
 	}
 	if req.PointsReward != nil {
@@ -324,13 +309,7 @@ func (h *AdminHandler) UpdateSurvey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
 			return
 		}
-		if survey.PointsReward != *req.PointsReward {
-			hasDraftChanges = true
-		}
 		survey.PointsReward = *req.PointsReward
-	}
-	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 && hasDraftChanges {
-		survey.HasUnpublishedChanges = true
 	}
 	if err := h.surveys.Update(survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})
@@ -783,52 +762,88 @@ func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 	}
 
 	draftChanged := false
+	metadataChanged := false
+
+	normalizeDescription := func(raw string) *string {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			return nil
+		}
+		return &trimmed
+	}
+
+	descriptionEqual := func(left, right *string) bool {
+		switch {
+		case left == nil && right == nil:
+			return true
+		case left == nil || right == nil:
+			return false
+		default:
+			return *left == *right
+		}
+	}
+
 	if req.Title != nil {
-		draft.Title = strings.TrimSpace(*req.Title)
-		draftChanged = true
+		nextTitle := strings.TrimSpace(*req.Title)
+		if draft.Title != nextTitle {
+			draft.Title = nextTitle
+			draftChanged = true
+			metadataChanged = true
+		}
 	}
 	if req.Description != nil {
-		trimmed := strings.TrimSpace(*req.Description)
-		if trimmed == "" {
-			draft.Description = nil
-		} else {
-			draft.Description = &trimmed
+		nextDescription := normalizeDescription(*req.Description)
+		if !descriptionEqual(draft.Description, nextDescription) {
+			draft.Description = nextDescription
+			draftChanged = true
+			metadataChanged = true
 		}
-		draftChanged = true
 	}
 	if req.Category != nil {
-		draft.Category = strings.TrimSpace(*req.Category)
-		draftChanged = true
+		nextCategory := strings.TrimSpace(*req.Category)
+		if draft.Category != nextCategory {
+			draft.Category = nextCategory
+			draftChanged = true
+			metadataChanged = true
+		}
 	}
 	if req.AccessType != nil {
 		if *req.AccessType != "free" && *req.AccessType != "paid" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid access type"})
 			return
 		}
-		draft.AccessType = *req.AccessType
-		if draft.AccessType == "free" {
-			draft.Price = 0
+		if draft.AccessType != *req.AccessType {
+			draft.AccessType = *req.AccessType
+			draftChanged = true
+			metadataChanged = true
 		}
-		draftChanged = true
 	}
 	if req.Price != nil {
 		if *req.Price < 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
 			return
 		}
-		draft.Price = *req.Price
-		draftChanged = true
+		if draft.Price != *req.Price {
+			draft.Price = *req.Price
+			draftChanged = true
+			metadataChanged = true
+		}
 	}
 	if req.SampleSize != nil {
 		if *req.SampleSize < 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sample size"})
 			return
 		}
-		draft.SampleSize = *req.SampleSize
-		draftChanged = true
+		if draft.SampleSize != *req.SampleSize {
+			draft.SampleSize = *req.SampleSize
+			draftChanged = true
+			metadataChanged = true
+		}
 	}
-	if draft.AccessType == "free" {
+	if draft.AccessType == "free" && draft.Price != 0 {
 		draft.Price = 0
+		draftChanged = true
+		metadataChanged = true
 	}
 
 	var updatedBy *uuid.UUID
@@ -840,8 +855,18 @@ func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 	draft.UpdatedBy = updatedBy
 
 	if draftChanged {
-		if err := h.datasets.UpsertDraftTx(tx, draft); err != nil {
+		if err := h.datasets.UpsertDraftTxWithUnpublishedFlag(tx, draft, false); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset draft"})
+			return
+		}
+	}
+	if metadataChanged {
+		if err := h.datasets.UpdateEditableMetadataTx(tx, draft); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset metadata"})
+			return
+		}
+		if err := h.datasets.SyncMetadataToVersionsTx(tx, draft); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize dataset version metadata"})
 			return
 		}
 	}
@@ -859,16 +884,7 @@ func (h *AdminHandler) UpdateDataset(c *gin.Context) {
 	}
 
 	if req.IsActive != nil || req.EntitlementPolicy != nil {
-		if _, err := tx.Exec(
-			`UPDATE datasets
-			 SET is_active = $2,
-			     entitlement_policy = $3,
-			     updated_at = NOW()
-			 WHERE id = $1`,
-			dataset.ID,
-			dataset.IsActive,
-			dataset.EntitlementPolicy,
-		); err != nil {
+		if err := h.datasets.UpdateOperationalSettingsTx(tx, dataset.ID, dataset.IsActive, dataset.EntitlementPolicy); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update dataset metadata"})
 			return
 		}
@@ -994,6 +1010,17 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 		}
 	}
 
+	currentVersion, err := h.datasets.GetCurrentPublishedVersion(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load current published dataset version"})
+		return
+	}
+	fileChanged := currentVersion == nil ||
+		currentVersion.FilePath != draft.FilePath ||
+		currentVersion.FileName != draft.FileName ||
+		currentVersion.FileSize != draft.FileSize ||
+		currentVersion.MimeType != draft.MimeType
+
 	tx, err := database.GetDB().BeginTx(c.Request.Context(), nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
@@ -1001,46 +1028,53 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	if err := h.datasets.UpsertDraftTx(tx, draft); err != nil {
+	if err := h.datasets.UpsertDraftTxWithUnpublishedFlag(tx, draft, fileChanged); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare dataset draft"})
 		return
 	}
 
-	nextVersionNumber, err := h.datasets.GetNextVersionNumberTx(tx, id)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate dataset version"})
-		return
-	}
+	var createdVersion *models.DatasetVersion
+	if fileChanged {
+		nextVersionNumber, err := h.datasets.GetNextVersionNumberTx(tx, id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to allocate dataset version"})
+			return
+		}
 
-	version := &models.DatasetVersion{
-		ID:            uuid.New(),
-		DatasetID:     id,
-		VersionNumber: nextVersionNumber,
-		Title:         draft.Title,
-		Description:   draft.Description,
-		Category:      draft.Category,
-		AccessType:    draft.AccessType,
-		Price:         draft.Price,
-		SampleSize:    draft.SampleSize,
-		FilePath:      draft.FilePath,
-		FileName:      draft.FileName,
-		FileSize:      draft.FileSize,
-		MimeType:      draft.MimeType,
-		DownloadCount: 0,
-		PublishedAt:   time.Now().UTC(),
-		PublishedBy:   publishedBy,
-	}
-	if err := h.datasets.CreateVersionTx(tx, version); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset version"})
-		return
-	}
-
-	if err := h.datasets.SetCurrentPublishedVersionTx(tx, id, version.ID, version.VersionNumber); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update current published version"})
-		return
+		version := &models.DatasetVersion{
+			ID:            uuid.New(),
+			DatasetID:     id,
+			VersionNumber: nextVersionNumber,
+			Title:         draft.Title,
+			Description:   draft.Description,
+			Category:      draft.Category,
+			AccessType:    draft.AccessType,
+			Price:         draft.Price,
+			SampleSize:    draft.SampleSize,
+			FilePath:      draft.FilePath,
+			FileName:      draft.FileName,
+			FileSize:      draft.FileSize,
+			MimeType:      draft.MimeType,
+			DownloadCount: 0,
+			PublishedAt:   time.Now().UTC(),
+			PublishedBy:   publishedBy,
+		}
+		if err := h.datasets.CreateVersionTx(tx, version); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create dataset version"})
+			return
+		}
+		if err := h.datasets.SetCurrentPublishedVersionTx(tx, id, version.ID, version.VersionNumber); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update current published version"})
+			return
+		}
+		createdVersion = version
 	}
 	if err := h.datasets.UpdateCurrentFromDraftTx(tx, id, draft); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize dataset snapshot"})
+		return
+	}
+	if err := h.datasets.SyncMetadataToVersionsTx(tx, draft); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize dataset version metadata"})
 		return
 	}
 	if err := h.datasets.MarkDatasetHasUnpublishedChangesTx(tx, id, false); err != nil {
@@ -1055,12 +1089,23 @@ func (h *AdminHandler) PublishDatasetVersion(c *gin.Context) {
 
 	updated, err := h.datasets.GetByID(id)
 	if err != nil || updated == nil {
-		c.JSON(http.StatusOK, gin.H{"version": version})
+		if createdVersion != nil {
+			c.JSON(http.StatusOK, gin.H{"version": createdVersion})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Settings saved. No new version was created."})
+		return
+	}
+	if createdVersion == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"dataset": updated,
+			"message": "Settings saved. No new version was created.",
+		})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"dataset": updated,
-		"version": version,
+		"version": createdVersion,
 	})
 }
 

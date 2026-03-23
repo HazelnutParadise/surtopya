@@ -842,6 +842,36 @@ func (r *SurveyRepository) CreateVersionTx(tx *sql.Tx, version *models.SurveyVer
 	return nil
 }
 
+// UpdateCurrentPublishedVersionStateTx updates mutable attributes on the current published version row.
+func (r *SurveyRepository) UpdateCurrentPublishedVersionStateTx(
+	tx *sql.Tx,
+	surveyID uuid.UUID,
+	pointsReward int,
+	expiresAt *time.Time,
+) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is required")
+	}
+
+	_, err := tx.Exec(
+		`UPDATE survey_versions
+		 SET points_reward = $2,
+		     expires_at = $3
+		 WHERE id = (
+		   SELECT current_published_version_id
+		   FROM surveys
+		   WHERE id = $1
+		 )`,
+		surveyID,
+		pointsReward,
+		expiresAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update current published survey version state: %w", err)
+	}
+	return nil
+}
+
 // IsCurrentVersionSnapshotEqual checks if a snapshot matches the currently published version.
 func (r *SurveyRepository) IsCurrentVersionSnapshotEqual(surveyID uuid.UUID, snapshot []byte) (bool, error) {
 	query := `

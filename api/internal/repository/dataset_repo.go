@@ -650,8 +650,13 @@ func (r *DatasetRepository) GetDraft(datasetID uuid.UUID) (*models.DatasetDraft,
 	return item, nil
 }
 
-// UpsertDraftTx creates or updates dataset draft.
+// UpsertDraftTx creates or updates dataset draft and marks dataset as having unpublished changes.
 func (r *DatasetRepository) UpsertDraftTx(tx *sql.Tx, draft *models.DatasetDraft) error {
+	return r.UpsertDraftTxWithUnpublishedFlag(tx, draft, true)
+}
+
+// UpsertDraftTxWithUnpublishedFlag creates or updates dataset draft and controls unpublished flag behavior.
+func (r *DatasetRepository) UpsertDraftTxWithUnpublishedFlag(tx *sql.Tx, draft *models.DatasetDraft, markHasUnpublished bool) error {
 	if tx == nil {
 		return fmt.Errorf("transaction is required")
 	}
@@ -697,9 +702,11 @@ func (r *DatasetRepository) UpsertDraftTx(tx *sql.Tx, draft *models.DatasetDraft
 		return fmt.Errorf("failed to upsert dataset draft: %w", err)
 	}
 
-	_, err = tx.Exec("UPDATE datasets SET has_unpublished_changes = TRUE WHERE id = $1", draft.DatasetID)
-	if err != nil {
-		return fmt.Errorf("failed to mark dataset as having unpublished changes: %w", err)
+	if markHasUnpublished {
+		_, err = tx.Exec("UPDATE datasets SET has_unpublished_changes = TRUE WHERE id = $1", draft.DatasetID)
+		if err != nil {
+			return fmt.Errorf("failed to mark dataset as having unpublished changes: %w", err)
+		}
 	}
 
 	return nil
@@ -855,6 +862,93 @@ func (r *DatasetRepository) UpdateCurrentFromDraftTx(tx *sql.Tx, datasetID uuid.
 		return fmt.Errorf("failed to sync dataset from draft: %w", err)
 	}
 
+	return nil
+}
+
+// UpdateEditableMetadataTx syncs non-versioned editable metadata to the dataset row.
+func (r *DatasetRepository) UpdateEditableMetadataTx(tx *sql.Tx, draft *models.DatasetDraft) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is required")
+	}
+	if draft == nil {
+		return fmt.Errorf("draft is required")
+	}
+
+	_, err := tx.Exec(
+		`UPDATE datasets
+		 SET title = $2,
+		     description = $3,
+		     category = $4,
+		     access_type = $5,
+		     price = $6,
+		     sample_size = $7,
+		     updated_at = NOW()
+		 WHERE id = $1`,
+		draft.DatasetID,
+		draft.Title,
+		draft.Description,
+		draft.Category,
+		draft.AccessType,
+		draft.Price,
+		draft.SampleSize,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update dataset editable metadata: %w", err)
+	}
+	return nil
+}
+
+// SyncMetadataToVersionsTx syncs non-versioned metadata to all existing published dataset versions.
+func (r *DatasetRepository) SyncMetadataToVersionsTx(tx *sql.Tx, draft *models.DatasetDraft) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is required")
+	}
+	if draft == nil {
+		return fmt.Errorf("draft is required")
+	}
+
+	_, err := tx.Exec(
+		`UPDATE dataset_versions
+		 SET title = $2,
+		     description = $3,
+		     category = $4,
+		     access_type = $5,
+		     price = $6,
+		     sample_size = $7
+		 WHERE dataset_id = $1`,
+		draft.DatasetID,
+		draft.Title,
+		draft.Description,
+		draft.Category,
+		draft.AccessType,
+		draft.Price,
+		draft.SampleSize,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to sync dataset metadata to versions: %w", err)
+	}
+	return nil
+}
+
+// UpdateOperationalSettingsTx updates non-versioned operational settings for dataset listing and entitlement.
+func (r *DatasetRepository) UpdateOperationalSettingsTx(tx *sql.Tx, datasetID uuid.UUID, isActive bool, entitlementPolicy string) error {
+	if tx == nil {
+		return fmt.Errorf("transaction is required")
+	}
+
+	_, err := tx.Exec(
+		`UPDATE datasets
+		 SET is_active = $2,
+		     entitlement_policy = $3,
+		     updated_at = NOW()
+		 WHERE id = $1`,
+		datasetID,
+		isActive,
+		entitlementPolicy,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update dataset operational settings: %w", err)
+	}
 	return nil
 }
 

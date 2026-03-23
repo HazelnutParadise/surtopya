@@ -168,6 +168,7 @@ export default function AdminPage() {
   const [userLoading, setUserLoading] = useState(true);
   const [adminUserLoading, setAdminUserLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -1072,6 +1073,7 @@ export default function AdminPage() {
     if (!editingSurvey) return;
     setSavingSurvey(true);
     setError(null);
+    setStatusMessage(null);
     try {
       const response = await fetch(`/api/app/admin/surveys/${editingSurvey.id}`, {
         method: "PATCH",
@@ -1104,6 +1106,7 @@ export default function AdminPage() {
     if (!editingSurvey) return;
     setPublishingSurveyVersion(true);
     setError(null);
+    setStatusMessage(null);
     try {
       const response = await fetch(
         `/api/app/admin/surveys/${editingSurvey.id}/publish`,
@@ -1121,12 +1124,17 @@ export default function AdminPage() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(getAdminError(payload, "updateError"));
       }
-      const payload = await response.json();
+      const payload = await response.json().catch(() => ({}));
+      const nextSurvey = (payload?.survey || payload) as Survey | null;
+      if (!nextSurvey?.id) {
+        throw new Error(tAdmin("updateError"));
+      }
       setSurveys((prev) =>
-        prev.map((survey) => (survey.id === payload.id ? payload : survey)),
+        prev.map((survey) => (survey.id === nextSurvey.id ? nextSurvey : survey)),
       );
-      applySurveyToEditor(payload);
-      await loadSurveyVersions(payload.id);
+      applySurveyToEditor(nextSurvey);
+      await loadSurveyVersions(nextSurvey.id);
+      setStatusMessage(typeof payload?.message === "string" ? payload.message : null);
       notifyPointsBalanceChanged();
     } catch (err) {
       setError(getErrorMessage(err, "updateError"));
@@ -1189,6 +1197,7 @@ export default function AdminPage() {
     if (!editingDataset) return;
     setSavingDataset(true);
     setError(null);
+    setStatusMessage(null);
     try {
       const response = await fetch(`/api/app/admin/datasets/${editingDataset.id}`, {
         method: "PATCH",
@@ -1224,6 +1233,7 @@ export default function AdminPage() {
     if (!editingDataset) return;
     setPublishingDatasetVersion(true);
     setError(null);
+    setStatusMessage(null);
     try {
       const response = await fetch(
         `/api/app/admin/datasets/${editingDataset.id}/publish`,
@@ -1248,6 +1258,7 @@ export default function AdminPage() {
         );
         setEditingDataset(nextDataset);
       }
+      setStatusMessage(typeof payload?.message === "string" ? payload.message : null);
       await loadDatasetVersions(editingDataset.id);
     } catch (err) {
       setError(getErrorMessage(err, "updateError"));
@@ -2279,6 +2290,9 @@ export default function AdminPage() {
         </div>
 
         {error && <div className="text-sm text-red-600">{error}</div>}
+        {statusMessage && !error ? (
+          <div className="text-sm text-emerald-700 dark:text-emerald-300">{statusMessage}</div>
+        ) : null}
 
         <Tabs defaultValue="surveys">
           <TabsList>

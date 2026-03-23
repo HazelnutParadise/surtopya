@@ -428,7 +428,8 @@ export default function SurveyManagementPage() {
       if (!response.ok) {
         throw new Error(mapPublishStatusError(payload));
       }
-      setSurvey(mapApiSurveyToUi(payload));
+      const nextSurveyPayload = payload?.survey ?? payload
+      setSurvey(mapApiSurveyToUi(nextSurveyPayload));
       void loadSurveyVersions()
       notifyPointsBalanceChanged();
       void trackUIEvent({
