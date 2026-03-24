@@ -44,6 +44,53 @@ const base64UrlEncode = (input: Buffer | string) => {
     .replace(/\//g, "_")
 }
 
+const base64UrlDecode = (value: string) => {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/")
+  const padding = normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4))
+  return Buffer.from(`${normalized}${padding}`, "base64").toString("utf8")
+}
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split(".")
+  if (parts.length < 2) {
+    return null
+  }
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(parts[1]))
+    return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+const getJwtStringClaim = (token: string, key: string) => {
+  const payload = decodeJwtPayload(token)
+  const value = payload?.[key]
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null
+}
+
+const getRecordString = (record: unknown, key: string) => {
+  if (!record || typeof record !== "object") {
+    return null
+  }
+  const value = (record as Record<string, unknown>)[key]
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null
+}
+
+const resolveUsernameFromContext = (context: unknown) => {
+  if (!context || typeof context !== "object") {
+    return null
+  }
+
+  const record = context as Record<string, unknown>
+  const fromUserInfo = getRecordString(record.userInfo, "username")
+  if (fromUserInfo) {
+    return fromUserInfo
+  }
+  return getRecordString(record.claims, "username")
+}
+
 const signJwt = (payload: Record<string, unknown>, secret: string) => {
   const header = { alg: "HS256", typ: "JWT" }
   const encodedHeader = base64UrlEncode(JSON.stringify(header))
@@ -56,19 +103,25 @@ const signJwt = (payload: Record<string, unknown>, secret: string) => {
 export const getAuthToken = async () => {
   try {
     const config = await getLogtoConfig()
-    const context = await getLogtoContext(config)
+    const context = await getLogtoContext(config, { fetchUserInfo: true })
     if (!context.isAuthenticated) {
       return null
     }
+    const username = resolveUsernameFromContext(context)
 
     if (LOGTO_AUDIENCE) {
       try {
         const token = await getAccessToken(config, LOGTO_AUDIENCE)
         if (token) {
-          logTokenSourceOnce("logto")
-          return token
+          if (getJwtStringClaim(token, "username")) {
+            logTokenSourceOnce("logto")
+            return token
+          }
+          logTokenSourceOnce("fallback", "missing_username_in_access_token")
         }
-        logTokenSourceOnce("fallback", "empty_logto_access_token")
+        if (!token) {
+          logTokenSourceOnce("fallback", "empty_logto_access_token")
+        }
       } catch {
         logTokenSourceOnce("fallback", "logto_access_token_error")
       }
@@ -88,12 +141,17 @@ export const getAuthToken = async () => {
 
     const secret = process.env.JWT_SECRET || "development-secret-key"
     const now = Math.floor(Date.now() / 1000)
+    const payload: Record<string, unknown> = {
+      sub: subject,
+      iat: now,
+      exp: now + 60 * 60,
+    }
+    if (username) {
+      payload.username = username
+    }
+
     return signJwt(
-      {
-        sub: subject,
-        iat: now,
-        exp: now + 60 * 60,
-      },
+      payload,
       secret
     )
   } catch (error) {

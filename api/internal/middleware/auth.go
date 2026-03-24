@@ -133,7 +133,7 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 		email := getClaimString(claims, "email")
 		name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
 		picture := getClaimString(claims, "picture", "avatar")
-		username := getClaimString(claims, "username")
+		username := getUsernameClaimForSlug(claims)
 		_, _ = db.Exec(`
 			UPDATE users
 			SET email = COALESCE(email, $2),
@@ -157,7 +157,7 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	email := getClaimString(claims, "email")
 	name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
 	picture := getClaimString(claims, "picture", "avatar")
-	username := getClaimString(claims, "username")
+	username := getUsernameClaimForSlug(claims)
 	initialSlug, err := pickUniqueAuthorSlug(db, userID, username)
 	if err != nil {
 		return uuid.Nil, err
@@ -196,6 +196,10 @@ func getClaimString(claims jwt.MapClaims, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func getUsernameClaimForSlug(claims jwt.MapClaims) string {
+	return getClaimString(claims, "username")
 }
 
 func normalizeAuthorSlugCandidate(raw string) string {

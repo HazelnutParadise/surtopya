@@ -13,6 +13,64 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetUsernameClaimForSlug_StrictUsernameOnly(t *testing.T) {
+	claims := jwt.MapClaims{
+		"preferred_username": "preferred",
+		"nickname":           "nick",
+	}
+	require.Equal(t, "", getUsernameClaimForSlug(claims))
+
+	claims["username"] = "alice"
+	require.Equal(t, "alice", getUsernameClaimForSlug(claims))
+}
+
+func TestSyncAuthorSlug_UsernamePromotesTempSlugAndCreatesRedirect(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	userID := uuid.New()
+	currentSlug := temporaryAuthorSlug(userID)
+
+	mock.ExpectQuery("SELECT EXISTS\\(").
+		WithArgs("alice", userID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO author_slug_redirects").
+		WithArgs(currentSlug, userID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE users SET author_slug = \\$2 WHERE id = \\$1").
+		WithArgs(userID, "alice").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("DELETE FROM author_slug_redirects WHERE old_slug = \\$1 AND user_id = \\$2").
+		WithArgs("alice", userID).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	nextSlug, err := syncAuthorSlug(db, userID, currentSlug, "alice")
+	require.NoError(t, err)
+	require.Equal(t, "alice", nextSlug)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSyncAuthorSlug_EmptyUsernameKeepsTemporarySlug(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	userID := uuid.New()
+	currentSlug := temporaryAuthorSlug(userID)
+
+	mock.ExpectQuery("SELECT EXISTS\\(").
+		WithArgs(currentSlug, userID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+
+	nextSlug, err := syncAuthorSlug(db, userID, currentSlug, "")
+	require.NoError(t, err)
+	require.Equal(t, currentSlug, nextSlug)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestAuthMiddleware_DisabledUserReturnsForbidden(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
