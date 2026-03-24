@@ -459,7 +459,8 @@
     "saveStatusSaved": "進捗を保存しました",
     "saveStatusAt": "{time} に保存済み",
     "saveStatusRetrying": "保存に失敗しました。再試行中...",
-    "saveStatusFailed": "保存に失敗しました。回答を続けると再試行します。"
+    "saveStatusFailed": "保存に失敗しました。回答を続けると再試行します。",
+    "authorBy": "作成者: {name}"
   },
   "ThemeEditor": {
     "primaryColor": "メインカラー",
@@ -508,7 +509,8 @@
     "nonPublic": "非公開中",
     "points": "{count}ポイント",
     "loginRequired": "ログイン必須",
-    "alreadySubmitted": "完了"
+    "alreadySubmitted": "完了",
+    "anonymousAuthor": "匿名の作者"
   },
   "Profile": {
     "title": "プロフィール",
@@ -533,7 +535,15 @@
     "twoFactorTitle": "二要素認証",
     "twoFactorDescription": "現在無効です。追加の安全性のため有効にできます。",
     "enable": "有効化",
-    "saveError": "変更の保存に失敗しました。もう一度お試しください。"
+    "saveError": "変更の保存に失敗しました。もう一度お試しください。",
+    "publicProfileTitle": "作者ページの公開設定",
+    "publicProfileDescription": "公開作者ページに表示するプロフィール項目を選択します。",
+    "showDisplayName": "表示名を公開",
+    "showAvatar": "アバターを公開",
+    "showBio": "自己紹介を公開",
+    "showLocation": "所在地を公開",
+    "showPhone": "電話番号を公開",
+    "showEmail": "メールアドレスを公開"
   },
   "SurveyManagement": {
     "notFoundTitle": "アンケートが見つかりません",
@@ -883,7 +893,9 @@
     "pointsInsufficientRequiredDeduction": "必要減算ポイント: {requiredDeduction}",
     "pointsStrategyRejectAll": "すべて拒否",
     "pointsStrategySkipInsufficient": "不足ユーザーをスキップ",
-    "pointsStrategyFloorToZero": "不足ユーザーは 0 まで減算"
+    "pointsStrategyFloorToZero": "不足ユーザーは 0 まで減算",
+    "authorBy": "作成者: {name}",
+    "authorAnonymous": "匿名の作者"
   },
   "LegalTerms": {
     "title": "利用規約サマリー",
@@ -928,5 +940,14 @@
     "tryItBlockedInvalidDownload": "ダウンロードリクエスト形式が不正なため、実行をブロックしました。",
     "tryItBlockedPaid": "このデータセットは paid のため、ドキュメント Try-it ではダウンロードできません。",
     "tryItBlockedLookupFailed": "データセットの access type を確認できないため、安全側でダウンロードをブロックしました。"
+  },
+  "AuthorPage": {
+    "title": "作者",
+    "subtitle": "公開プロフィールと公開済みアンケート",
+    "surveysTitle": "公開済みアンケート",
+    "emptySurveys": "公開済みの公開アンケートはまだありません。",
+    "memberSince": "登録日",
+    "anonymousAuthor": "匿名の作者",
+    "loadError": "作者ページの読み込みに失敗しました。"
   }
 }

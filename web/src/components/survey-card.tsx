@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +36,7 @@ interface SurveyCardProps {
   author?: {
     name: string;
     image?: string;
+    slug?: string;
   };
   tags?: string[];
   isHot?: boolean;
@@ -67,6 +70,7 @@ export function SurveyCard({
   hasResponded = false,
   locale,
 }: SurveyCardProps) {
+  const router = useRouter()
   const t = useTranslations("SurveyCard");
   const tDashboard = useTranslations("Dashboard")
   const cleanedDescription = stripMarkdown(description)
@@ -88,11 +92,28 @@ export function SurveyCard({
     ? `/dashboard/surveys/${id}` 
     : `/survey/${id}?title=${encodeURIComponent(title.replace(/\s+/g, '-').toLowerCase())}`;
   const localizedHref = locale ? withLocale(href, locale) : href;
+  const authorHref = author?.slug ? (locale ? withLocale(`/@${author.slug}`, locale) : `/@${author.slug}`) : null;
+  const authorLabel = author?.name?.trim() || t("anonymousAuthor")
+
+  const handleCardClick = () => {
+    router.push(localizedHref)
+  }
+
+  const handleCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      router.push(localizedHref)
+    }
+  }
     
   return (
-    <Link href={localizedHref} className="block h-full" data-testid={`survey-card-${id}`}>
       <Card
-        className={`group relative flex h-full flex-col overflow-hidden border-gray-200 transition-all duration-300 hover:-translate-y-1 dark:border-gray-800 ${cardSurfaceClass} ${cardStateClass}`}
+        role="link"
+        tabIndex={0}
+        onClick={handleCardClick}
+        onKeyDown={handleCardKeyDown}
+        data-testid={`survey-card-${id}`}
+        className={`group relative flex h-full cursor-pointer flex-col overflow-hidden border-gray-200 transition-all duration-300 hover:-translate-y-1 dark:border-gray-800 ${cardSurfaceClass} ${cardStateClass}`}
       >
         <CardHeader className={`p-5 pb-2 ${mutedSectionClass}`}>
           <div className="flex items-start justify-between gap-4">
@@ -181,7 +202,7 @@ export function SurveyCard({
           <div className="flex w-full items-center gap-3">
             <div className={`flex shrink-0 items-center gap-2 ${mutedSectionClass}`}>
               {variant === 'dashboard' ? (
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
                       {visibility === 'public' ? (
                           <>
                               <Globe className="h-3.5 w-3.5 text-emerald-500" />
@@ -193,16 +214,44 @@ export function SurveyCard({
                               <span className="text-amber-600 dark:text-amber-400">{t("nonPublic")}</span>
                           </>
                       )}
+                      {author ? (
+                        <>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          {authorHref ? (
+                            <Link
+                              href={authorHref}
+                              onClick={(event) => event.stopPropagation()}
+                              className="text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                            >
+                              {authorLabel}
+                            </Link>
+                          ) : (
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                              {authorLabel}
+                            </span>
+                          )}
+                        </>
+                      ) : null}
                   </div>
               ) : author ? (
                 <>
                   <Avatar className="h-6 w-6 border border-gray-200 dark:border-gray-700">
                     <AvatarImage src={author.image} />
-                    <AvatarFallback className="text-[10px]">{author.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback className="text-[10px]">{authorLabel.substring(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                    {author.name}
-                  </span>
+                  {authorHref ? (
+                    <Link
+                      href={authorHref}
+                      onClick={(event) => event.stopPropagation()}
+                      className="text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                    >
+                      {authorLabel}
+                    </Link>
+                  ) : (
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                      {authorLabel}
+                    </span>
+                  )}
                 </>
               ) : null}
             </div>
@@ -239,6 +288,5 @@ export function SurveyCard({
           </div>
         </CardFooter>
       </Card>
-    </Link>
   );
 }

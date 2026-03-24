@@ -459,7 +459,8 @@
     "saveStatusSaved": "已儲存進度",
     "saveStatusAt": "已儲存於 {time}",
     "saveStatusRetrying": "儲存失敗，正在重試…",
-    "saveStatusFailed": "儲存失敗，稍後將再嘗試。"
+    "saveStatusFailed": "儲存失敗，稍後將再嘗試。",
+    "authorBy": "作者：{name}"
   },
   "ThemeEditor": {
     "primaryColor": "主要色",
@@ -508,7 +509,8 @@
     "nonPublic": "非公開",
     "points": "{count} 點",
     "loginRequired": "需登入",
-    "alreadySubmitted": "已完成"
+    "alreadySubmitted": "已完成",
+    "anonymousAuthor": "匿名作者"
   },
   "Profile": {
     "title": "個人檔案",
@@ -533,7 +535,15 @@
     "twoFactorTitle": "雙重驗證",
     "twoFactorDescription": "目前已停用。啟用以增加安全性。",
     "enable": "啟用",
-    "saveError": "Failed to save changes. Please try again."
+    "saveError": "Failed to save changes. Please try again.",
+    "publicProfileTitle": "作者頁公開資訊",
+    "publicProfileDescription": "選擇哪些個人資料欄位可顯示在公開作者頁。",
+    "showDisplayName": "顯示名稱",
+    "showAvatar": "顯示頭像",
+    "showBio": "顯示個人簡介",
+    "showLocation": "顯示所在地",
+    "showPhone": "顯示電話",
+    "showEmail": "顯示 Email"
   },
   "SurveyManagement": {
     "notFoundTitle": "找不到問卷",
@@ -883,7 +893,9 @@
     "pointsInsufficientRequiredDeduction": "需扣點數：{requiredDeduction}",
     "pointsStrategyRejectAll": "全部拒絕",
     "pointsStrategySkipInsufficient": "略過點數不足者",
-    "pointsStrategyFloorToZero": "不足者扣到 0"
+    "pointsStrategyFloorToZero": "不足者扣到 0",
+    "authorBy": "作者：{name}",
+    "authorAnonymous": "匿名作者"
   },
   "LegalTerms": {
     "title": "服務條款摘要",
@@ -928,5 +940,14 @@
     "tryItBlockedInvalidDownload": "下載請求格式無法辨識，已阻擋執行。",
     "tryItBlockedPaid": "此資料集為 paid，文件頁 Try-it 不允許執行下載。",
     "tryItBlockedLookupFailed": "無法確認資料集是否為 free，已依安全預設阻擋下載。"
+  },
+  "AuthorPage": {
+    "title": "作者",
+    "subtitle": "公開個人資料與已發布問卷",
+    "surveysTitle": "已發布問卷",
+    "emptySurveys": "目前沒有已發布的公開問卷。",
+    "memberSince": "加入時間",
+    "anonymousAuthor": "匿名作者",
+    "loadError": "載入作者頁失敗。"
   }
 }

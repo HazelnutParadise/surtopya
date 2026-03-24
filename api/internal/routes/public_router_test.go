@@ -28,6 +28,11 @@ func TestSetupPublicRouter_ExposesV1HealthAgentDocsAndDatasetRoutes(t *testing.T
 	datasetsRes := httptest.NewRecorder()
 	r.ServeHTTP(datasetsRes, datasetsReq)
 	require.NotEqual(t, http.StatusNotFound, datasetsRes.Code)
+
+	authorsReq := httptest.NewRequest(http.MethodGet, "/v1/authors/example", nil)
+	authorsRes := httptest.NewRecorder()
+	r.ServeHTTP(authorsRes, authorsReq)
+	require.NotEqual(t, http.StatusNotFound, authorsRes.Code)
 }
 
 func TestSetupPublicRouter_HidesInternalAndLegacyFrontendRoutes(t *testing.T) {

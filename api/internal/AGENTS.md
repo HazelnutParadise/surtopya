@@ -11,6 +11,7 @@
 | HTTP mapping | `handlers/` | Request binding/validation/response translation |
 | SQL persistence | `repository/` | Query logic and transactional writes |
 | Shared schema models | `models/models.go` | API/domain structs and tags |
+| Public author pages | `handlers/author.go`, `repository/author_repo.go` | `@slug` author lookup, canonical slug resolution, public profile filtering |
 | Domain packages | `agentadmin/`, `deid/`, `platformlog/`, `policy/`, `surveyanalytics/`, `timeutil/` | Reusable domain-level behavior |
 | DB wiring | `database/` | Connection and migration bootstrap helpers |
 

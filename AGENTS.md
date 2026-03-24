@@ -13,6 +13,7 @@ Facts in this file were verified against the repository on 2026-03-22.
 | --- | --- | --- |
 | Public API routing | `api/internal/routes/router.go` | Source of truth for `/v1` endpoints |
 | Internal signed BFF surface | `api/internal/routes/router.go` + `web/src/app/api/app/**` | `/api/app` contract and proxy handlers |
+| Author public profile surface | `api/internal/handlers/author.go` + `web/src/app/(main)/author/**` + `web/middleware.ts` | `@slug` author pages, canonical redirect, and published-survey listing |
 | Backend domain logic | `api/internal/handlers`, `api/internal/repository`, `api/internal/models` | Request handling and persistence |
 | Frontend routing/layout | `web/src/app` | App Router pages/layouts/route handlers |
 | Shared web integrations | `web/src/lib` | API base resolution, internal signing, i18n helpers |

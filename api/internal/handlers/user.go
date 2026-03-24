@@ -38,16 +38,37 @@ type UserProfileResponse struct {
 	IsAdmin               bool            `json:"isAdmin"`
 	IsSuperAdmin          bool            `json:"isSuperAdmin"`
 	Locale                string          `json:"locale"`
+	PublicProfile         PublicProfile   `json:"publicProfile"`
 	CreatedAt             time.Time       `json:"createdAt"`
 	SurveysCompleted      int             `json:"surveysCompleted"`
 }
 
+type PublicProfile struct {
+	ShowDisplayName bool `json:"showDisplayName"`
+	ShowAvatar      bool `json:"showAvatar"`
+	ShowBio         bool `json:"showBio"`
+	ShowLocation    bool `json:"showLocation"`
+	ShowPhone       bool `json:"showPhone"`
+	ShowEmail       bool `json:"showEmail"`
+}
+
+type PublicProfileUpdateRequest struct {
+	ShowDisplayName *bool `json:"showDisplayName"`
+	ShowAvatar      *bool `json:"showAvatar"`
+	ShowBio         *bool `json:"showBio"`
+	ShowLocation    *bool `json:"showLocation"`
+	ShowPhone       *bool `json:"showPhone"`
+	ShowEmail       *bool `json:"showEmail"`
+}
+
 type UpdateUserProfileRequest struct {
-	DisplayName *string `json:"displayName"`
-	AvatarURL   *string `json:"avatarUrl"`
-	Phone       *string `json:"phone"`
-	Bio         *string `json:"bio"`
-	Location    *string `json:"location"`
+	DisplayName   *string                     `json:"displayName"`
+	Email         *string                     `json:"email"`
+	AvatarURL     *string                     `json:"avatarUrl"`
+	Phone         *string                     `json:"phone"`
+	Bio           *string                     `json:"bio"`
+	Location      *string                     `json:"location"`
+	PublicProfile *PublicProfileUpdateRequest `json:"publicProfile"`
 }
 
 // GetProfile handles GET /v1/me
@@ -65,13 +86,23 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 	err := db.QueryRow(`
 		SELECT email, display_name, avatar_url, phone, bio, location,
-			points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale, created_at
+			points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale,
+			public_show_display_name, public_show_avatar_url, public_show_bio,
+			public_show_location, public_show_phone, public_show_email,
+			created_at
 		FROM users WHERE id = $1
 	`, profile.ID).Scan(
 		&profile.Email, &profile.DisplayName, &profile.AvatarURL,
 		&profile.Phone, &profile.Bio, &profile.Location,
 		&profile.PointsBalance, &profile.NextMonthlyGrantAt, &profile.IsAdmin, &profile.IsSuperAdmin,
-		&profile.Locale, &profile.CreatedAt,
+		&profile.Locale,
+		&profile.PublicProfile.ShowDisplayName,
+		&profile.PublicProfile.ShowAvatar,
+		&profile.PublicProfile.ShowBio,
+		&profile.PublicProfile.ShowLocation,
+		&profile.PublicProfile.ShowPhone,
+		&profile.PublicProfile.ShowEmail,
+		&profile.CreatedAt,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
@@ -153,6 +184,11 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		query += " display_name = $" + strconv.Itoa(argCount) + ","
 		args = append(args, req.DisplayName)
 	}
+	if req.Email != nil {
+		argCount++
+		query += " email = $" + strconv.Itoa(argCount) + ","
+		args = append(args, req.Email)
+	}
 	if req.AvatarURL != nil {
 		argCount++
 		query += " avatar_url = $" + strconv.Itoa(argCount) + ","
@@ -172,6 +208,38 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		argCount++
 		query += " location = $" + strconv.Itoa(argCount) + ","
 		args = append(args, req.Location)
+	}
+	if req.PublicProfile != nil {
+		if req.PublicProfile.ShowDisplayName != nil {
+			argCount++
+			query += " public_show_display_name = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowDisplayName)
+		}
+		if req.PublicProfile.ShowAvatar != nil {
+			argCount++
+			query += " public_show_avatar_url = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowAvatar)
+		}
+		if req.PublicProfile.ShowBio != nil {
+			argCount++
+			query += " public_show_bio = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowBio)
+		}
+		if req.PublicProfile.ShowLocation != nil {
+			argCount++
+			query += " public_show_location = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowLocation)
+		}
+		if req.PublicProfile.ShowPhone != nil {
+			argCount++
+			query += " public_show_phone = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowPhone)
+		}
+		if req.PublicProfile.ShowEmail != nil {
+			argCount++
+			query += " public_show_email = $" + strconv.Itoa(argCount) + ","
+			args = append(args, *req.PublicProfile.ShowEmail)
+		}
 	}
 
 	if argCount == 0 {

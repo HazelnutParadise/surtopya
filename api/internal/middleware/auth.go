@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/TimLai666/surtopya-api/internal/database"
 	"github.com/TimLai666/surtopya-api/internal/platformlog"
@@ -118,10 +119,11 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	// Try to find existing user
 	var userID uuid.UUID
 	var isDisabled bool
+	var currentAuthorSlug string
 	err := db.QueryRow(
-		"SELECT id, COALESCE(is_disabled, false) FROM users WHERE logto_user_id = $1",
+		"SELECT id, COALESCE(is_disabled, false), COALESCE(author_slug, '') FROM users WHERE logto_user_id = $1",
 		logtoUserID,
-	).Scan(&userID, &isDisabled)
+	).Scan(&userID, &isDisabled, &currentAuthorSlug)
 
 	if err == nil {
 		if isDisabled {
@@ -131,6 +133,7 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 		email := getClaimString(claims, "email")
 		name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
 		picture := getClaimString(claims, "picture", "avatar")
+		username := getClaimString(claims, "username")
 		_, _ = db.Exec(`
 			UPDATE users
 			SET email = COALESCE(email, $2),
@@ -138,6 +141,9 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 			    avatar_url = COALESCE(avatar_url, $4)
 			WHERE id = $1
 		`, userID, nullString(email), nullString(name), nullString(picture))
+		if _, err := syncAuthorSlug(db, userID, currentAuthorSlug, username); err != nil {
+			return uuid.Nil, err
+		}
 		_ = policy.NewService(db).EnsureUserMembership(context.Background(), userID)
 		return userID, nil
 	}
@@ -151,11 +157,16 @@ func getOrCreateUser(logtoUserID string, claims jwt.MapClaims) (uuid.UUID, error
 	email := getClaimString(claims, "email")
 	name := getClaimString(claims, "name", "preferred_username", "username", "nickname")
 	picture := getClaimString(claims, "picture", "avatar")
+	username := getClaimString(claims, "username")
+	initialSlug, err := pickUniqueAuthorSlug(db, userID, username)
+	if err != nil {
+		return uuid.Nil, err
+	}
 
 	_, err = db.Exec(`
-		INSERT INTO users (id, logto_user_id, email, display_name, avatar_url)
-		VALUES ($1, $2, $3, $4, $5)
-	`, userID, logtoUserID, nullString(email), nullString(name), nullString(picture))
+		INSERT INTO users (id, logto_user_id, email, display_name, avatar_url, author_slug)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, userID, logtoUserID, nullString(email), nullString(name), nullString(picture), initialSlug)
 
 	if err != nil {
 		return uuid.Nil, err
@@ -185,6 +196,145 @@ func getClaimString(claims jwt.MapClaims, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeAuthorSlugCandidate(raw string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(raw, "@")))
+	if trimmed == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	lastWasDash := false
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			builder.WriteRune(r)
+			lastWasDash = false
+		case r == '.' || r == '_':
+			builder.WriteRune(r)
+			lastWasDash = false
+		case r == '-':
+			if builder.Len() > 0 && !lastWasDash {
+				builder.WriteRune(r)
+				lastWasDash = true
+			}
+		default:
+			if builder.Len() > 0 && !lastWasDash {
+				builder.WriteRune('-')
+				lastWasDash = true
+			}
+		}
+	}
+
+	return strings.Trim(builder.String(), "-.")
+}
+
+func temporaryAuthorSlug(userID uuid.UUID) string {
+	base := strings.ReplaceAll(userID.String(), "-", "")
+	if len(base) > 8 {
+		base = base[:8]
+	}
+	return "u-" + base
+}
+
+func resolveUniqueAuthorSlug(db *sql.DB, userID uuid.UUID, preferred string) (string, error) {
+	base := normalizeAuthorSlugCandidate(preferred)
+	if base == "" {
+		base = temporaryAuthorSlug(userID)
+	}
+
+	candidate := base
+	for suffix := 2; suffix <= 9999; suffix++ {
+		var exists bool
+		err := db.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM users WHERE author_slug = $1 AND id <> $2
+			)
+		`, candidate, userID).Scan(&exists)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return candidate, nil
+		}
+		candidate = fmt.Sprintf("%s-%d", base, suffix)
+	}
+
+	return "", fmt.Errorf("unable to allocate unique author slug for user %s", userID.String())
+}
+
+func pickUniqueAuthorSlug(db *sql.DB, userID uuid.UUID, username string) (string, error) {
+	preferred := normalizeAuthorSlugCandidate(username)
+	if preferred == "" {
+		preferred = temporaryAuthorSlug(userID)
+	}
+	return resolveUniqueAuthorSlug(db, userID, preferred)
+}
+
+func syncAuthorSlug(db *sql.DB, userID uuid.UUID, currentSlug string, username string) (string, error) {
+	targetSlug, err := pickUniqueAuthorSlug(db, userID, username)
+	if err != nil {
+		return "", err
+	}
+
+	normalizedCurrent := normalizeAuthorSlugCandidate(currentSlug)
+	if normalizedCurrent == targetSlug {
+		if currentSlug != normalizedCurrent {
+			if _, err := db.Exec(
+				"UPDATE users SET author_slug = $2 WHERE id = $1",
+				userID,
+				normalizedCurrent,
+			); err != nil {
+				return "", err
+			}
+		}
+		return targetSlug, nil
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if normalizedCurrent != "" && normalizedCurrent != targetSlug {
+		if _, err := tx.Exec(`
+			INSERT INTO author_slug_redirects (old_slug, user_id)
+			VALUES ($1, $2)
+			ON CONFLICT (old_slug)
+			DO UPDATE SET user_id = EXCLUDED.user_id, created_at = NOW()
+		`, normalizedCurrent, userID); err != nil {
+			return "", err
+		}
+	}
+
+	if _, err := tx.Exec(
+		"UPDATE users SET author_slug = $2 WHERE id = $1",
+		userID,
+		targetSlug,
+	); err != nil {
+		return "", err
+	}
+
+	if _, err := tx.Exec(
+		"DELETE FROM author_slug_redirects WHERE old_slug = $1 AND user_id = $2",
+		targetSlug,
+		userID,
+	); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	committed = true
+	return targetSlug, nil
 }
 
 func maybeGrantMembershipMonthlyPoints(userID uuid.UUID) {

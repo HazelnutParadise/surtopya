@@ -419,6 +419,7 @@
     "mergeConflictUnknownQuestion": "Unknown question",
     "mergeConflictValueFallback": "(no value)",
     "earnPoints": "Earn {points} Points",
+    "authorBy": "by {name}",
     "aboutTitle": "About this Survey",
     "questionPreviewTitle": "What You'll Be Asked",
     "noQuestions": "No questions preview available.",
@@ -508,7 +509,8 @@
     "nonPublic": "Non-public",
     "points": "{count} PTS",
     "loginRequired": "Login Required",
-    "alreadySubmitted": "Completed"
+    "alreadySubmitted": "Completed",
+    "anonymousAuthor": "Anonymous author"
   },
   "Profile": {
     "title": "Profile",
@@ -525,6 +527,14 @@
     "phoneNumber": "Phone Number",
     "location": "Location",
     "saveChanges": "Save Changes",
+    "publicProfileTitle": "Author Page Visibility",
+    "publicProfileDescription": "Choose which profile fields can appear on your public author page.",
+    "showDisplayName": "Show display name",
+    "showAvatar": "Show avatar",
+    "showBio": "Show bio",
+    "showLocation": "Show location",
+    "showPhone": "Show phone",
+    "showEmail": "Show email",
     "securityTitle": "Security",
     "securityDescription": "Manage your password and security settings.",
     "changePasswordTitle": "Change Password",
@@ -631,6 +641,8 @@
     "datasetCount": "{count} datasets",
     "published": "Published",
     "draft": "Draft",
+    "authorBy": "by {name}",
+    "authorAnonymous": "Anonymous author",
     "surveyMeta": "Responses {responses} • Points {points}",
     "datasetMeta": "{access} • Samples {samples}",
     "editSurvey": "Edit survey",
@@ -884,6 +896,15 @@
     "pointsStrategyRejectAll": "Reject all",
     "pointsStrategySkipInsufficient": "Skip insufficient",
     "pointsStrategyFloorToZero": "Floor to zero"
+  },
+  "AuthorPage": {
+    "title": "Author",
+    "subtitle": "Public profile and published surveys",
+    "surveysTitle": "Published Surveys",
+    "emptySurveys": "No published public surveys yet.",
+    "memberSince": "Member since",
+    "anonymousAuthor": "Anonymous author",
+    "loadError": "Failed to load author page."
   },
   "LegalTerms": {
     "title": "Terms of Service Summary",

@@ -9,11 +9,13 @@
 | Root layout and bootstrap flow | `layout.tsx` | Locale, auth bootstrap, global providers |
 | Main site pages | `(main)/**` | Marketing, dashboard, datasets, docs, pricing |
 | Survey builder and response pages | `create/**`, `survey/**` | Build/take survey flows |
+| Author pages | `(main)/author/**` | Public author profile + published survey listing via `@slug` URLs |
 | App-internal API handlers | `api/app/**` | BFF endpoints consumed by web app |
 | Docs/auth handlers | `api/docs/**`, `api/logto/**` | OpenAPI and auth action routes |
 
 ## Current Contracts
 - Use route handlers in `api/app/**` as the frontend BFF boundary for app operations.
+- `@slug` public author URLs are rewritten in middleware to internal `/author/[slug]` routes.
 - Keep route handler semantics aligned with backend router contracts (`/api/app/*` and `/v1/*`).
 - Locale behavior is controlled by cookies/headers/path utilities (`LocaleSync`, `locale.ts`), not a dedicated `[locale]` route folder.
 - Root layout owns global concerns (messages, timezone, bootstrap auth redirect, effects/providers).

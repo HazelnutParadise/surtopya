@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | App routes/layouts | `src/app` | Page structure and server/client composition |
 | BFF route handlers | `src/app/api/app/**` | Frontend-owned API gateway surface |
+| Author route and handle rewrite | `src/app/(main)/author/**`, `middleware.ts` | Public `@slug` URLs resolve to internal author pages |
 | Shared web integrations | `src/lib` | API base resolution, internal signatures, i18n helpers |
 | UI components | `src/components/ui` | Reusable primitives |
 | Builder feature | `src/components/builder` | Survey authoring logic and technical debt hotspot |

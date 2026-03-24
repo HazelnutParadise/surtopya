@@ -27,6 +27,7 @@ import (
 // AdminHandler handles admin management endpoints.
 type AdminHandler struct {
 	surveys  *repository.SurveyRepository
+	authors  *repository.AuthorRepository
 	datasets *repository.DatasetRepository
 	policies *policy.Service
 }
@@ -36,6 +37,7 @@ func NewAdminHandler() *AdminHandler {
 	db := database.GetDB()
 	return &AdminHandler{
 		surveys:  repository.NewSurveyRepository(db),
+		authors:  repository.NewAuthorRepository(db),
 		datasets: repository.NewDatasetRepository(db),
 		policies: policy.NewService(db),
 	}
@@ -228,6 +230,10 @@ func (h *AdminHandler) GetSurveys(c *gin.Context) {
 	surveys, err := h.surveys.GetAllAdmin(search, visibility, publishedFilter, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get surveys"})
+		return
+	}
+	if err := attachAuthorsToSurveys(surveys, h.authors); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve survey authors"})
 		return
 	}
 

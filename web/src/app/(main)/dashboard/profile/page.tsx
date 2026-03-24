@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Switch } from "@/components/ui/switch"
 import { Camera, Mail, User, Phone, MapPin } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useLocale, useTimeZone, useTranslations } from "next-intl"
@@ -24,6 +25,14 @@ export default function ProfilePage() {
     bio: "",
     phone: "",
     location: "",
+    publicProfile: {
+      showDisplayName: true,
+      showAvatar: true,
+      showBio: false,
+      showLocation: false,
+      showPhone: false,
+      showEmail: false,
+    },
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -49,6 +58,14 @@ export default function ProfilePage() {
           bio: payload.bio || "",
           phone: payload.phone || "",
           location: payload.location || "",
+          publicProfile: {
+            showDisplayName: Boolean(payload.publicProfile?.showDisplayName ?? true),
+            showAvatar: Boolean(payload.publicProfile?.showAvatar ?? true),
+            showBio: Boolean(payload.publicProfile?.showBio ?? false),
+            showLocation: Boolean(payload.publicProfile?.showLocation ?? false),
+            showPhone: Boolean(payload.publicProfile?.showPhone ?? false),
+            showEmail: Boolean(payload.publicProfile?.showEmail ?? false),
+          },
         })
       } catch (err) {
         if (isMounted) {
@@ -74,6 +91,14 @@ export default function ProfilePage() {
       bio: profile.bio || "",
       phone: profile.phone || "",
       location: profile.location || "",
+      publicProfile: {
+        showDisplayName: Boolean(profile.publicProfile?.showDisplayName ?? true),
+        showAvatar: Boolean(profile.publicProfile?.showAvatar ?? true),
+        showBio: Boolean(profile.publicProfile?.showBio ?? false),
+        showLocation: Boolean(profile.publicProfile?.showLocation ?? false),
+        showPhone: Boolean(profile.publicProfile?.showPhone ?? false),
+        showEmail: Boolean(profile.publicProfile?.showEmail ?? false),
+      },
     })
   }
 
@@ -89,6 +114,7 @@ export default function ProfilePage() {
           bio: form.bio,
           phone: form.phone,
           location: form.location,
+          publicProfile: form.publicProfile,
         }),
       })
       if (!response.ok) {
@@ -103,6 +129,7 @@ export default function ProfilePage() {
               bio: form.bio,
               phone: form.phone,
               location: form.location,
+              publicProfile: form.publicProfile,
             }
           : prev
       )
@@ -259,6 +286,38 @@ export default function ProfilePage() {
                       className="h-11 focus:ring-purple-500/20"
                     />
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 space-y-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{tProfile("publicProfileTitle")}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{tProfile("publicProfileDescription")}</p>
+                  </div>
+
+                  {([
+                    ["showDisplayName", tProfile("showDisplayName")],
+                    ["showAvatar", tProfile("showAvatar")],
+                    ["showBio", tProfile("showBio")],
+                    ["showLocation", tProfile("showLocation")],
+                    ["showPhone", tProfile("showPhone")],
+                    ["showEmail", tProfile("showEmail")],
+                  ] as const).map(([key, label]) => (
+                    <div key={key} className="flex items-center justify-between gap-4 py-1">
+                      <span className="text-sm text-gray-700 dark:text-gray-200">{label}</span>
+                      <Switch
+                        checked={Boolean(form.publicProfile[key])}
+                        onCheckedChange={(checked) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            publicProfile: {
+                              ...prev.publicProfile,
+                              [key]: checked,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
                 </div>
 
                 {error && <p className="text-sm text-red-600">{error}</p>}

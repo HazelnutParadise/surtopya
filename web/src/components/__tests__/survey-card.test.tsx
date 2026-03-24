@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import type { ComponentProps } from "react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { SurveyCard } from "@/components/survey-card"
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+}))
 
 const messages = {
   SurveyCard: {
@@ -15,6 +21,7 @@ const messages = {
     points: "{count} PTS",
     loginRequired: "Login Required",
     alreadySubmitted: "Completed",
+    anonymousAuthor: "Anonymous author",
   },
   Dashboard: {
     statusPublished: "Published",
@@ -52,9 +59,10 @@ describe("SurveyCard status labels", () => {
 
     expect(screen.queryByText("HOT")).not.toBeInTheDocument()
     expect(screen.getByText("Completed")).toBeInTheDocument()
-    expect(screen.getByTestId("survey-card-survey-1").firstChild).toHaveClass("bg-slate-100")
-    expect(screen.getByTestId("survey-card-survey-1").firstChild).not.toHaveClass("grayscale-[0.4]")
-    expect(screen.getByTestId("survey-card-survey-1").firstChild).not.toHaveClass("opacity-75")
+    const card = screen.getByTestId("survey-card-survey-1")
+    expect(card).toHaveClass("bg-slate-100")
+    expect(card).not.toHaveClass("grayscale-[0.4]")
+    expect(card).not.toHaveClass("opacity-75")
     expect(screen.getByTestId("survey-card-status-completed-survey-1")).toHaveClass("text-emerald-700", "bg-emerald-100")
   })
 

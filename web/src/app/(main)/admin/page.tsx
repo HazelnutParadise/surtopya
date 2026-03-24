@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +41,7 @@ import { trackUIEvent } from "@/lib/ui-telemetry";
 import { utcToDateOnly } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error";
+import { getLocaleFromPath, withLocale } from "@/lib/locale";
 
 const PAGE_SIZE = 20;
 const AGENT_PERMISSIONS = [
@@ -148,6 +151,8 @@ type DeidReviewDetail = {
 };
 
 export default function AdminPage() {
+  const pathname = usePathname()
+  const locale = getLocaleFromPath(pathname ?? "/")
   const tAdmin = useTranslations("Admin");
   const tCommon = useTranslations("Common");
   const timeZone = useTimeZone()
@@ -2428,6 +2433,22 @@ export default function AdminPage() {
                                 </div>
                                 <p className="text-sm text-gray-500 line-clamp-2">
                                   {survey.description}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {survey.author?.slug ? (
+                                    <Link
+                                      href={withLocale(`/@${survey.author.slug}`, locale)}
+                                      className="hover:underline"
+                                    >
+                                      {tAdmin("authorBy", {
+                                        name: survey.author.displayName || tAdmin("authorAnonymous"),
+                                      })}
+                                    </Link>
+                                  ) : (
+                                    tAdmin("authorBy", {
+                                      name: survey.author?.displayName || tAdmin("authorAnonymous"),
+                                    })
+                                  )}
                                 </p>
                                 <div className="text-xs text-gray-400">
                                   {tAdmin("surveyMeta", {

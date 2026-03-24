@@ -29,9 +29,9 @@ func TestAuthMiddleware_DisabledUserReturnsForbidden(t *testing.T) {
 	require.NoError(t, err)
 
 	userID := uuid.New()
-	mock.ExpectQuery("SELECT id, COALESCE\\(is_disabled, false\\) FROM users WHERE logto_user_id = \\$1").
+	mock.ExpectQuery("SELECT id, COALESCE\\(is_disabled, false\\), COALESCE\\(author_slug, ''\\) FROM users WHERE logto_user_id = \\$1").
 		WithArgs("logto|disabled-user").
-		WillReturnRows(sqlmock.NewRows([]string{"id", "is_disabled"}).AddRow(userID, true))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "is_disabled", "author_slug"}).AddRow(userID, true, "u-disabled"))
 
 	r := gin.New()
 	r.Use(AuthMiddleware())

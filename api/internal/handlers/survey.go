@@ -26,6 +26,7 @@ import (
 type SurveyHandler struct {
 	db         *sql.DB
 	repo       *repository.SurveyRepository
+	authorRepo *repository.AuthorRepository
 	policies   *policy.Service
 	pointsRepo *repository.PointsRepository
 	logger     *platformlog.Logger
@@ -54,6 +55,7 @@ func NewSurveyHandler() *SurveyHandler {
 	return &SurveyHandler{
 		db:         db,
 		repo:       repository.NewSurveyRepository(db),
+		authorRepo: repository.NewAuthorRepository(db),
 		policies:   policy.NewService(db),
 		pointsRepo: repository.NewPointsRepository(db),
 		logger:     platformlog.NewLogger(db),
@@ -329,6 +331,11 @@ func (h *SurveyHandler) GetSurvey(c *gin.Context) {
 		return
 	}
 
+	if err := attachAuthorToSurvey(survey, h.authorRepo); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve survey author"})
+		return
+	}
+
 	// Check access permission
 	userID, exists := c.Get("userID")
 	isPublished := survey.CurrentPublishedVersionID != nil
@@ -369,6 +376,10 @@ func (h *SurveyHandler) GetMySurveys(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get surveys"})
 		return
 	}
+	if err := attachAuthorsToSurveys(surveys, h.authorRepo); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve survey authors"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"surveys": surveys})
 }
@@ -397,6 +408,10 @@ func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 	surveys, err := h.repo.GetPublicSurveys(limit, offset, viewerUserID, viewerAnonymousID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get surveys"})
+		return
+	}
+	if err := attachAuthorsToSurveys(surveys, h.authorRepo); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve survey authors"})
 		return
 	}
 

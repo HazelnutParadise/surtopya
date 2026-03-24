@@ -29,7 +29,7 @@ func TestUserHandler_GetProfile_IncludesMonthlyGrantFields(t *testing.T) {
 	nextGrant := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery("SELECT email, display_name, avatar_url, phone, bio, location,\\s+points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale, created_at\\s+FROM users WHERE id = \\$1").
+	mock.ExpectQuery("SELECT email, display_name, avatar_url, phone, bio, location,\\s+points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale,\\s+public_show_display_name, public_show_avatar_url, public_show_bio,\\s+public_show_location, public_show_phone, public_show_email,\\s+created_at\\s+FROM users WHERE id = \\$1").
 		WithArgs(userID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"email",
@@ -43,6 +43,12 @@ func TestUserHandler_GetProfile_IncludesMonthlyGrantFields(t *testing.T) {
 			"is_admin",
 			"is_super_admin",
 			"locale",
+			"public_show_display_name",
+			"public_show_avatar_url",
+			"public_show_bio",
+			"public_show_location",
+			"public_show_phone",
+			"public_show_email",
 			"created_at",
 		}).AddRow(
 			"user@example.com",
@@ -56,6 +62,12 @@ func TestUserHandler_GetProfile_IncludesMonthlyGrantFields(t *testing.T) {
 			false,
 			true,
 			"en",
+			true,
+			true,
+			false,
+			false,
+			false,
+			false,
 			createdAt,
 		))
 
@@ -116,7 +128,7 @@ func TestUserHandler_GetProfile_ClearsNextGrantWhenMonthlyGrantDisabled(t *testi
 	nextGrant := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery("SELECT email, display_name, avatar_url, phone, bio, location,\\s+points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale, created_at\\s+FROM users WHERE id = \\$1").
+	mock.ExpectQuery("SELECT email, display_name, avatar_url, phone, bio, location,\\s+points_balance, pro_points_next_grant_at, is_admin, is_super_admin, locale,\\s+public_show_display_name, public_show_avatar_url, public_show_bio,\\s+public_show_location, public_show_phone, public_show_email,\\s+created_at\\s+FROM users WHERE id = \\$1").
 		WithArgs(userID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"email",
@@ -130,6 +142,12 @@ func TestUserHandler_GetProfile_ClearsNextGrantWhenMonthlyGrantDisabled(t *testi
 			"is_admin",
 			"is_super_admin",
 			"locale",
+			"public_show_display_name",
+			"public_show_avatar_url",
+			"public_show_bio",
+			"public_show_location",
+			"public_show_phone",
+			"public_show_email",
 			"created_at",
 		}).AddRow(
 			"user@example.com",
@@ -143,6 +161,12 @@ func TestUserHandler_GetProfile_ClearsNextGrantWhenMonthlyGrantDisabled(t *testi
 			false,
 			true,
 			"en",
+			true,
+			true,
+			false,
+			false,
+			false,
+			false,
 			createdAt,
 		))
 

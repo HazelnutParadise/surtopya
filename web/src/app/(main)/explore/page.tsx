@@ -221,6 +221,15 @@ function ExploreContent() {
                   id={survey.id}
                   title={survey.title}
                   description={survey.description}
+                  author={
+                    survey.author
+                      ? {
+                          name: survey.author.displayName,
+                          image: survey.author.avatarUrl,
+                          slug: survey.author.slug,
+                        }
+                      : undefined
+                  }
                   points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                   responses={survey.responseCount}
                   visibility={survey.visibility}

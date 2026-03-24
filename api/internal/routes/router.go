@@ -44,6 +44,7 @@ func setupRouter(options setupOptions) *gin.Engine {
 	datasetHandler := handlers.NewDatasetHandler()
 	agentAdminHandler := handlers.NewAgentAdminHandler()
 	adminHandler := handlers.NewAdminHandler()
+	authorHandler := handlers.NewAuthorHandler()
 	userSettingsHandler := handlers.NewUserSettingsHandler()
 	userHandler := handlers.NewUserHandler()
 
@@ -98,6 +99,7 @@ func setupRouter(options setupOptions) *gin.Engine {
 			app.GET("/bootstrap", adminHandler.GetBootstrapStatus)
 			app.GET("/config", adminHandler.GetPublicConfig)
 			app.GET("/pricing/plans", adminHandler.GetPricingPlans)
+			app.GET("/authors/:slug", authorHandler.GetAuthor)
 
 			me := app.Group("/me", middleware.RequireAuth())
 			{
@@ -169,6 +171,8 @@ func setupRouter(options setupOptions) *gin.Engine {
 			datasets.POST("/:id/purchase", datasetHandler.PurchaseDataset)
 			datasets.POST("/:id/download", datasetHandler.DownloadDataset)
 		}
+
+		v1.GET("/authors/:slug", authorHandler.GetAuthor)
 
 		agentDocs := v1.Group("/agent-admin")
 		{

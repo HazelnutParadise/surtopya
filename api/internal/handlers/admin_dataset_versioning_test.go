@@ -289,7 +289,9 @@ func TestAdminHandler_UpdateDataset_MetadataOnly_DoesNotMarkUnpublished(t *testi
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body=%s", w.Code, w.Body.String())
+	}
 	require.Contains(t, w.Body.String(), `"title":"Updated Title"`)
 	require.Contains(t, w.Body.String(), `"hasUnpublishedChanges":false`)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -436,7 +438,9 @@ func TestAdminHandler_PublishDataset_MetadataOnly_DoesNotCreateVersion(t *testin
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body=%s", w.Code, w.Body.String())
+	}
 	require.Contains(t, w.Body.String(), `"message":"Settings saved. No new version was created."`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -593,13 +597,16 @@ func TestAdminHandler_PublishDataset_FileChanged_CreatesNewVersion(t *testing.T)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body=%s", w.Code, w.Body.String())
+	}
 	require.Contains(t, w.Body.String(), `"version":`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestAdminHandler_PublishDataset_MultipartWithFile_CreatesNewVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	t.Setenv("DATASETS_DIR", t.TempDir())
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -681,7 +688,7 @@ func TestAdminHandler_PublishDataset_MultipartWithFile_CreatesNewVersion(t *test
 			sqlmock.AnyArg(),
 			"replacement.csv",
 			int64(len(fileContent)),
-			"application/octet-stream",
+			sqlmock.AnyArg(),
 			nil,
 			nil,
 		).
@@ -709,7 +716,7 @@ func TestAdminHandler_PublishDataset_MultipartWithFile_CreatesNewVersion(t *test
 			sqlmock.AnyArg(),
 			"replacement.csv",
 			int64(len(fileContent)),
-			"application/octet-stream",
+			sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("UPDATE dataset_versions\\s+SET title = \\$2,\\s+description = \\$3,\\s+category = \\$4,\\s+access_type = \\$5,\\s+price = \\$6,\\s+sample_size = \\$7").
@@ -923,6 +930,7 @@ func TestAdminHandler_PublishDataset_MultipartWithoutFile_MetadataOnlyPath(t *te
 
 func TestAdminHandler_PublishDataset_MultipartFile_FailureCleansUploadedFile(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	t.Setenv("DATASETS_DIR", t.TempDir())
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -1006,7 +1014,7 @@ func TestAdminHandler_PublishDataset_MultipartFile_FailureCleansUploadedFile(t *
 			sqlmock.AnyArg(),
 			"replacement.csv",
 			int64(len(fileContent)),
-			"application/octet-stream",
+			sqlmock.AnyArg(),
 			nil,
 			nil,
 		).

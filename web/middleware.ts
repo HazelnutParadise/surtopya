@@ -6,6 +6,12 @@ const getLocaleFromPath = (pathname: string) => {
   return locales.includes(segment as (typeof locales)[number]) ? segment : null
 }
 
+const rewriteAuthorHandlePath = (pathname: string) => {
+  const match = pathname.match(/^\/@([^/]+)$/)
+  if (!match) return pathname
+  return `/author/${match[1]}`
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const locale = getLocaleFromPath(pathname)
@@ -14,7 +20,7 @@ export function middleware(request: NextRequest) {
   if (locale) {
     const url = request.nextUrl.clone()
     const strippedPath = pathname.replace(`/${locale}`, "") || "/"
-    url.pathname = strippedPath
+    url.pathname = rewriteAuthorHandlePath(strippedPath)
 
     // Make SSR use the locale from the URL prefix on the first request (no flash of default locale).
     const requestHeaders = new Headers(request.headers)

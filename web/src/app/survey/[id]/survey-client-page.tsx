@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Navbar } from "@/components/navbar"
 import { SurveyRenderer } from "@/components/survey/survey-renderer"
 import { Button } from "@/components/ui/button"
@@ -1289,7 +1290,18 @@ export function SurveyClientPage({
               </Badge>
             </div>
             <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{survey.title}</h1>
-            {survey.creatorName && <p className="text-xl text-white/80">by {survey.creatorName}</p>}
+            {survey.creatorSlug ? (
+              <p className="text-xl text-white/80">
+                <Link
+                  href={withLocale(`/@${survey.creatorSlug}`, locale)}
+                  className="underline-offset-2 hover:underline"
+                >
+                  {t("authorBy", { name: survey.creatorName || tCard("anonymousAuthor") })}
+                </Link>
+              </p>
+            ) : survey.creatorName ? (
+              <p className="text-xl text-white/80">{t("authorBy", { name: survey.creatorName })}</p>
+            ) : null}
           </div>
         </header>
 

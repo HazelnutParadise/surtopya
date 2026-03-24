@@ -240,6 +240,12 @@ export interface Question {
 export interface Survey {
   id: string;
   userId?: string;
+  author?: {
+    id: string;
+    slug: string;
+    displayName: string;
+    avatarUrl?: string;
+  };
   title: string;
   description: string;
   visibility: "public" | "non-public";
@@ -600,10 +606,40 @@ export interface UserProfile {
   membershipIsPermanent?: boolean;
   capabilities: Record<string, boolean>;
   locale: string;
+  publicProfile: {
+    showDisplayName: boolean;
+    showAvatar: boolean;
+    showBio: boolean;
+    showLocation: boolean;
+    showPhone: boolean;
+    showEmail: boolean;
+  };
   createdAt: string;
   surveysCompleted: number;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+}
+
+export interface AuthorPageAuthor {
+  id: string;
+  slug: string;
+  displayName: string;
+  avatarUrl?: string;
+  bio?: string;
+  location?: string;
+  phone?: string;
+  email?: string;
+  memberSince: string;
+}
+
+export interface AuthorPageResponse {
+  author: AuthorPageAuthor;
+  surveys: Survey[];
+  canonicalSlug: string;
+  meta?: {
+    limit?: number;
+    offset?: number;
+  };
 }
 
 export interface AdminUser {

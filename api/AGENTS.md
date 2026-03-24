@@ -15,6 +15,7 @@
 | Handlers | `internal/handlers` | Transport layer and HTTP mapping |
 | Middleware | `internal/middleware` | Auth/admin/agent/internal-app gates and request guards |
 | Repositories | `internal/repository` | SQL persistence and transaction boundaries |
+| Author profile/public pages | `internal/handlers/author.go`, `internal/repository/author_repo.go` | `@slug` resolution, redirect aliases, public field filtering |
 | Domain modules | `internal/agentadmin`, `internal/deid`, `internal/platformlog`, `internal/policy`, `internal/surveyanalytics` | Service-level domain behavior |
 
 ## Current Contracts

@@ -5,6 +5,7 @@
 # Go
 api/bin/
 api/main
+.gocache/
 
 # Next.js / Node
 web/.next/

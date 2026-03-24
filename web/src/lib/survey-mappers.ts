@@ -6,6 +6,14 @@ export type SurveyDisplay = UiSurvey & {
   hasResponded?: boolean
   estimatedMinutes?: number
   creatorName?: string
+  creatorSlug?: string
+  creatorAvatarUrl?: string
+  author?: {
+    id: string
+    slug: string
+    displayName: string
+    avatarUrl?: string
+  }
   createdAt?: string
 }
 
@@ -55,6 +63,10 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
     responseCount: survey.responseCount,
     hasResponded: Boolean(survey.hasResponded),
     estimatedMinutes,
+    author: survey.author,
+    creatorName: survey.author?.displayName,
+    creatorSlug: survey.author?.slug,
+    creatorAvatarUrl: survey.author?.avatarUrl,
     createdAt: survey.createdAt,
   }
 }
