@@ -9,9 +9,11 @@ export async function GET(request: Request) {
   const params = new URLSearchParams()
   const limit = searchParams.get("limit")
   const offset = searchParams.get("offset")
+  const sort = searchParams.get("sort")
 
   if (limit) params.set("limit", limit)
   if (offset) params.set("offset", offset)
+  if (sort) params.set("sort", sort)
 
   const token = await getAuthToken()
   const cookieStore = await cookies()

@@ -68,7 +68,47 @@ func TestSurveyRepository_GetPublicSurveys_FiltersDeletedSurveys(t *testing.T) {
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
 		}))
 
-	surveys, err := repo.GetPublicSurveys(20, 0, nil, nil)
+	surveys, err := repo.GetPublicSurveys(20, 0, "newest", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, surveys, 0)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetPublicSurveys_NewestSortUsesPublishedFallback(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	queryPattern := `ORDER BY COALESCE\(s\.published_at, s\.created_at\) DESC, s\.id ASC`
+	mock.ExpectQuery(queryPattern).
+		WithArgs(20, 0, nil, nil).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"expires_at", "response_count", "created_at", "updated_at", "published_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
+		}))
+
+	surveys, err := repo.GetPublicSurveys(20, 0, "newest", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, surveys, 0)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetPublicSurveys_RecommendedSortUsesResponseDemotionAndScore(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	queryPattern := `(?s)ROW_NUMBER\(\) OVER \(\s*PARTITION BY e\.user_id\s*ORDER BY e\.first_published_at ASC, e\.id ASC\s*\)\s+AS author_publish_rank.*ORDER BY\s*wp\.has_responded ASC.*wp\.first_published_at - wp\.previous_first_published_at >= INTERVAL '90 days'.*CASE WHEN wp\.author_publish_rank <= 5 THEN 0\.03 ELSE 0\.0 END`
+	mock.ExpectQuery(queryPattern).
+		WithArgs(20, 0, nil, nil).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"expires_at", "response_count", "created_at", "updated_at", "published_at",
+			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
+		}))
+
+	surveys, err := repo.GetPublicSurveys(20, 0, "recommended", nil, nil)
 	require.NoError(t, err)
 	require.Len(t, surveys, 0)
 	require.NoError(t, mock.ExpectationsWereMet())

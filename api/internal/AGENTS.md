@@ -21,6 +21,7 @@
 - Request auth context flows through Gin context; middleware sets identity and role data.
 - DB readiness gate is enforced before v1/internal app business routes.
 - Internal app routes require valid timestamp + HMAC signature checks.
+- Public survey listing supports sort query values `recommended`, `newest`, `points-high` (default `newest`).
 - Keep JSON/API field naming in `snake_case` for external contracts.
 
 ## Anti-Patterns

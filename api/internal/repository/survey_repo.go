@@ -17,6 +17,25 @@ type SurveyRepository struct {
 	db *sql.DB
 }
 
+const (
+	publicSurveySortRecommended = "recommended"
+	publicSurveySortNewest      = "newest"
+	publicSurveySortPointsHigh  = "points-high"
+)
+
+func normalizePublicSurveySort(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case publicSurveySortRecommended:
+		return publicSurveySortRecommended
+	case publicSurveySortPointsHigh:
+		return publicSurveySortPointsHigh
+	case publicSurveySortNewest:
+		fallthrough
+	default:
+		return publicSurveySortNewest
+	}
+}
+
 // NewSurveyRepository creates a new SurveyRepository
 func NewSurveyRepository(db *sql.DB) *SurveyRepository {
 	return &SurveyRepository{db: db}
@@ -347,9 +366,12 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 // GetPublicSurveys retrieves all public surveys with responses currently open.
 func (r *SurveyRepository) GetPublicSurveys(
 	limit, offset int,
+	sort string,
 	viewerUserID *uuid.UUID,
 	viewerAnonymousID *string,
 ) ([]models.Survey, error) {
+	normalizedSort := normalizePublicSurveySort(sort)
+
 	var viewerArg interface{}
 	if viewerUserID != nil {
 		viewerArg = *viewerUserID
@@ -359,35 +381,186 @@ func (r *SurveyRepository) GetPublicSurveys(
 		anonymousArg = *viewerAnonymousID
 	}
 
-	query := `
-		SELECT s.id, s.user_id, s.title, s.description, s.visibility,
-			s.require_login_to_respond,
-			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
-			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
-			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
-			s.current_published_version_id, s.current_published_version_number,
-			s.has_unpublished_changes, s.deleted_at, s.is_hot,
-			CASE
-				WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
-				ELSE EXISTS(
-					SELECT 1
-					FROM survey_response_once_locks sr
-					WHERE sr.survey_id = s.id
-					  AND (
-					  	($3::uuid IS NOT NULL AND sr.user_id = $3::uuid)
-						OR (NULLIF($4::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($4::text, ''))
-					  )
-				)
-			END AS has_responded
-		FROM surveys s
-		JOIN survey_versions sv ON sv.id = s.current_published_version_id
-		WHERE s.visibility = 'public'
-		  AND s.deleted_at IS NULL
-		  AND s.is_response_open = true
-		  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
-		ORDER BY s.published_at DESC
-		LIMIT $1 OFFSET $2
-	`
+	var query string
+	switch normalizedSort {
+	case publicSurveySortRecommended:
+		query = `
+			WITH survey_first_publish AS (
+				SELECT
+					sv.survey_id,
+					MIN(sv.published_at) AS first_published_at
+				FROM survey_versions sv
+				GROUP BY sv.survey_id
+			),
+			author_survey_first_publish AS (
+				SELECT
+					s.id AS survey_id,
+					s.user_id,
+					COALESCE(sfp.first_published_at, COALESCE(s.published_at, s.created_at)) AS first_published_at
+				FROM surveys s
+				LEFT JOIN survey_first_publish sfp ON sfp.survey_id = s.id
+			),
+			eligible AS (
+				SELECT
+					s.id, s.user_id, s.title, s.description, s.visibility,
+					s.require_login_to_respond,
+					(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+					s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+					s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+					s.current_published_version_id, s.current_published_version_number,
+					s.has_unpublished_changes, s.deleted_at, s.is_hot,
+					u.created_at AS author_created_at,
+					COALESCE(s.published_at, s.created_at) AS ranking_published_at,
+					COALESCE(sfp.first_published_at, COALESCE(s.published_at, s.created_at)) AS first_published_at,
+					CASE
+						WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
+						ELSE EXISTS(
+							SELECT 1
+							FROM survey_response_once_locks sr
+							WHERE sr.survey_id = s.id
+							  AND (
+							  	($3::uuid IS NOT NULL AND sr.user_id = $3::uuid)
+								OR (NULLIF($4::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($4::text, ''))
+							  )
+						)
+					END AS has_responded
+				FROM surveys s
+				JOIN survey_versions sv ON sv.id = s.current_published_version_id
+				JOIN users u ON u.id = s.user_id
+				LEFT JOIN survey_first_publish sfp ON sfp.survey_id = s.id
+				WHERE s.visibility = 'public'
+				  AND s.deleted_at IS NULL
+				  AND s.is_response_open = TRUE
+				  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
+			),
+			ranked AS (
+				SELECT
+					e.*,
+					ROW_NUMBER() OVER (
+						PARTITION BY e.user_id
+						ORDER BY e.first_published_at ASC, e.id ASC
+					) AS author_publish_rank
+				FROM eligible e
+			),
+			with_previous AS (
+				SELECT
+					ranked.*,
+					prev.previous_first_published_at
+				FROM ranked
+				LEFT JOIN LATERAL (
+					SELECT MAX(prev.first_published_at) AS previous_first_published_at
+					FROM author_survey_first_publish prev
+					WHERE prev.user_id = ranked.user_id
+					  AND prev.survey_id <> ranked.id
+					  AND prev.first_published_at < ranked.first_published_at
+				) prev ON TRUE
+			)
+			SELECT
+				wp.id, wp.user_id, wp.title, wp.description, wp.visibility,
+				wp.require_login_to_respond, wp.is_response_open_effective,
+				wp.include_in_datasets, wp.ever_public, wp.published_count, wp.theme, wp.points_reward,
+				wp.expires_at, wp.response_count, wp.created_at, wp.updated_at, wp.published_at,
+				wp.current_published_version_id, wp.current_published_version_number,
+				wp.has_unpublished_changes, wp.deleted_at, wp.is_hot, wp.has_responded
+			FROM with_previous wp
+			ORDER BY
+				wp.has_responded ASC,
+				(
+					0.35 * LEAST(
+						1.0,
+						GREATEST(
+							0.0,
+							1.0 - (EXTRACT(EPOCH FROM (NOW() - wp.ranking_published_at)) / 86400.0 / 30.0)
+						)
+					)
+					+ 0.25 * (
+						LEAST(
+							1.0,
+							LN(1.0 + GREATEST(wp.response_count, 0)::double precision) / LN(101.0)
+						) * 0.8
+						+ CASE WHEN wp.is_hot THEN 0.2 ELSE 0.0 END
+					)
+					+ 0.20 * LEAST(1.0, GREATEST(wp.points_reward, 0)::double precision / 30.0)
+					+ 0.10 * LEAST(
+						1.0,
+						GREATEST(
+							0.0,
+							1.0 - (EXTRACT(EPOCH FROM (NOW() - wp.author_created_at)) / 86400.0 / 365.0)
+						)
+					)
+					+ 0.10 * CASE
+						WHEN wp.previous_first_published_at IS NOT NULL
+						 AND wp.first_published_at - wp.previous_first_published_at >= INTERVAL '90 days'
+						THEN 1.0
+						ELSE 0.0
+					END
+					+ CASE WHEN wp.author_publish_rank <= 5 THEN 0.03 ELSE 0.0 END
+				) DESC,
+				wp.ranking_published_at DESC,
+				wp.id ASC
+			LIMIT $1 OFFSET $2
+		`
+	case publicSurveySortPointsHigh:
+		query = `
+			SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+				s.require_login_to_respond,
+				(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+				s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+				s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+				s.current_published_version_id, s.current_published_version_number,
+				s.has_unpublished_changes, s.deleted_at, s.is_hot,
+				CASE
+					WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
+					ELSE EXISTS(
+						SELECT 1
+						FROM survey_response_once_locks sr
+						WHERE sr.survey_id = s.id
+						  AND (
+						  	($3::uuid IS NOT NULL AND sr.user_id = $3::uuid)
+							OR (NULLIF($4::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($4::text, ''))
+						  )
+					)
+				END AS has_responded
+			FROM surveys s
+			JOIN survey_versions sv ON sv.id = s.current_published_version_id
+			WHERE s.visibility = 'public'
+			  AND s.deleted_at IS NULL
+			  AND s.is_response_open = TRUE
+			  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
+			ORDER BY s.points_reward DESC, COALESCE(s.published_at, s.created_at) DESC, s.id ASC
+			LIMIT $1 OFFSET $2
+		`
+	default:
+		query = `
+			SELECT s.id, s.user_id, s.title, s.description, s.visibility,
+				s.require_login_to_respond,
+				(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
+				s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+				s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
+				s.current_published_version_id, s.current_published_version_number,
+				s.has_unpublished_changes, s.deleted_at, s.is_hot,
+				CASE
+					WHEN $3::uuid IS NULL AND NULLIF($4::text, '') IS NULL THEN FALSE
+					ELSE EXISTS(
+						SELECT 1
+						FROM survey_response_once_locks sr
+						WHERE sr.survey_id = s.id
+						  AND (
+						  	($3::uuid IS NOT NULL AND sr.user_id = $3::uuid)
+							OR (NULLIF($4::text, '') IS NOT NULL AND sr.anonymous_id = NULLIF($4::text, ''))
+						  )
+					)
+				END AS has_responded
+			FROM surveys s
+			JOIN survey_versions sv ON sv.id = s.current_published_version_id
+			WHERE s.visibility = 'public'
+			  AND s.deleted_at IS NULL
+			  AND s.is_response_open = TRUE
+			  AND (sv.expires_at IS NULL OR sv.expires_at > NOW())
+			ORDER BY COALESCE(s.published_at, s.created_at) DESC, s.id ASC
+			LIMIT $1 OFFSET $2
+		`
+	}
 
 	rows, err := r.db.Query(query, limit, offset, viewerArg, anonymousArg)
 	if err != nil {

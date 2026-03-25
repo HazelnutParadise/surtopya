@@ -71,11 +71,16 @@ function ExploreContent() {
 
     const fetchSurveys = async () => {
       setLoading(true);
+      setHasMore(true)
+      setOffset(0)
       try {
-        const response = await fetch(`/api/app/surveys/public?limit=${PAGE_SIZE}&offset=0`, {
+        const response = await fetch(
+          `/api/app/surveys/public?limit=${PAGE_SIZE}&offset=0&sort=${encodeURIComponent(sort)}`,
+          {
           cache: "no-store",
           signal: controller.signal,
-        });
+          }
+        );
         if (!response.ok) {
           if (isMounted) {
             setSurveys([]);
@@ -108,16 +113,19 @@ function ExploreContent() {
       isMounted = false;
       controller.abort()
     };
-  }, []);
+  }, [sort]);
 
   const handleLoadMore = async () => {
     if (loadingMore || !hasMore) return
 
     setLoadingMore(true)
     try {
-      const response = await fetch(`/api/app/surveys/public?limit=${PAGE_SIZE}&offset=${offset}`, {
+      const response = await fetch(
+        `/api/app/surveys/public?limit=${PAGE_SIZE}&offset=${offset}&sort=${encodeURIComponent(sort)}`,
+        {
         cache: "no-store",
-      })
+        }
+      )
       if (!response.ok) {
         setHasMore(false)
         return
@@ -145,22 +153,8 @@ function ExploreContent() {
       return matchesSearch;
     });
 
-    return filtered.sort((a, b) => {
-      switch (sort) {
-        case "newest":
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case "points-high":
-          return (
-            surveyBasePoints +
-            Math.floor((b.pointsReward || 0) / 3) -
-            (surveyBasePoints + Math.floor((a.pointsReward || 0) / 3))
-          )
-        case "recommended":
-        default:
-          return 0;
-      }
-    });
-  }, [searchQuery, sort, surveys, surveyBasePoints]);
+    return filtered
+  }, [searchQuery, surveys]);
 
   return (
     <PageMotionShell className="effect-readable-page min-h-screen bg-transparent">

@@ -388,6 +388,7 @@ func (h *SurveyHandler) GetMySurveys(c *gin.Context) {
 func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	sort := c.DefaultQuery("sort", "newest")
 	var viewerUserID *uuid.UUID
 	var viewerAnonymousID *string
 
@@ -405,7 +406,7 @@ func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 		viewerAnonymousID = &anonymousID
 	}
 
-	surveys, err := h.repo.GetPublicSurveys(limit, offset, viewerUserID, viewerAnonymousID)
+	surveys, err := h.repo.GetPublicSurveys(limit, offset, sort, viewerUserID, viewerAnonymousID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get surveys"})
 		return

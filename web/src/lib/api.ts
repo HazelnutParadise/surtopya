@@ -59,9 +59,9 @@ class ApiClient {
     return this.request<{ surveys: Survey[] }>("/surveys/my");
   }
 
-  async getPublicSurveys(limit = 20, offset = 0) {
+  async getPublicSurveys(limit = 20, offset = 0, sort: "recommended" | "newest" | "points-high" = "newest") {
     return this.request<{ surveys: Survey[] }>(
-      `/surveys/public?limit=${limit}&offset=${offset}`,
+      `/surveys/public?limit=${limit}&offset=${offset}&sort=${encodeURIComponent(sort)}`,
     );
   }
 
