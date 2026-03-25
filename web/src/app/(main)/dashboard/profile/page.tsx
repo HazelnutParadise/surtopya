@@ -184,8 +184,15 @@ export default function ProfilePage() {
                         {displayName.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <Button size="icon" variant="secondary" className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-md hover:scale-110 transition-transform" disabled>
-                      <Camera className="h-4 w-4" />
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-md hover:scale-110 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+                      asChild
+                    >
+                      <a href="https://account.hazelnut-paradise.com/dashboard/profile?edit=true" target="_blank" rel="noreferrer" aria-label="Edit avatar">
+                        <Camera className="h-4 w-4" />
+                      </a>
                     </Button>
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{displayName}</h2>
@@ -348,7 +355,11 @@ export default function ProfilePage() {
                     <p className="font-semibold text-gray-900 dark:text-white">{tProfile("changePasswordTitle")}</p>
                     <p className="text-sm text-gray-500">{tProfile("changePasswordDescription")}</p>
                   </div>
-                  <Button variant="secondary" className="md:w-auto" asChild>
+                  <Button
+                    variant="secondary"
+                    className="md:w-auto transition-all hover:scale-[1.02] hover:bg-gray-200 dark:hover:bg-gray-700"
+                    asChild
+                  >
                     <a href="https://account.hazelnut-paradise.com/dashboard/security" target="_blank" rel="noreferrer">
                       {tProfile("manageInAccountCenter")}
                     </a>
