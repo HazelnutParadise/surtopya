@@ -52,6 +52,7 @@ describe("SurveyCard status labels", () => {
 
     expect(screen.getByText("HOT")).toBeInTheDocument()
     expect(screen.queryByText("Completed")).not.toBeInTheDocument()
+    expect(screen.getByTestId("survey-card-status-row-survey-1")).toHaveClass("min-h-6")
   })
 
   it("shows only already-submitted status when submitted and not hot", () => {
@@ -71,7 +72,35 @@ describe("SurveyCard status labels", () => {
 
     expect(screen.getByText("HOT")).toBeInTheDocument()
     expect(screen.getByText("Completed")).toBeInTheDocument()
-    expect(screen.getByTestId("survey-card-statuses-survey-1")).toHaveClass("mr-auto", "items-start")
+    expect(screen.getByTestId("survey-card-footer-actions-survey-1")).toHaveClass("flex-col")
+    expect(screen.getByTestId("survey-card-status-row-survey-1")).toHaveClass("justify-end")
+    expect(screen.getByTestId("survey-card-status-row-survey-1")).toHaveClass("min-h-6")
+  })
+
+  it("uses adaptive wrap layout and truncates long author labels", () => {
+    const longAuthor = "this-is-a-very-long-email-address-for-layout-check@example.com"
+
+    renderSurveyCard({
+      isHot: true,
+      hasResponded: true,
+      author: {
+        name: longAuthor,
+      },
+    })
+
+    expect(screen.getByTestId("survey-card-footer-content-survey-1")).toHaveClass("flex-wrap")
+    expect(screen.getByTestId("survey-card-footer-actions-survey-1")).toHaveClass("flex-col")
+    expect(screen.getByTestId("survey-card-author-survey-1")).toHaveClass("truncate")
+    expect(screen.getByTestId("survey-card-author-survey-1")).toHaveAttribute("title", longAuthor)
+  })
+
+  it("reserves status-row space when no status badge is shown", () => {
+    renderSurveyCard({ isHot: false, hasResponded: false })
+
+    expect(screen.getByTestId("survey-card-status-row-survey-1")).toBeInTheDocument()
+    expect(screen.getByTestId("survey-card-status-row-survey-1")).toHaveClass("min-h-6")
+    expect(screen.queryByText("HOT")).not.toBeInTheDocument()
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
   })
 
   it("does not show explore statuses in dashboard variant", () => {

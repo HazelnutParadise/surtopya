@@ -199,10 +199,13 @@ export function SurveyCard({
         </CardContent>
 
         <CardFooter className={`border-t border-gray-100 p-4 dark:border-gray-800 ${footerSurfaceClass}`}>
-          <div className="flex w-full items-center gap-3">
-            <div className={`flex shrink-0 items-center gap-2 ${mutedSectionClass}`}>
+          <div
+            className="flex w-full flex-wrap items-center gap-x-3 gap-y-2"
+            data-testid={`survey-card-footer-content-${id}`}
+          >
+            <div className={`flex min-w-0 flex-1 items-center gap-2 ${mutedSectionClass}`}>
               {variant === 'dashboard' ? (
-                  <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
+                  <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-gray-500">
                       {visibility === 'public' ? (
                           <>
                               <Globe className="h-3.5 w-3.5 text-emerald-500" />
@@ -215,22 +218,28 @@ export function SurveyCard({
                           </>
                       )}
                       {author ? (
-                        <>
-                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 text-gray-300 dark:text-gray-600">|</span>
                           {authorHref ? (
                             <Link
                               href={authorHref}
                               onClick={(event) => event.stopPropagation()}
-                              className="text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                              className="block min-w-0 max-w-full truncate text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                              title={authorLabel}
+                              data-testid={`survey-card-author-${id}`}
                             >
                               {authorLabel}
                             </Link>
                           ) : (
-                            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                            <span
+                              className="block min-w-0 max-w-full truncate text-xs font-medium text-gray-600 dark:text-gray-300"
+                              title={authorLabel}
+                              data-testid={`survey-card-author-${id}`}
+                            >
                               {authorLabel}
                             </span>
                           )}
-                        </>
+                        </div>
                       ) : null}
                   </div>
               ) : author ? (
@@ -243,12 +252,18 @@ export function SurveyCard({
                     <Link
                       href={authorHref}
                       onClick={(event) => event.stopPropagation()}
-                      className="text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                      className="block min-w-0 flex-1 truncate text-xs font-medium text-gray-600 underline-offset-2 hover:underline dark:text-gray-300"
+                      title={authorLabel}
+                      data-testid={`survey-card-author-${id}`}
                     >
                       {authorLabel}
                     </Link>
                   ) : (
-                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                    <span
+                      className="block min-w-0 flex-1 truncate text-xs font-medium text-gray-600 dark:text-gray-300"
+                      title={authorLabel}
+                      data-testid={`survey-card-author-${id}`}
+                    >
                       {authorLabel}
                     </span>
                   )}
@@ -256,32 +271,42 @@ export function SurveyCard({
               ) : null}
             </div>
             
-            <div className="ml-auto flex min-w-0 flex-1 items-end">
-              {(showAlreadySubmittedStatus || showHotStatus) && (
+            <div
+              className="ml-auto flex min-w-0 flex-col items-end gap-1.5"
+              data-testid={`survey-card-footer-actions-${id}`}
+            >
+              {variant !== "dashboard" ? (
                 <div
-                  className="mr-auto flex min-w-0 max-w-28 flex-col items-start gap-1 text-left"
-                  data-testid={`survey-card-statuses-${id}`}
+                  className="flex min-h-6 min-w-[6.5rem] items-center justify-end gap-1.5"
+                  data-testid={`survey-card-status-row-${id}`}
                 >
-                  {showAlreadySubmittedStatus && (
+                  {(showAlreadySubmittedStatus || showHotStatus) && (
                     <div
-                      data-testid={`survey-card-status-completed-${id}`}
-                      className="max-w-full truncate rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700"
-                      title={t("alreadySubmitted")}
+                      className="flex min-w-0 items-center justify-end gap-1.5"
+                      data-testid={`survey-card-statuses-${id}`}
                     >
-                      {t("alreadySubmitted")}
-                    </div>
-                  )}
-                  {showHotStatus && (
-                    <div
-                      className="max-w-full truncate rounded-full bg-gradient-to-r from-red-500 to-pink-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white"
-                      title={t("hot")}
-                    >
-                      {t("hot")}
+                      {showAlreadySubmittedStatus && (
+                        <div
+                          data-testid={`survey-card-status-completed-${id}`}
+                          className="max-w-full truncate rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700"
+                          title={t("alreadySubmitted")}
+                        >
+                          {t("alreadySubmitted")}
+                        </div>
+                      )}
+                      {showHotStatus && (
+                        <div
+                          className="max-w-full truncate rounded-full bg-gradient-to-r from-red-500 to-pink-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white"
+                          title={t("hot")}
+                        >
+                          {t("hot")}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-              <Badge className={`ml-auto shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm border-0 ${mutedSectionClass}`}>
+              ) : null}
+              <Badge className={`shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-2.5 py-0.5 text-xs font-bold text-white shadow-sm border-0 ${mutedSectionClass}`}>
                 {t("points", { count: points })}
               </Badge>
             </div>
