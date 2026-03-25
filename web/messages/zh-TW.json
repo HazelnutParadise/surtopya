@@ -531,6 +531,7 @@
     "securityDescription": "管理密碼與安全設定。",
     "changePasswordTitle": "變更密碼",
     "changePasswordDescription": "定期更新密碼以保護帳戶安全。",
+    "manageInAccountCenter": "在 HazelnutParadise 帳號中心 管理",
     "reset": "重設",
     "twoFactorTitle": "雙重驗證",
     "twoFactorDescription": "目前已停用。啟用以增加安全性。",

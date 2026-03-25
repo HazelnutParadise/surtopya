@@ -348,18 +348,10 @@ export default function ProfilePage() {
                     <p className="font-semibold text-gray-900 dark:text-white">{tProfile("changePasswordTitle")}</p>
                     <p className="text-sm text-gray-500">{tProfile("changePasswordDescription")}</p>
                   </div>
-                  <Button variant="secondary" className="md:w-32" disabled>
-                    {tProfile("reset")}
-                  </Button>
-                </div>
-
-                <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 gap-4">
-                  <div>
-                    <p className="font-semibold text-gray-900 dark:text-white">{tProfile("twoFactorTitle")}</p>
-                    <p className="text-sm text-gray-500">{tProfile("twoFactorDescription")}</p>
-                  </div>
-                  <Button variant="secondary" className="md:w-32" disabled>
-                    {tProfile("enable")}
+                  <Button variant="secondary" className="md:w-auto" asChild>
+                    <a href="https://account.hazelnut-paradise.com/dashboard/security" target="_blank" rel="noreferrer">
+                      {tProfile("manageInAccountCenter")}
+                    </a>
                   </Button>
                 </div>
               </CardContent>

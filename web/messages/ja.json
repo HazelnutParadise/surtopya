@@ -531,6 +531,7 @@
     "securityDescription": "パスワードとセキュリティ設定を管理します。",
     "changePasswordTitle": "パスワード変更",
     "changePasswordDescription": "安全のため定期的に更新してください。",
+    "manageInAccountCenter": "HazelnutParadiseアカウントセンターで管理",
     "reset": "リセット",
     "twoFactorTitle": "二要素認証",
     "twoFactorDescription": "現在無効です。追加の安全性のため有効にできます。",

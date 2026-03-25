@@ -539,6 +539,7 @@
     "securityDescription": "Manage your password and security settings.",
     "changePasswordTitle": "Change Password",
     "changePasswordDescription": "Update your account password regularly to keep it secure.",
+    "manageInAccountCenter": "Manage in HazelnutParadise Account Center",
     "reset": "Reset",
     "twoFactorTitle": "Two-Factor Authentication",
     "twoFactorDescription": "Currently disabled. Enable for an extra layer of security.",
