@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 
 import { Navbar } from "@/components/navbar";
 import { HeroThreeBackground } from "@/components/marketing/hero-three-background";
+import { HeroScrollButton } from "@/components/marketing/hero-scroll-button";
 import { cookies, headers } from "next/headers";
 import { defaultLocale, locales, withLocale } from "@/lib/locale";
 import { getServerTranslator } from "@/lib/i18n-server";
@@ -23,7 +24,7 @@ export default async function Home() {
     <PageMotionShell className="flex min-h-screen flex-col">
       <Navbar />
       <main className="flex-1">
-        <section className="relative isolate flex min-h-[62vh] w-full items-center overflow-hidden bg-black py-12 text-white md:min-h-[70vh] md:py-20 lg:min-h-[74vh] lg:py-24">
+        <section className="relative isolate flex min-h-[74vh] w-full items-center overflow-hidden bg-black py-14 text-white md:min-h-[82vh] md:py-24 lg:min-h-[88vh] lg:py-28">
           <div className="pointer-events-none absolute inset-0 opacity-90">
             <HeroThreeBackground />
           </div>
@@ -31,10 +32,10 @@ export default async function Home() {
           <MotionReveal className="container relative z-10 px-4 md:px-6" delayMs={40}>
             <div className="flex flex-col items-center space-y-6 text-center">
               <div className="space-y-2">
-                <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl leading-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500">
+                <h1 className="bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-4xl leading-tight font-bold tracking-tighter text-transparent sm:text-5xl md:text-6xl lg:text-7xl">
                   {t("heroTitle")}
                 </h1>
-                <p className="mx-auto max-w-[700px] text-gray-300 md:text-xl lg:text-2xl">
+                <p className="mx-auto max-w-[760px] text-base text-gray-300 md:text-2xl lg:text-3xl">
                   {t("heroSubtitle")}
                 </p>
               </div>
@@ -51,40 +52,43 @@ export default async function Home() {
               </div>
             </div>
           </MotionReveal>
+          <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2 md:bottom-8">
+            <HeroScrollButton targetId="home-features" label="Scroll to homepage features" />
+          </div>
         </section>
-        <MotionReveal className="w-full bg-gray-100 py-12 md:py-16 dark:bg-gray-800" delayMs={110}>
+        <MotionReveal id="home-features" className="w-full bg-slate-950 py-12 md:py-16" delayMs={110}>
           <div className="container px-4 md:px-6">
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-xl md:p-10 dark:border-gray-700 dark:bg-gray-900">
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl shadow-black/35 md:p-10">
               <div className="grid gap-8 lg:grid-cols-[1.05fr_1.95fr] lg:gap-12">
                 <div className="space-y-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-purple-600 dark:text-purple-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-purple-400">
                     Surtopya
                   </p>
-                  <h2 className="text-2xl font-bold leading-tight text-gray-900 md:text-3xl lg:text-4xl dark:text-gray-100">
+                  <h2 className="text-2xl font-bold leading-tight text-gray-100 md:text-3xl lg:text-4xl">
                     {t("featureSectionTitle")}
                   </h2>
-                  <p className="text-sm leading-relaxed text-gray-600 lg:text-base dark:text-gray-300">
+                  <p className="text-sm leading-relaxed text-slate-300 lg:text-base">
                     {t("featureSectionDescription")}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <article className="transform-gpu rounded-2xl border border-gray-200/80 bg-white p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg lg:p-6 dark:border-gray-700 dark:bg-gray-900">
+                  <article className="transform-gpu rounded-2xl border border-slate-700/80 bg-slate-900 p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-slate-500 hover:shadow-lg hover:shadow-slate-900/60 lg:p-6">
                     <p className="text-xs font-semibold tracking-[0.18em] text-purple-500">01</p>
-                    <h3 className="mt-3 text-lg font-semibold text-gray-900 lg:text-xl dark:text-gray-100">{t("featureOneTitle")}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 lg:text-base dark:text-gray-300">{t("featureOneDescription")}</p>
-                    <p className="mt-2 text-xs font-medium text-purple-500/80 lg:text-sm dark:text-purple-400/80">{t("featureOneNote")}</p>
+                    <h3 className="mt-3 text-lg font-semibold text-slate-100 lg:text-xl">{t("featureOneTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300 lg:text-base">{t("featureOneDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-purple-400/90 lg:text-sm">{t("featureOneNote")}</p>
                   </article>
-                  <article className="transform-gpu rounded-2xl border border-gray-200/80 bg-white p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg lg:p-6 dark:border-gray-700 dark:bg-gray-900">
+                  <article className="transform-gpu rounded-2xl border border-slate-700/80 bg-slate-900 p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-slate-500 hover:shadow-lg hover:shadow-slate-900/60 lg:p-6">
                     <p className="text-xs font-semibold tracking-[0.18em] text-pink-500">02</p>
-                    <h3 className="mt-3 text-lg font-semibold text-gray-900 lg:text-xl dark:text-gray-100">{t("featureTwoTitle")}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 lg:text-base dark:text-gray-300">{t("featureTwoDescription")}</p>
-                    <p className="mt-2 text-xs font-medium text-pink-500/80 lg:text-sm dark:text-pink-400/80">{t("featureTwoNote")}</p>
+                    <h3 className="mt-3 text-lg font-semibold text-slate-100 lg:text-xl">{t("featureTwoTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300 lg:text-base">{t("featureTwoDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-pink-400/90 lg:text-sm">{t("featureTwoNote")}</p>
                   </article>
-                  <article className="transform-gpu rounded-2xl border border-gray-200/80 bg-white p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg sm:col-span-2 lg:col-span-1 lg:p-6 dark:border-gray-700 dark:bg-gray-900">
+                  <article className="transform-gpu rounded-2xl border border-slate-700/80 bg-slate-900 p-4 transition-all duration-300 ease-out hover:-translate-y-1 hover:border-slate-500 hover:shadow-lg hover:shadow-slate-900/60 sm:col-span-2 lg:col-span-1 lg:p-6">
                     <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">03</p>
-                    <h3 className="mt-3 text-lg font-semibold text-gray-900 lg:text-xl dark:text-gray-100">{t("featureThreeTitle")}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 lg:text-base dark:text-gray-300">{t("featureThreeDescription")}</p>
-                    <p className="mt-2 text-xs font-medium text-blue-500/80 lg:text-sm dark:text-blue-400/80">{t("featureThreeNote")}</p>
+                    <h3 className="mt-3 text-lg font-semibold text-slate-100 lg:text-xl">{t("featureThreeTitle")}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300 lg:text-base">{t("featureThreeDescription")}</p>
+                    <p className="mt-2 text-xs font-medium text-blue-400/90 lg:text-sm">{t("featureThreeNote")}</p>
                   </article>
                 </div>
               </div>
