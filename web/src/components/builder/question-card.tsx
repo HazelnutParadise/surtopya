@@ -172,10 +172,10 @@ export function QuestionCard({
             <Input 
               value={question.title} 
               onChange={(e) => onUpdate(question.id, { title: e.target.value })}
-              className={`font-semibold text-lg border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 ${
+              className={`font-semibold border-transparent focus:border-white/50 bg-transparent px-3 h-auto ${
                   question.type === 'section' 
-                    ? 'text-xl text-[var(--primary-foreground)] w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-50'
-                    : 'hover:border-gray-200 focus:border-purple-500'
+                    ? 'min-h-14 py-3 text-2xl md:text-2xl text-[var(--primary-foreground)] w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-50'
+                    : 'min-h-12 py-2 text-xl md:text-xl hover:border-gray-200 focus:border-purple-500'
               }`}
               placeholder={question.type === 'section' ? tBuilder("pageTitlePlaceholder") : tBuilder("questionTitlePlaceholder")}
             />

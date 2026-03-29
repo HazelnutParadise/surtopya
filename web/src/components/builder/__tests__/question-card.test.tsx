@@ -61,6 +61,43 @@ const renderCard = (question: Question) => {
 }
 
 describe("QuestionCard", () => {
+  it("uses larger title inputs for questions and section pages", () => {
+    const { rerender } = render(
+      <QuestionCard
+        question={{
+          id: "q-title",
+          type: "single",
+          title: "Question title",
+          required: false,
+          options: [{ label: "A" }],
+        }}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByDisplayValue("Question title")).toHaveClass("text-xl", "min-h-12")
+
+    rerender(
+      <QuestionCard
+        question={{
+          id: "page-title",
+          type: "section",
+          title: "Page title",
+          required: false,
+        }}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByDisplayValue("Page title")).toHaveClass("text-2xl", "min-h-14")
+  })
+
   it("shows logic-jump controls for multi-select questions", () => {
     const { onOpenLogic } = renderCard({
       id: "q-multi",
