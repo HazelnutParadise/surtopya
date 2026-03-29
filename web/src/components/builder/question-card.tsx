@@ -2,7 +2,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Question } from "@/types/survey";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch"; // Need to install switch
@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTranslations } from "next-intl";
+import { createDefaultQuestionOptions, getQuestionOptionLabel, normalizeQuestionOptions } from "@/lib/question-options";
 
 interface QuestionCardProps {
   question: Question;
@@ -49,19 +50,34 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
 
   const handleOptionChange = (index: number, value: string) => {
     if (!question.options) return;
-    const newOptions = [...question.options];
-    newOptions[index] = value;
+    const newOptions = normalizeQuestionOptions(question.options) || [];
+    newOptions[index] = { ...newOptions[index], label: value };
     onUpdate(question.id, { options: newOptions });
   };
 
   const addOption = () => {
     if (!question.options) return;
-    onUpdate(question.id, { options: [...question.options, tBuilder("optionLabel", { index: question.options.length + 1 })] });
+    onUpdate(question.id, {
+      options: [
+        ...(normalizeQuestionOptions(question.options) || []),
+        ...createDefaultQuestionOptions([tBuilder("optionLabel", { index: question.options.length + 1 })]),
+      ],
+    });
   };
 
   const removeOption = (index: number) => {
     if (!question.options) return;
-    const newOptions = question.options.filter((_, i) => i !== index);
+    const newOptions = (normalizeQuestionOptions(question.options) || []).filter((_, i) => i !== index);
+    onUpdate(question.id, { options: newOptions });
+  };
+
+  const toggleOtherOption = (index: number) => {
+    if (!question.options) return;
+    const currentOptions = normalizeQuestionOptions(question.options) || [];
+    const newOptions = currentOptions.map((option, optionIndex) => ({
+      ...option,
+      isOther: optionIndex === index ? !option.isOther : false,
+    }));
     onUpdate(question.id, { options: newOptions });
   };
 
@@ -137,10 +153,19 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
                   <div key={index} className="flex items-center gap-2">
                     <div className={`h-4 w-4 border border-gray-300 ${question.type === 'multi' ? 'rounded-sm' : 'rounded-full'}`} />
                     <Input 
-                      value={option} 
+                      value={getQuestionOptionLabel(option)} 
                       onChange={(e) => handleOptionChange(index, e.target.value)}
                       className="h-8 text-sm"
                     />
+                    <Button
+                      type="button"
+                      variant={(normalizeQuestionOptions(question.options) || [])[index]?.isOther ? "secondary" : "outline"}
+                      size="sm"
+                      className="h-8 shrink-0"
+                      onClick={() => toggleOtherOption(index)}
+                    >
+                      {tBuilder("otherOptionToggle")}
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => removeOption(index)}>
                       <X className="h-4 w-4" />
                     </Button>

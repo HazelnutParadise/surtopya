@@ -8,6 +8,7 @@ import { SurveyRenderer } from "@/components/survey/survey-renderer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { MarkdownContent } from "@/components/ui/markdown-content"
 import {
   Clock,
   Users,
@@ -47,56 +48,6 @@ import {
   writeAnonymousClaimContext,
   type AnonymousClaimContext,
 } from "@/lib/anonymous-claim"
-
-const RichText = ({ content }: { content: string }) => {
-  if (!content) return null
-
-  const parts = content.split(/(\*\*.*?\*\*|_[^_]+_|\[.*?\]\(.*?\)|^- .*$)/gm)
-
-  return (
-    <div className="prose dark:prose-invert max-w-none text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">
-      {parts.map((part, i) => {
-        if (part.startsWith("**") && part.endsWith("**")) {
-          return (
-            <strong key={i} className="font-semibold text-gray-900 dark:text-gray-200">
-              {part.slice(2, -2)}
-            </strong>
-          )
-        }
-        if (part.startsWith("_") && part.endsWith("_")) {
-          return (
-            <em key={i} className="italic">
-              {part.slice(1, -1)}
-            </em>
-          )
-        }
-        if (part.match(/\[(.*?)\]\((.*?)\)/)) {
-          const match = part.match(/\[(.*?)\]\((.*?)\)/)
-          return (
-            <a
-              key={i}
-              href={match![2]}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-600 hover:underline"
-            >
-              {match![1]}
-            </a>
-          )
-        }
-        if (part.trim().startsWith("- ")) {
-          return (
-            <div key={i} className="flex items-start gap-2 ml-4 my-1">
-              <div className="mt-2 h-1.5 w-1.5 rounded-full bg-gray-400 flex-shrink-0" />
-              <span>{part.trim().substring(2)}</span>
-            </div>
-          )
-        }
-        return part
-      })}
-    </div>
-  )
-}
 
 interface SurveyClientPageProps {
   initialSurvey?: SurveyDisplay
@@ -1310,7 +1261,10 @@ export function SurveyClientPage({
             <article className="md:col-span-2 space-y-8">
               <section>
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t("aboutTitle")}</h2>
-                <RichText content={survey.description} />
+                <MarkdownContent
+                  content={survey.description}
+                  className="prose max-w-none text-gray-600 dark:prose-invert dark:text-gray-400"
+                />
               </section>
 
               <section>

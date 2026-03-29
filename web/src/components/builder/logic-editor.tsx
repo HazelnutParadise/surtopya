@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Question, LogicRule } from "@/types/survey";
 import { Plus, Trash2, ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { getQuestionOptionLabel, normalizeQuestionOptions } from "@/lib/question-options";
 
 interface LogicEditorProps {
   question: Question;
@@ -22,11 +23,12 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
   // Reset rules when opening for a different question
   React.useEffect(() => {
     setRules(question.logic || []);
-  }, [question.id, open]);
+  }, [question.id, question.logic, open]);
 
   const addRule = () => {
-    if (!question.options || question.options.length === 0) return;
-    setRules([...rules, { triggerOption: question.options[0], destinationQuestionId: "" }]);
+    const options = normalizeQuestionOptions(question.options) || [];
+    if (options.length === 0) return;
+    setRules([...rules, { triggerOption: getQuestionOptionLabel(options[0]), destinationQuestionId: "" }]);
   };
 
   const removeRule = (index: number) => {
@@ -48,6 +50,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
 
   // Only allow logic for single choice or dropdown questions
   const isCompatible = question.type === 'single' || question.type === 'select';
+  const normalizedOptions = normalizeQuestionOptions(question.options) || [];
   
   // Filter questions that come AFTER the current question to prevent loops
   const currentQuestionIndex = allQuestions.findIndex(q => q.id === question.id);
@@ -94,9 +97,12 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                             <SelectValue placeholder={t("selectOption")} />
                           </SelectTrigger>
                           <SelectContent>
-                            {question.options?.map(opt => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
+                            {normalizedOptions.map((option) => {
+                              const optionLabel = getQuestionOptionLabel(option)
+                              return (
+                                <SelectItem key={optionLabel} value={optionLabel}>{optionLabel}</SelectItem>
+                              )
+                            })}
                           </SelectContent>
                         </Select>
                       </div>

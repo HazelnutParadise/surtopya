@@ -6,13 +6,16 @@ import { Badge } from "@/components/ui/badge"
 import { Star } from "lucide-react"
 import type { SurveyVersion } from "@/lib/api"
 import { formatUtcDateTime } from "@/lib/date-time"
+import type { QuestionOption } from "@/types/survey"
+import { getQuestionOptionLabel, isOtherQuestionOption, normalizeQuestionOptions } from "@/lib/question-options"
+import { MarkdownContent } from "@/components/ui/markdown-content"
 
 type SnapshotQuestion = {
   id: string
   type: string
   title: string
   description?: string | null
-  options?: string[]
+  options?: QuestionOption[]
   required?: boolean
   maxRating?: number
   logic?: unknown[]
@@ -53,7 +56,7 @@ const normalizeQuestionForCompare = (question?: SnapshotQuestion) => {
     type: question.type,
     title: question.title,
     description: question.description || "",
-    options: question.options || [],
+    options: normalizeQuestionOptions(question.options) || [],
     required: Boolean(question.required),
     maxRating: question.maxRating || 0,
     logic: question.logic || [],
@@ -232,7 +235,7 @@ export function VersionDocumentPreview({
 
   const renderQuestionBody = (question: SnapshotQuestion) => {
     if (question.type === "single" || question.type === "multi" || question.type === "select") {
-      const options = question.options || []
+      const options = normalizeQuestionOptions(question.options) || []
       if (options.length === 0) {
         return <p className="text-xs text-gray-500">-</p>
       }
@@ -247,7 +250,10 @@ export function VersionDocumentPreview({
           {options.map((option, index) => (
             <li key={`${question.id}-option-${index}`} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
               <span className={markerClass} />
-              <span>{option || "-"}</span>
+              <span>
+                {getQuestionOptionLabel(option) || "-"}
+                {isOtherQuestionOption(option) ? " (Other)" : ""}
+              </span>
             </li>
           ))}
         </ul>
@@ -351,9 +357,13 @@ export function VersionDocumentPreview({
                 <div key={page.id} className="rounded-xl border border-gray-200 bg-white/80 p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900/70">
                   <div className="rounded-lg bg-purple-600 p-3 text-white">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-semibold">{page.title || `${tBuilder("defaultPageTitle")} ${pageIndex + 1}`}</div>
-                        <p className="mt-0.5 text-xs text-white/80">{page.description || "-"}</p>
+                        <div>
+                          <div className="text-sm font-semibold">{page.title || `${tBuilder("defaultPageTitle")} ${pageIndex + 1}`}</div>
+                        {page.description ? (
+                          <MarkdownContent content={page.description} className="mt-0.5 max-w-none text-xs text-white/80" />
+                        ) : (
+                          <p className="mt-0.5 text-xs text-white/80">-</p>
+                        )}
                       </div>
                       {pageDiff ? renderDiffBadge(pageDiff) : null}
                     </div>
@@ -388,7 +398,10 @@ export function VersionDocumentPreview({
                             </div>
 
                             {question.description ? (
-                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{question.description}</p>
+                              <MarkdownContent
+                                content={question.description}
+                                className="mt-1 max-w-none text-xs text-gray-500 dark:text-gray-400"
+                              />
                             ) : null}
 
                             <div className="mt-2">{renderQuestionBody(question)}</div>

@@ -4,6 +4,7 @@ export interface CsvAnswerValueLike {
   date?: string
   rating?: number
   values?: string[]
+  otherText?: string
 }
 
 export interface CsvAnswerLike {
@@ -62,11 +63,17 @@ const isContentQuestion = (questionType?: string) => questionType !== "section"
 
 const readAnswerValue = (value?: CsvAnswerValueLike) => {
   if (!value) return ""
+  const otherText = typeof value.otherText === "string" ? value.otherText.trim() : ""
   if (typeof value.text === "string" && value.text.length > 0) return value.text
-  if (typeof value.value === "string" && value.value.length > 0) return value.value
+  if (typeof value.value === "string" && value.value.length > 0) {
+    return otherText ? `${value.value} | ${otherText}` : value.value
+  }
   if (typeof value.date === "string" && value.date.length > 0) return value.date
   if (typeof value.rating === "number") return String(value.rating)
-  if (Array.isArray(value.values) && value.values.length > 0) return value.values.join(" | ")
+  if (Array.isArray(value.values) && value.values.length > 0) {
+    return otherText ? [...value.values, otherText].join(" | ") : value.values.join(" | ")
+  }
+  if (otherText) return otherText
   return ""
 }
 

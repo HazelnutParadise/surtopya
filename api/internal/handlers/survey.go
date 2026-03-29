@@ -94,14 +94,14 @@ type CreateSurveyRequest struct {
 
 // QuestionRequest represents a question in the request
 type QuestionRequest struct {
-	ID          string             `json:"id"`
-	Type        string             `json:"type"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Options     []string           `json:"options"`
-	Required    bool               `json:"required"`
-	MaxRating   int                `json:"maxRating"`
-	Logic       []models.LogicRule `json:"logic"`
+	ID          string                 `json:"id"`
+	Type        string                 `json:"type"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	Options     models.QuestionOptions `json:"options"`
+	Required    bool                   `json:"required"`
+	MaxRating   int                    `json:"maxRating"`
+	Logic       []models.LogicRule     `json:"logic"`
 }
 
 func normalizeQuestionDescription(value *string) string {
@@ -111,15 +111,29 @@ func normalizeQuestionDescription(value *string) string {
 	return *value
 }
 
+func normalizeQuestionOptionsForType(questionType string, options models.QuestionOptions) (models.QuestionOptions, error) {
+	switch questionType {
+	case "single", "multi", "select":
+		normalized := options.Clone()
+		if normalized.HasMultipleOther() {
+			return nil, fmt.Errorf("only one other option is allowed")
+		}
+		return normalized, nil
+	default:
+		return nil, nil
+	}
+}
+
 func buildSnapshotQuestionsFromModels(questions []models.Question) []surveySnapshotQuestion {
 	snapshotQuestions := make([]surveySnapshotQuestion, len(questions))
 	for i, q := range questions {
+		options, _ := normalizeQuestionOptionsForType(q.Type, q.Options)
 		snapshotQuestions[i] = surveySnapshotQuestion{
 			ID:          q.ID,
 			Type:        q.Type,
 			Title:       q.Title,
 			Description: q.Description,
-			Options:     q.Options,
+			Options:     options,
 			Required:    q.Required,
 			MaxRating:   q.MaxRating,
 			Logic:       q.Logic,
@@ -129,12 +143,16 @@ func buildSnapshotQuestionsFromModels(questions []models.Question) []surveySnaps
 	return snapshotQuestions
 }
 
-func buildSnapshotQuestionsFromRequests(questions []QuestionRequest) ([]surveySnapshotQuestion, bool) {
+func buildSnapshotQuestionsFromRequests(questions []QuestionRequest) ([]surveySnapshotQuestion, error) {
 	snapshotQuestions := make([]surveySnapshotQuestion, len(questions))
 	for i, q := range questions {
 		parsedID, err := uuid.Parse(q.ID)
 		if err != nil || parsedID == uuid.Nil {
-			return nil, false
+			return nil, fmt.Errorf("invalid question id")
+		}
+		options, err := normalizeQuestionOptionsForType(q.Type, q.Options)
+		if err != nil {
+			return nil, err
 		}
 		description := q.Description
 		snapshotQuestions[i] = surveySnapshotQuestion{
@@ -142,14 +160,42 @@ func buildSnapshotQuestionsFromRequests(questions []QuestionRequest) ([]surveySn
 			Type:        q.Type,
 			Title:       q.Title,
 			Description: &description,
-			Options:     q.Options,
+			Options:     options,
 			Required:    q.Required,
 			MaxRating:   q.MaxRating,
 			Logic:       q.Logic,
 			SortOrder:   i,
 		}
 	}
-	return snapshotQuestions, true
+	return snapshotQuestions, nil
+}
+
+func buildQuestionsFromRequests(surveyID uuid.UUID, requests []QuestionRequest) ([]models.Question, error) {
+	questions := make([]models.Question, len(requests))
+	for i, qReq := range requests {
+		qID, _ := uuid.Parse(qReq.ID)
+		if qID == uuid.Nil {
+			qID = uuid.New()
+		}
+		options, err := normalizeQuestionOptionsForType(qReq.Type, qReq.Options)
+		if err != nil {
+			return nil, err
+		}
+		description := qReq.Description
+		questions[i] = models.Question{
+			ID:          qID,
+			SurveyID:    surveyID,
+			Type:        qReq.Type,
+			Title:       qReq.Title,
+			Description: &description,
+			Options:     options,
+			Required:    qReq.Required,
+			MaxRating:   qReq.MaxRating,
+			Logic:       qReq.Logic,
+			SortOrder:   i,
+		}
+	}
+	return questions, nil
 }
 
 func areQuestionSnapshotsEqual(left []surveySnapshotQuestion, right []surveySnapshotQuestion) bool {
@@ -254,24 +300,10 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 
 	// Save questions if provided
 	if len(req.Questions) > 0 {
-		questions := make([]models.Question, len(req.Questions))
-		for i, qReq := range req.Questions {
-			qID, _ := uuid.Parse(qReq.ID)
-			if qID == uuid.Nil {
-				qID = uuid.New()
-			}
-			questions[i] = models.Question{
-				ID:          qID,
-				SurveyID:    survey.ID,
-				Type:        qReq.Type,
-				Title:       qReq.Title,
-				Description: &qReq.Description,
-				Options:     qReq.Options,
-				Required:    qReq.Required,
-				MaxRating:   qReq.MaxRating,
-				Logic:       qReq.Logic,
-				SortOrder:   i,
-			}
+		questions, err := buildQuestionsFromRequests(survey.ID, req.Questions)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
 
 		if err := h.repo.SaveQuestions(survey.ID, questions); err != nil {
@@ -545,8 +577,12 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 
 	if len(req.Questions) > 0 {
 		currentQuestionSnapshot := buildSnapshotQuestionsFromModels(survey.Questions)
-		nextQuestionSnapshot, ok := buildSnapshotQuestionsFromRequests(req.Questions)
-		if !ok || !areQuestionSnapshotsEqual(currentQuestionSnapshot, nextQuestionSnapshot) {
+		nextQuestionSnapshot, err := buildSnapshotQuestionsFromRequests(req.Questions)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if !areQuestionSnapshotsEqual(currentQuestionSnapshot, nextQuestionSnapshot) {
 			questionChanges = true
 		}
 	}
@@ -562,24 +598,10 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 
 	// Update questions if provided
 	if len(req.Questions) > 0 {
-		questions := make([]models.Question, len(req.Questions))
-		for i, qReq := range req.Questions {
-			qID, _ := uuid.Parse(qReq.ID)
-			if qID == uuid.Nil {
-				qID = uuid.New()
-			}
-			questions[i] = models.Question{
-				ID:          qID,
-				SurveyID:    survey.ID,
-				Type:        qReq.Type,
-				Title:       qReq.Title,
-				Description: &qReq.Description,
-				Options:     qReq.Options,
-				Required:    qReq.Required,
-				MaxRating:   qReq.MaxRating,
-				Logic:       qReq.Logic,
-				SortOrder:   i,
-			}
+		questions, err := buildQuestionsFromRequests(survey.ID, req.Questions)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 		}
 
 		if err := h.repo.SaveQuestions(survey.ID, questions); err != nil {
@@ -642,15 +664,15 @@ type PublishSurveyRequest struct {
 }
 
 type surveySnapshotQuestion struct {
-	ID          uuid.UUID          `json:"id"`
-	Type        string             `json:"type"`
-	Title       string             `json:"title"`
-	Description *string            `json:"description,omitempty"`
-	Options     []string           `json:"options,omitempty"`
-	Required    bool               `json:"required"`
-	MaxRating   int                `json:"maxRating,omitempty"`
-	Logic       []models.LogicRule `json:"logic,omitempty"`
-	SortOrder   int                `json:"sortOrder"`
+	ID          uuid.UUID              `json:"id"`
+	Type        string                 `json:"type"`
+	Title       string                 `json:"title"`
+	Description *string                `json:"description,omitempty"`
+	Options     models.QuestionOptions `json:"options,omitempty"`
+	Required    bool                   `json:"required"`
+	MaxRating   int                    `json:"maxRating,omitempty"`
+	Logic       []models.LogicRule     `json:"logic,omitempty"`
+	SortOrder   int                    `json:"sortOrder"`
 }
 
 type surveySnapshot struct {

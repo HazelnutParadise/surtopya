@@ -191,4 +191,45 @@ describe("survey responses csv", () => {
       "extra answer",
     ])
   })
+
+  it("includes otherText in exported choice answers", () => {
+    const rows = buildSurveyResponsesCsvRows({
+      surveyVersions: [
+        {
+          versionNumber: 1,
+          snapshot: {
+            questions: [
+              { id: "q1", title: "Favorite option", type: "single" },
+              { id: "q2", title: "Pick many", type: "multi" },
+            ],
+          },
+        },
+      ],
+      responses: [
+        {
+          id: "r-1",
+          status: "completed",
+          userId: "u-1",
+          startedAt: "2026-03-11T09:00:00Z",
+          completedAt: "2026-03-11T09:05:00Z",
+          answers: [
+            { questionId: "q1", value: { value: "Other", otherText: "custom single" } },
+            { questionId: "q2", value: { values: ["A", "Other"], otherText: "custom multi" } },
+          ],
+        },
+      ],
+      metadataHeaders,
+    })
+
+    expect(rows[1]).toEqual([
+      "r-1",
+      "completed",
+      "u-1",
+      "0",
+      "2026-03-11T09:00:00Z",
+      "2026-03-11T09:05:00Z",
+      "Other | custom single",
+      "A | Other | custom multi",
+    ])
+  })
 })

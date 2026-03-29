@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/models"
@@ -80,6 +81,9 @@ func isAnswerValueEmpty(value models.AnswerValue) bool {
 		return false
 	}
 	if value.Date != nil && *value.Date != "" {
+		return false
+	}
+	if value.OtherText != nil && strings.TrimSpace(*value.OtherText) != "" {
 		return false
 	}
 	return true

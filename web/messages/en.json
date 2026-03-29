@@ -182,7 +182,8 @@
     "authRequiredAction": "Sign in / Register",
     "requireLoginToRespondLabel": "Require login to respond",
     "requireLoginToRespondDescription": "Guests must sign in before they can start this survey.",
-    "publishErrorMissingSurveyId": "Missing survey id. Save draft before publishing."
+    "publishErrorMissingSurveyId": "Missing survey id. Save draft before publishing.",
+    "otherOptionToggle": "Other"
   },
   "QuestionTypes": {
     "single": "Single Choice",
@@ -216,7 +217,8 @@
     "selectPlaceholder": "Select an option",
     "back": "Back",
     "submit": "Submit",
-    "next": "Next"
+    "next": "Next",
+    "otherTextPlaceholder": "Please specify"
   },
   "Datasets": {
     "searchPlaceholder": "Search datasets...",

@@ -43,6 +43,7 @@ import {
 } from "@/components/survey/survey-responses-export-menu";
 import { buildCsvContent } from "@/lib/csv";
 import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
+import { normalizeQuestionOptions } from "@/lib/question-options";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import {
@@ -663,7 +664,7 @@ export default function SurveyManagementPage() {
         type: question.type,
         title: question.title,
         description: question.description || undefined,
-        options: question.options || [],
+        options: normalizeQuestionOptions(question.options) || [],
         required: question.required,
         maxRating: question.maxRating,
         logic: question.logic,

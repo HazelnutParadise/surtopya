@@ -1,5 +1,10 @@
 export type QuestionType = 'single' | 'multi' | 'text' | 'short' | 'long' | 'rating' | 'date' | 'select' | 'section';
 
+export interface QuestionOption {
+    label: string;
+    isOther?: boolean;
+}
+
 export interface LogicRule {
     triggerOption: string;
     destinationQuestionId: string;
@@ -10,7 +15,7 @@ export interface Question {
     type: QuestionType;
     title: string;
     description?: string;
-    options?: string[]; // For single/multi choice
+    options?: QuestionOption[]; // For single/multi/select
     required: boolean;
     logic?: LogicRule[];
     maxRating?: number; // Task 10

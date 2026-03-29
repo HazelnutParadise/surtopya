@@ -2,6 +2,7 @@
 
 import { ReactNode, useState } from "react"
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +23,23 @@ import { Survey, Question, SurveyTheme } from "@/types/survey"
 import { getContrastColor } from "@/lib/utils"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { useTranslations } from "next-intl"
+import { MarkdownContent } from "@/components/ui/markdown-content";
+import {
+  getAnswerOtherText,
+  getMultiAnswerValues,
+  getSingleAnswerValue,
+  hasSelectedOtherOption,
+  isQuestionAnswered,
+  normalizeSurveyAnswerMap,
+  setAnswerOtherText,
+  setMultiAnswerValues,
+  setSingleAnswerValue,
+} from "@/lib/survey-answer-state";
+import {
+  getQuestionOptionLabel,
+  isOtherQuestionOption,
+  normalizeChoiceQuestionOptions,
+} from "@/lib/question-options";
 
 interface SurveyRendererProps {
   survey: Survey
@@ -47,8 +65,11 @@ export function SurveyRenderer({
   const locale = getLocaleFromPath(pathname)
   const withLocalePath = (href: string) => withLocale(href, locale)
   const t = useTranslations("SurveyRenderer")
+  const tQuestion = useTranslations("QuestionTypes")
   const [currentStep, setCurrentStep] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, unknown>>(() => initialAnswers || {})
+  const [answers, setAnswers] = useState<Record<string, unknown>>(() =>
+    normalizeSurveyAnswerMap(survey, initialAnswers || {})
+  )
   const [validationError, setValidationError] = useState<string | null>(null)
 
   // Default theme
@@ -61,7 +82,6 @@ export function SurveyRenderer({
   const textColorClass = getContrastColor(activeTheme.backgroundColor) === 'white' ? 'text-white' : 'text-gray-900';
   const mutedTextColorClass = getContrastColor(activeTheme.backgroundColor) === 'white' ? 'text-gray-300' : 'text-gray-500';
   const primaryTextColorClass = getContrastColor(activeTheme.primaryColor) === 'white' ? 'text-white' : 'text-gray-900';
-  const primaryHoverClass = getContrastColor(activeTheme.primaryColor) === 'white' ? 'hover:bg-white/20' : 'hover:bg-black/10';
 
   // Group questions into pages
   const pages = survey.questions.reduce((acc, question) => {
@@ -90,12 +110,12 @@ export function SurveyRenderer({
   const renderableQuestions = currentQuestions.filter(q => q.type !== 'section');
 
   const handleNext = () => {
-    if (!isPreview) {
-      const missingRequired = renderableQuestions.filter(q => q.required && !answers[q.id]);
-      if (missingRequired.length > 0) {
-        setValidationError(t("requiredAlert"))
-        return;
-      }
+    const missingRequired = renderableQuestions.filter((question) => {
+      return question.required && !isQuestionAnswered(question, answers[question.id])
+    })
+    if (missingRequired.length > 0) {
+      setValidationError(t("requiredAlert"))
+      return
     }
     setValidationError(null)
 
@@ -178,7 +198,10 @@ export function SurveyRenderer({
         <div className="text-center space-y-2">
           <h1 className={`text-3xl font-bold ${textColorClass}`}>{survey.title}</h1>
           {survey.description && (
-            <p className={mutedTextColorClass}>{survey.description}</p>
+            <MarkdownContent
+              content={survey.description}
+              className={`${mutedTextColorClass} max-w-none text-center`}
+            />
           )}
         </div>
         {noticeBar ? <div className="space-y-3">{noticeBar}</div> : null}
@@ -205,44 +228,81 @@ export function SurveyRenderer({
         {pageHeader && (
           <div className="mb-6 text-center">
             <h2 className={`text-2xl font-bold ${textColorClass}`}>{pageHeader.title}</h2>
-            {pageHeader.description && <p className={`${mutedTextColorClass} mt-2`}>{pageHeader.description}</p>}
+            {pageHeader.description ? (
+              <MarkdownContent
+                content={pageHeader.description}
+                className={`${mutedTextColorClass} mt-2 max-w-none text-center`}
+              />
+            ) : null}
           </div>
         )}
 
         {renderableQuestions.map((question) => (
           <Card key={question.id} className="border-0 shadow-xl ring-1 ring-gray-200 dark:ring-gray-800 bg-white dark:bg-gray-900 mb-6">
             <CardHeader className="space-y-1 pb-6">
-              <h3 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
-                {question.title}
-              </h3>
-              {question.description && (
-                <p className="text-sm text-gray-500">{question.description}</p>
-              )}
-              {question.required && (
-                <span className="text-xs font-medium text-red-500 uppercase tracking-wider">{t("requiredLabel")}</span>
-              )}
+              <div className="flex flex-wrap items-start gap-2">
+                <h3 className="flex-1 text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+                  {question.title}
+                </h3>
+                <Badge variant="outline" className="text-[11px] uppercase tracking-wide">
+                  {tQuestion(question.type)}
+                </Badge>
+                {question.required ? (
+                  <Badge variant="outline" className="text-[11px] uppercase tracking-wide text-red-600 border-red-200">
+                    {t("requiredLabel")}
+                  </Badge>
+                ) : null}
+              </div>
+              {question.description ? (
+                <MarkdownContent
+                  content={question.description}
+                  className="max-w-none text-sm text-gray-500"
+                />
+              ) : null}
             </CardHeader>
             
             <CardContent>
               {(question.type === "single") && (
                 (() => {
-                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  const value = getSingleAnswerValue(answers[question.id])
+                  const otherText = getAnswerOtherText(answers[question.id])
                   return (
                 <RadioGroup 
                   value={value} 
-                  onValueChange={(val) => handleAnswer(question.id, val)}
+                  onValueChange={(val) => handleAnswer(question.id, setSingleAnswerValue(question, answers[question.id], val))}
                   className="space-y-3"
                 >
-                  {question.options?.map((option) => (
+                  {normalizeChoiceQuestionOptions(question).map((option) => {
+                    const optionLabel = getQuestionOptionLabel(option)
+                    const isOther = isOtherQuestionOption(option)
+                    const selectedOther = value === optionLabel && isOther
+                    return (
                     <div 
-                      key={option} 
-                      className="flex items-center space-x-3 rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50 cursor-pointer" 
-                      onClick={() => handleAnswer(question.id, option)}
+                      key={optionLabel} 
+                      className={`rounded-2xl border p-4 transition-colors cursor-pointer ${
+                        value === optionLabel
+                          ? "border-sky-400 bg-sky-50 dark:border-sky-500 dark:bg-sky-950/20"
+                          : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                      }`}
+                      onClick={() => handleAnswer(question.id, setSingleAnswerValue(question, answers[question.id], optionLabel))}
                     >
-                      <RadioGroupItem value={option} id={`${question.id}-${option}`} className="pointer-events-none" />
-                      <Label htmlFor={`${question.id}-${option}`} className="flex-1 cursor-pointer font-normal text-base pointer-events-none">{option}</Label>
+                      <div className="flex items-start space-x-3">
+                        <RadioGroupItem value={optionLabel} id={`${question.id}-${optionLabel}`} className="pointer-events-none mt-1" />
+                        <Label htmlFor={`${question.id}-${optionLabel}`} className="flex-1 cursor-pointer font-normal text-base pointer-events-none">
+                          <MarkdownContent content={optionLabel} inline className="max-w-none" />
+                        </Label>
+                      </div>
+                      {selectedOther ? (
+                        <Input
+                          placeholder={t("otherTextPlaceholder")}
+                          className="mt-3"
+                          value={otherText}
+                          onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : null}
                     </div>
-                  ))}
+                  )})}
                 </RadioGroup>
                   )
                 })()
@@ -250,23 +310,41 @@ export function SurveyRenderer({
 
               {question.type === "multi" && (
                 <div className="space-y-3">
-                  {question.options?.map((option) => {
-                    const raw = answers[question.id]
-                    const currentAnswers = Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : []
-                    const isChecked = currentAnswers.includes(option);
+                  {normalizeChoiceQuestionOptions(question).map((option) => {
+                    const optionLabel = getQuestionOptionLabel(option)
+                    const currentAnswers = getMultiAnswerValues(answers[question.id])
+                    const isChecked = currentAnswers.includes(optionLabel);
+                    const selectedOther = isChecked && isOtherQuestionOption(option)
                     return (
                       <div 
-                        key={option} 
-                        className="flex items-center space-x-3 rounded-lg border border-gray-200 p-4 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50 cursor-pointer" 
+                        key={optionLabel} 
+                        className={`rounded-md border p-4 transition-colors cursor-pointer ${
+                          isChecked
+                            ? "border-emerald-400 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/20"
+                            : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
+                        }`}
                         onClick={() => {
                           const newAnswers = isChecked 
-                            ? currentAnswers.filter(a => a !== option)
-                            : [...currentAnswers, option];
-                          handleAnswer(question.id, newAnswers);
+                            ? currentAnswers.filter(a => a !== optionLabel)
+                            : [...currentAnswers, optionLabel];
+                          handleAnswer(question.id, setMultiAnswerValues(question, answers[question.id], newAnswers));
                         }}
                       >
-                        <Checkbox checked={isChecked} id={`${question.id}-${option}`} className="pointer-events-none" />
-                        <Label htmlFor={`${question.id}-${option}`} className="flex-1 cursor-pointer font-normal text-base pointer-events-none">{option}</Label>
+                        <div className="flex items-start space-x-3">
+                          <Checkbox checked={isChecked} id={`${question.id}-${optionLabel}`} className="pointer-events-none mt-1" />
+                          <Label htmlFor={`${question.id}-${optionLabel}`} className="flex-1 cursor-pointer font-normal text-base pointer-events-none">
+                            <MarkdownContent content={optionLabel} inline className="max-w-none" />
+                          </Label>
+                        </div>
+                        {selectedOther ? (
+                          <Input
+                            placeholder={t("otherTextPlaceholder")}
+                            className="mt-3"
+                            value={getAnswerOtherText(answers[question.id])}
+                            onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : null}
                       </div>
                     );
                   })}
@@ -328,23 +406,35 @@ export function SurveyRenderer({
 
               {question.type === "select" && (
                 (() => {
-                  const value = typeof answers[question.id] === "string" ? (answers[question.id] as string) : ""
+                  const value = getSingleAnswerValue(answers[question.id])
                   return (
-                <Select
-                  value={value}
-                  onValueChange={(value) => handleAnswer(question.id, value)}
-                >
-                  <SelectTrigger className="w-full h-12 text-base">
-                    <SelectValue placeholder={t("selectPlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {question.options?.map((option) => (
-                      <SelectItem key={option} value={option} className="text-base py-3">
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-3">
+                  <Select
+                    value={value}
+                    onValueChange={(nextValue) => handleAnswer(question.id, setSingleAnswerValue(question, answers[question.id], nextValue))}
+                  >
+                    <SelectTrigger className="w-full h-12 text-base">
+                      <SelectValue placeholder={t("selectPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {normalizeChoiceQuestionOptions(question).map((option) => {
+                        const optionLabel = getQuestionOptionLabel(option)
+                        return (
+                          <SelectItem key={optionLabel} value={optionLabel} className="text-base py-3">
+                            <MarkdownContent content={optionLabel} inline className="max-w-none" />
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {hasSelectedOtherOption(question, answers[question.id]) ? (
+                    <Input
+                      placeholder={t("otherTextPlaceholder")}
+                      value={getAnswerOtherText(answers[question.id])}
+                      onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                    />
+                  ) : null}
+                </div>
                   )
                 })()
               )}

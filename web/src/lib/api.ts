@@ -1,5 +1,7 @@
 // API client for Surtopya backend
 
+import type { QuestionOption } from "@/types/survey"
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.PUBLIC_API_URL ||
@@ -230,7 +232,7 @@ export interface Question {
   type: string;
   title: string;
   description?: string;
-  options?: string[];
+  options?: QuestionOption[];
   required: boolean;
   maxRating?: number;
   logic?: LogicRule[];
@@ -332,6 +334,7 @@ export interface AnswerValue {
   text?: string;
   rating?: number;
   date?: string;
+  otherText?: string;
 }
 
 export interface Answer {

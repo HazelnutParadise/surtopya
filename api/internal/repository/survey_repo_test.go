@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/TimLai666/surtopya-api/internal/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +21,34 @@ func newSurveyRepoForTest(t *testing.T) (*SurveyRepository, sqlmock.Sqlmock, fun
 	repo := NewSurveyRepository(db)
 	cleanup := func() { _ = db.Close() }
 	return repo, mock, cleanup
+}
+
+type jsonArgumentMatcher struct {
+	expected string
+}
+
+func (matcher jsonArgumentMatcher) Match(value driver.Value) bool {
+	var raw []byte
+	switch typed := value.(type) {
+	case []byte:
+		raw = typed
+	case string:
+		raw = []byte(typed)
+	default:
+		return false
+	}
+
+	var got any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		return false
+	}
+
+	var expected any
+	if err := json.Unmarshal([]byte(matcher.expected), &expected); err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(got, expected)
 }
 
 func TestSurveyRepository_SoftDelete(t *testing.T) {
@@ -302,4 +334,132 @@ func TestSurveyRepository_RecomputeHotSurveysUTC_DoesNotMarkHotWhenAllCountsAreZ
 	require.NoError(t, err)
 	require.EqualValues(t, 0, hotCount)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetQuestions_NormalizesStructuredOptions(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		}).AddRow(
+			questionID,
+			surveyID,
+			"single",
+			"Favorite option",
+			"Desc",
+			[]byte(`[{"label":"Regular"},{"label":"Other","isOther":true}]`),
+			true,
+			0,
+			[]byte(`[]`),
+			0,
+			now,
+			now,
+		))
+
+	questions, err := repo.GetQuestions(surveyID)
+	require.NoError(t, err)
+	require.Len(t, questions, 1)
+
+	optionsJSON, err := json.Marshal(questions[0].Options)
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"label":"Regular"},{"label":"Other","isOther":true}]`, string(optionsJSON))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetQuestions_NormalizesLegacyStringOptions(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		}).AddRow(
+			questionID,
+			surveyID,
+			"single",
+			"Favorite color",
+			"Desc",
+			[]byte(`["Red","Blue"]`),
+			true,
+			0,
+			[]byte(`[]`),
+			0,
+			now,
+			now,
+		))
+
+	questions, err := repo.GetQuestions(surveyID)
+	require.NoError(t, err)
+	require.Len(t, questions, 1)
+
+	optionsJSON, err := json.Marshal(questions[0].Options)
+	require.NoError(t, err)
+	require.JSONEq(t, `[{"label":"Red"},{"label":"Blue"}]`, string(optionsJSON))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_SaveQuestions_WritesStructuredOptions(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	questionID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO questions").
+		WithArgs(
+			questionID,
+			surveyID,
+			"single",
+			"Favorite option",
+			sqlmock.AnyArg(),
+			jsonArgumentMatcher{expected: `[{"label":"Regular"},{"label":"Other","isOther":true}]`},
+			true,
+			0,
+			jsonArgumentMatcher{expected: `[]`},
+			0,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := repo.SaveQuestions(surveyID, []models.Question{
+		{
+			ID:          questionID,
+			SurveyID:    surveyID,
+			Type:        "single",
+			Title:       "Favorite option",
+			Description: ptrString("Desc"),
+			Options: models.QuestionOptions{
+				{Label: "Regular"},
+				{Label: "Other", IsOther: true},
+			},
+			Required:  true,
+			MaxRating: 0,
+			Logic:     []models.LogicRule{},
+			SortOrder: 0,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func ptrString(value string) *string {
+	return &value
 }

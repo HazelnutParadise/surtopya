@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { analyzeDraftGuestMerge, buildSubmitAnswers, resolveDraftGuestMerge } from "@/lib/response-submit"
+import { analyzeDraftGuestMerge, buildSubmitAnswers, resolveDraftGuestMerge, toRendererAnswers } from "@/lib/response-submit"
 import type { SurveyDisplay } from "@/lib/survey-mappers"
 
 const createSurveyFixture = (): SurveyDisplay => ({
@@ -47,6 +47,76 @@ describe("buildSubmitAnswers", () => {
       { questionId: "q3", value: { text: "hello" } },
       { questionId: "q4", value: { rating: 4 } },
     ])
+  })
+
+  it("maps structured choice answers with otherText", () => {
+    const survey = {
+      ...createSurveyFixture(),
+      questions: [
+        {
+          id: "q1",
+          type: "single",
+          title: "q1",
+          required: false,
+          options: [
+            { label: "a" },
+            { label: "Other", isOther: true },
+          ],
+        },
+        {
+          id: "q2",
+          type: "multi",
+          title: "q2",
+          required: false,
+          options: [
+            { label: "x" },
+            { label: "Other", isOther: true },
+          ],
+        },
+        {
+          id: "q3",
+          type: "select",
+          title: "q3",
+          required: false,
+          options: [
+            { label: "first" },
+            { label: "Other", isOther: true },
+          ],
+        },
+      ],
+    } as unknown as SurveyDisplay
+
+    const answers = {
+      q1: { value: "Other", otherText: "custom single" },
+      q2: { values: ["x", "Other"], otherText: "custom multi" },
+      q3: { value: "Other", otherText: "custom select" },
+    }
+
+    expect(buildSubmitAnswers(survey, answers)).toEqual([
+      { questionId: "q1", value: { value: "Other", otherText: "custom single" } },
+      { questionId: "q2", value: { values: ["x", "Other"], otherText: "custom multi" } },
+      { questionId: "q3", value: { value: "Other", otherText: "custom select" } },
+    ])
+  })
+})
+
+describe("toRendererAnswers", () => {
+  it("rehydrates persisted otherText answers for renderer state", () => {
+    expect(
+      toRendererAnswers([
+        {
+          questionId: "q1",
+          value: { value: "Other", otherText: "custom single" },
+        },
+        {
+          questionId: "q2",
+          value: { values: ["x", "Other"], otherText: "custom multi" },
+        },
+      ])
+    ).toEqual({
+      q1: { value: "Other", otherText: "custom single" },
+      q2: { values: ["x", "Other"], otherText: "custom multi" },
+    })
   })
 })
 
@@ -98,5 +168,32 @@ describe("draft/guest merge", () => {
       q3: "cloud",
       q4: 3,
     })
+  })
+
+  it("treats differing otherText values as a conflict", () => {
+    const survey = {
+      ...createSurveyFixture(),
+      questions: [
+        {
+          id: "q1",
+          type: "single",
+          title: "q1",
+          required: false,
+          options: [
+            { label: "a" },
+            { label: "Other", isOther: true },
+          ],
+        },
+      ],
+    } as unknown as SurveyDisplay
+
+    const analysis = analyzeDraftGuestMerge(
+      survey,
+      { q1: { value: "Other", otherText: "draft text" } },
+      { q1: { value: "Other", otherText: "guest text" } }
+    )
+
+    expect(analysis.conflictQuestionIds).toEqual(["q1"])
+    expect(analysis.mergedNonConflictingAnswers).toEqual({})
   })
 })

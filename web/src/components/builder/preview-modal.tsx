@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useTranslations } from "next-intl";
 import { getContrastColor } from "@/lib/utils";
+import { getQuestionOptionLabel, normalizeQuestionOptions } from "@/lib/question-options";
 
 interface PreviewModalProps {
   open: boolean;
@@ -154,11 +155,11 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               value={getResponseString(question.id)}
               onValueChange={(value) => handleResponse(question.id, value)}
             >
-              {question.options?.map((option, i) => (
+              {(normalizeQuestionOptions(question.options) || []).map((option, i) => (
                 <div key={i} className="flex items-center space-x-2">
-                  <RadioGroupItem value={option} id={`${question.id}-${i}`} />
+                  <RadioGroupItem value={getQuestionOptionLabel(option)} id={`${question.id}-${i}`} />
                   <Label htmlFor={`${question.id}-${i}`} className="font-normal cursor-pointer">
-                    {option}
+                    {getQuestionOptionLabel(option)}
                   </Label>
                 </div>
               ))}
@@ -177,23 +178,24 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               <p className={`text-sm mt-1 ${bgMutedColor}`}>{question.description}</p>
             )}
             <div className="mt-3 space-y-2">
-              {question.options?.map((option, i) => {
+              {(normalizeQuestionOptions(question.options) || []).map((option, i) => {
                 const selected = getResponseStringArray(question.id);
+                const optionLabel = getQuestionOptionLabel(option);
                 return (
                   <div key={i} className="flex items-center space-x-2">
                     <Checkbox
                       id={`${question.id}-${i}`}
-                      checked={selected.includes(option)}
+                      checked={selected.includes(optionLabel)}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          handleResponse(question.id, [...selected, option]);
+                          handleResponse(question.id, [...selected, optionLabel]);
                         } else {
-                          handleResponse(question.id, selected.filter((o: string) => o !== option));
+                          handleResponse(question.id, selected.filter((o: string) => o !== optionLabel));
                         }
                       }}
                     />
                     <Label htmlFor={`${question.id}-${i}`} className="font-normal cursor-pointer">
-                      {option}
+                      {optionLabel}
                     </Label>
                   </div>
                 );
@@ -218,9 +220,10 @@ export function PreviewModal({ open, onClose, title, questions, theme }: Preview
               onChange={(e) => handleResponse(question.id, e.target.value)}
             >
               <option value="">{t("selectOption")}</option>
-              {question.options?.map((option, i) => (
-                <option key={i} value={option}>{option}</option>
-              ))}
+              {(normalizeQuestionOptions(question.options) || []).map((option, i) => {
+                const optionLabel = getQuestionOptionLabel(option);
+                return <option key={i} value={optionLabel}>{optionLabel}</option>;
+              })}
             </select>
           </div>
         );

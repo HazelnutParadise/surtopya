@@ -77,14 +77,14 @@ type OptionCount struct {
 }
 
 type snapshotQuestion struct {
-	ID          uuid.UUID `json:"id"`
-	Type        string    `json:"type"`
-	Title       string    `json:"title"`
-	Description *string   `json:"description,omitempty"`
-	Options     []string  `json:"options,omitempty"`
-	Required    bool      `json:"required"`
-	MaxRating   int       `json:"maxRating,omitempty"`
-	SortOrder   int       `json:"sortOrder"`
+	ID          uuid.UUID              `json:"id"`
+	Type        string                 `json:"type"`
+	Title       string                 `json:"title"`
+	Description *string                `json:"description,omitempty"`
+	Options     models.QuestionOptions `json:"options,omitempty"`
+	Required    bool                   `json:"required"`
+	MaxRating   int                    `json:"maxRating,omitempty"`
+	SortOrder   int                    `json:"sortOrder"`
 }
 
 type snapshotVersion struct {
@@ -96,7 +96,8 @@ type questionMeta struct {
 	Type        string
 	Title       string
 	Description *string
-	Options     []string
+	Options     models.QuestionOptions
+	OtherLabels []string
 	MaxRating   int
 	SortOrder   int
 }
@@ -298,11 +299,16 @@ func questionSelection(versions []models.SurveyVersion) (selectionResult, error)
 					Type:        question.Type,
 					Title:       question.Title,
 					Description: question.Description,
-					Options:     append([]string(nil), question.Options...),
+					Options:     question.Options.Clone(),
+					OtherLabels: question.Options.OtherLabels(),
 					MaxRating:   question.MaxRating,
 					SortOrder:   question.SortOrder,
 				}
 				registerPageQuestion(&selection, currentPage, question.ID)
+			} else {
+				meta := selection.QuestionMetaByID[question.ID]
+				meta.Options, meta.OtherLabels = mergeChoiceOptions(meta.Options, meta.OtherLabels, question.Options)
+				selection.QuestionMetaByID[question.ID] = meta
 			}
 			if _, exists := typeByID[question.ID]; !exists {
 				typeByID[question.ID] = make(map[string]struct{})
@@ -351,6 +357,7 @@ func completedResponsesForVersion(responses []models.Response, selectedVersion s
 func buildChoiceAnalytics(meta questionMeta, responses []models.Response, multiple bool) QuestionAnalytics {
 	values := make([]any, 0)
 	answeredCount := 0
+	canonicalOtherLabel, hasOther := canonicalOtherLabel(meta.Options)
 
 	for _, response := range responses {
 		answer, ok := answerForQuestion(response.Answers, meta.ID)
@@ -365,6 +372,9 @@ func buildChoiceAnalytics(meta questionMeta, responses []models.Response, multip
 			}
 			answeredCount++
 			for _, value := range normalized {
+				if hasOther && isOtherChoiceValue(value, canonicalOtherLabel, meta.OtherLabels) {
+					value = canonicalOtherLabel
+				}
 				values = append(values, value)
 			}
 			continue
@@ -373,6 +383,9 @@ func buildChoiceAnalytics(meta questionMeta, responses []models.Response, multip
 		normalized := strings.TrimSpace(deref(answer.Value.Value))
 		if normalized == "" {
 			continue
+		}
+		if hasOther && isOtherChoiceValue(normalized, canonicalOtherLabel, meta.OtherLabels) {
+			normalized = canonicalOtherLabel
 		}
 		answeredCount++
 		values = append(values, normalized)
@@ -516,15 +529,12 @@ func buildBucketsFromStrings(labels []string, counter map[any]int, answeredCount
 	return buckets
 }
 
-func appendKnownAndLegacyOptions(known []string, counter map[any]int) []string {
+func appendKnownAndLegacyOptions(known models.QuestionOptions, counter map[any]int) []string {
 	result := make([]string, 0, len(known)+len(counter))
 	seen := make(map[string]struct{}, len(known)+len(counter))
 
-	for _, option := range known {
-		normalized := strings.TrimSpace(option)
-		if normalized == "" {
-			continue
-		}
+	for _, option := range known.Clone() {
+		normalized := option.Label
 		if _, exists := seen[normalized]; exists {
 			continue
 		}
@@ -558,6 +568,84 @@ func normalizeMultiValues(values []string) []string {
 		normalized = append(normalized, trimmed)
 	}
 	return normalized
+}
+
+func canonicalOtherLabel(options models.QuestionOptions) (string, bool) {
+	for _, option := range options.Clone() {
+		if option.IsOther {
+			return option.Label, true
+		}
+	}
+	return "", false
+}
+
+func mergeChoiceOptions(
+	existing models.QuestionOptions,
+	existingOtherLabels []string,
+	incoming models.QuestionOptions,
+) (models.QuestionOptions, []string) {
+	merged := existing.Clone()
+	seen := make(map[string]struct{}, len(merged))
+	for _, option := range merged {
+		seen[option.Label] = struct{}{}
+	}
+
+	canonicalOther, hasCanonicalOther := canonicalOtherLabel(merged)
+	otherLabels := append([]string(nil), existingOtherLabels...)
+	otherSeen := make(map[string]struct{}, len(otherLabels))
+	for _, label := range otherLabels {
+		otherSeen[label] = struct{}{}
+	}
+
+	for _, option := range incoming.Clone() {
+		if option.IsOther {
+			if !hasCanonicalOther {
+				hasCanonicalOther = true
+				canonicalOther = option.Label
+				if _, exists := seen[option.Label]; !exists {
+					merged = append(merged, option)
+					seen[option.Label] = struct{}{}
+				}
+			}
+			if option.Label != "" {
+				if _, exists := otherSeen[option.Label]; !exists {
+					otherLabels = append(otherLabels, option.Label)
+					otherSeen[option.Label] = struct{}{}
+				}
+			}
+			continue
+		}
+
+		if _, exists := seen[option.Label]; exists {
+			continue
+		}
+		merged = append(merged, option)
+		seen[option.Label] = struct{}{}
+	}
+
+	if hasCanonicalOther {
+		if _, exists := otherSeen[canonicalOther]; !exists {
+			otherLabels = append(otherLabels, canonicalOther)
+		}
+	}
+
+	return merged, otherLabels
+}
+
+func isOtherChoiceValue(value string, canonicalLabel string, aliases []string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	if trimmed == canonicalLabel {
+		return true
+	}
+	for _, alias := range aliases {
+		if trimmed == strings.TrimSpace(alias) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeDate(value *string) (string, bool) {

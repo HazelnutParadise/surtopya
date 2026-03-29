@@ -20,6 +20,7 @@ import { QuestionCard } from "./question-card";
 import { getLocaleFromPath, withLocale } from "@/lib/locale";
 import { getContrastColor } from "@/lib/utils";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
+import { createDefaultQuestionOptions, normalizeQuestionOptions } from "@/lib/question-options";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import type { SurveyVersion } from "@/lib/api";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
@@ -223,7 +224,7 @@ export function SurveyBuilder() {
           type: question.type,
           title: question.title,
           description: question.description || undefined,
-          options: question.options || [],
+          options: normalizeQuestionOptions(question.options) || [],
           required: question.required,
           maxRating: question.maxRating,
           logic: question.logic,
@@ -323,10 +324,12 @@ export function SurveyBuilder() {
             type,
             title: tBuilder("newQuestion"),
             required: false,
-            options: type === 'single' || type === 'multi' || type === 'select' ? [
-              tBuilder("optionLabel", { index: 1 }),
-              tBuilder("optionLabel", { index: 2 }),
-            ] : undefined,
+            options: type === 'single' || type === 'multi' || type === 'select'
+              ? createDefaultQuestionOptions([
+                  tBuilder("optionLabel", { index: 1 }),
+                  tBuilder("optionLabel", { index: 2 }),
+                ])
+              : undefined,
           };
 
           setQuestions(items => {
@@ -393,10 +396,12 @@ export function SurveyBuilder() {
         type,
         title: tBuilder("newQuestion"),
         required: false,
-        options: type === 'single' || type === 'multi' || type === 'select' ? [
-          tBuilder("optionLabel", { index: 1 }),
-          tBuilder("optionLabel", { index: 2 }),
-        ] : undefined,
+        options: type === 'single' || type === 'multi' || type === 'select'
+          ? createDefaultQuestionOptions([
+              tBuilder("optionLabel", { index: 1 }),
+              tBuilder("optionLabel", { index: 2 }),
+            ])
+          : undefined,
       };
 
       // Replace placeholder with real question
@@ -645,7 +650,7 @@ export function SurveyBuilder() {
         type: q.type,
         title: q.title,
         description: q.description || "",
-        options: q.options || [],
+        options: normalizeQuestionOptions(q.options) || [],
         required: q.required,
         maxRating: q.maxRating || 0,
         logic: q.logic || [],

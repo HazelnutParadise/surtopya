@@ -1,4 +1,8 @@
 import type { SurveyDisplay } from "@/lib/survey-mappers"
+import {
+  normalizeMultiSelectAnswer,
+  normalizeSingleSelectAnswer,
+} from "@/lib/survey-answer-state"
 
 export type SubmitAnswerValue = {
   value?: string
@@ -6,6 +10,7 @@ export type SubmitAnswerValue = {
   text?: string
   rating?: number
   date?: string
+  otherText?: string
 }
 
 export type SubmitAnswerRequest = {
@@ -33,11 +38,21 @@ const toSubmitAnswerValue = (
   switch (questionType) {
     case "single":
     case "select": {
-      if (isNonEmptyString(raw)) value.value = raw
+      const choice = normalizeSingleSelectAnswer(raw)
+      if (choice?.value) {
+        value.value = choice.value
+        if (isNonEmptyString(choice.otherText)) value.otherText = choice.otherText
+      } else if (isNonEmptyString(raw)) {
+        value.value = raw
+      }
       break
     }
     case "multi": {
-      if (Array.isArray(raw)) {
+      const choice = normalizeMultiSelectAnswer(raw)
+      if (choice?.values?.length) {
+        value.values = choice.values
+        if (isNonEmptyString(choice.otherText)) value.otherText = choice.otherText
+      } else if (Array.isArray(raw)) {
         const values = raw.filter(isNonEmptyString)
         if (values.length > 0) value.values = values
       }
@@ -78,13 +93,10 @@ const getQuestionType = (
 }
 
 const normalizeAnswerValueForCompare = (value: SubmitAnswerValue): SubmitAnswerValue => {
-  if (!Array.isArray(value.values)) {
-    return value
-  }
-
   return {
     ...value,
-    values: [...value.values].sort((a, b) => a.localeCompare(b)),
+    otherText: typeof value.otherText === "string" ? value.otherText.trim() : value.otherText,
+    values: Array.isArray(value.values) ? [...value.values].sort((a, b) => a.localeCompare(b)) : value.values,
   }
 }
 
@@ -213,11 +225,17 @@ export const toRendererAnswers = (answers: PersistedAnswer[] | undefined): Recor
   for (const answer of answers) {
     if (!answer?.questionId || !answer.value) continue
     if (typeof answer.value.value === "string") {
-      mapped[answer.questionId] = answer.value.value
+      mapped[answer.questionId] =
+        typeof answer.value.otherText === "string" && answer.value.otherText.trim().length > 0
+          ? { value: answer.value.value, otherText: answer.value.otherText }
+          : answer.value.value
       continue
     }
     if (Array.isArray(answer.value.values)) {
-      mapped[answer.questionId] = answer.value.values
+      mapped[answer.questionId] =
+        typeof answer.value.otherText === "string" && answer.value.otherText.trim().length > 0
+          ? { values: answer.value.values, otherText: answer.value.otherText }
+          : answer.value.values
       continue
     }
     if (typeof answer.value.text === "string") {

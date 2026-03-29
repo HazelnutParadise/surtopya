@@ -102,6 +102,61 @@ func TestBuildReport_AllVersionsMergesQuestionsAndPreservesLegacyOptions(t *test
 	require.Equal(t, []int{1, 0, 1}, bucketCounts(report.Pages[0].Questions[0].OptionCounts))
 }
 
+func TestBuildReport_AggregatesStructuredOtherOptionsAcrossVersions(t *testing.T) {
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	versions := []models.SurveyVersion{
+		{
+			ID:            uuid.New(),
+			SurveyID:      uuid.New(),
+			VersionNumber: 2,
+			Snapshot: snapshotForTest(t, map[string]any{
+				"id":    questionID,
+				"type":  "single",
+				"title": "Favorite color",
+				"options": []map[string]any{
+					{"label": "Red"},
+					{"label": "Other", "isOther": true},
+				},
+				"required":  false,
+				"sortOrder": 0,
+			}),
+		},
+		{
+			ID:            uuid.New(),
+			SurveyID:      uuid.New(),
+			VersionNumber: 1,
+			Snapshot: snapshotForTest(t, map[string]any{
+				"id":    questionID,
+				"type":  "single",
+				"title": "Favorite color",
+				"options": []map[string]any{
+					{"label": "Red"},
+					{"label": "Something else", "isOther": true},
+				},
+				"required":  false,
+				"sortOrder": 0,
+			}),
+		},
+	}
+
+	responses := []models.Response{
+		completedResponseForTest(1, now.Add(-2*time.Hour), answerForTest(questionID, models.AnswerValue{Value: ptr("Something else")})),
+		completedResponseForTest(2, now.Add(-time.Hour), answerForTest(questionID, models.AnswerValue{Value: ptr("Other")})),
+	}
+
+	report, err := BuildReport(versions, responses, BuildOptions{
+		SelectedVersion:      "all",
+		IncludeTextResponses: true,
+		GeneratedAt:          now,
+	})
+	require.NoError(t, err)
+	require.Len(t, report.Pages, 1)
+	require.Equal(t, []string{"Red", "Other"}, bucketLabels(report.Pages[0].Questions[0].OptionCounts))
+	require.Equal(t, []int{0, 2}, bucketCounts(report.Pages[0].Questions[0].OptionCounts))
+}
+
 func TestBuildReport_SingleVersionFiltersResultsAndRedactsTextResponsesWhenDisabled(t *testing.T) {
 	questionID := uuid.New()
 	now := time.Now().UTC()

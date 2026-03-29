@@ -270,3 +270,110 @@ func TestSurveyHandler_UpdateSurvey_QuestionChanged_MarksUnpublished(t *testing.
 	require.Contains(t, w.Body.String(), `"hasUnpublishedChanges":true`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	currentVersionID := uuid.New()
+	currentVersionNumber := 2
+	questionID := uuid.New()
+
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(
+			surveyRowsForUpdateVersioningTest(
+				surveyID,
+				userID,
+				"non-public",
+				false,
+				1,
+				&currentVersionID,
+				&currentVersionNumber,
+				false,
+			),
+		)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(singleQuestionRowsForUpdateVersioningTest(surveyID, questionID, "Original question"))
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("UPDATE surveys SET").
+		WithArgs(
+			surveyID,
+			"Publish Test",
+			"Desc",
+			"non-public",
+			false,
+			false,
+			false,
+			true,
+			1,
+			sqlmock.AnyArg(),
+			0,
+			nil,
+			nil,
+			currentVersionID,
+			currentVersionNumber,
+			true,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO questions").
+		WithArgs(
+			questionID,
+			surveyID,
+			"single",
+			"Updated question",
+			"Updated description",
+			sqlmock.AnyArg(),
+			true,
+			0,
+			sqlmock.AnyArg(),
+			0,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
+		c.Set("userID", userID)
+		h.UpdateSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"questions": []map[string]any{
+			{
+				"id":          questionID.String(),
+				"type":        "single",
+				"title":       "Updated question",
+				"description": "Updated description",
+				"options": []map[string]any{
+					{"label": "Regular"},
+					{"label": "Other", "isOther": true},
+				},
+				"required":  true,
+				"maxRating": 0,
+				"logic":     []any{},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/surveys/"+surveyID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"isOther":true`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

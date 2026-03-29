@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -83,20 +85,133 @@ type LogicRule struct {
 	DestinationQuestionID string `json:"destinationQuestionId"`
 }
 
+type QuestionOption struct {
+	Label   string `json:"label"`
+	IsOther bool   `json:"isOther,omitempty"`
+}
+
+type QuestionOptions []QuestionOption
+
+func (options *QuestionOptions) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		*options = nil
+		return nil
+	}
+
+	var rawItems []json.RawMessage
+	if err := json.Unmarshal(data, &rawItems); err != nil {
+		return fmt.Errorf("decode question options: %w", err)
+	}
+
+	normalized := make(QuestionOptions, 0, len(rawItems))
+	for _, rawItem := range rawItems {
+		var legacyLabel string
+		if err := json.Unmarshal(rawItem, &legacyLabel); err == nil {
+			trimmed := strings.TrimSpace(legacyLabel)
+			if trimmed == "" {
+				continue
+			}
+			normalized = append(normalized, QuestionOption{Label: trimmed})
+			continue
+		}
+
+		var option QuestionOption
+		if err := json.Unmarshal(rawItem, &option); err != nil {
+			return fmt.Errorf("decode question option entry: %w", err)
+		}
+		option.Label = strings.TrimSpace(option.Label)
+		if option.Label == "" {
+			continue
+		}
+		normalized = append(normalized, option)
+	}
+
+	*options = normalized
+	return nil
+}
+
+func (options QuestionOptions) MarshalJSON() ([]byte, error) {
+	normalized := make([]QuestionOption, 0, len(options))
+	for _, option := range options {
+		label := strings.TrimSpace(option.Label)
+		if label == "" {
+			continue
+		}
+		normalized = append(normalized, QuestionOption{
+			Label:   label,
+			IsOther: option.IsOther,
+		})
+	}
+	return json.Marshal(normalized)
+}
+
+func (options QuestionOptions) Clone() QuestionOptions {
+	if len(options) == 0 {
+		return nil
+	}
+
+	cloned := make(QuestionOptions, 0, len(options))
+	for _, option := range options {
+		label := strings.TrimSpace(option.Label)
+		if label == "" {
+			continue
+		}
+		cloned = append(cloned, QuestionOption{
+			Label:   label,
+			IsOther: option.IsOther,
+		})
+	}
+	if len(cloned) == 0 {
+		return nil
+	}
+	return cloned
+}
+
+func (options QuestionOptions) Labels() []string {
+	labels := make([]string, 0, len(options))
+	for _, option := range options.Clone() {
+		labels = append(labels, option.Label)
+	}
+	return labels
+}
+
+func (options QuestionOptions) OtherLabels() []string {
+	labels := make([]string, 0, 1)
+	for _, option := range options.Clone() {
+		if option.IsOther {
+			labels = append(labels, option.Label)
+		}
+	}
+	return labels
+}
+
+func (options QuestionOptions) HasMultipleOther() bool {
+	otherCount := 0
+	for _, option := range options.Clone() {
+		if option.IsOther {
+			otherCount++
+		}
+		if otherCount > 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // Question represents a question in a survey
 type Question struct {
-	ID          uuid.UUID   `json:"id" db:"id"`
-	SurveyID    uuid.UUID   `json:"surveyId" db:"survey_id"`
-	Type        string      `json:"type" db:"type"`
-	Title       string      `json:"title" db:"title"`
-	Description *string     `json:"description,omitempty" db:"description"`
-	Options     []string    `json:"options,omitempty" db:"options"`
-	Required    bool        `json:"required" db:"required"`
-	MaxRating   int         `json:"maxRating,omitempty" db:"max_rating"`
-	Logic       []LogicRule `json:"logic,omitempty" db:"logic"`
-	SortOrder   int         `json:"sortOrder" db:"sort_order"`
-	CreatedAt   time.Time   `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time   `json:"updatedAt" db:"updated_at"`
+	ID          uuid.UUID       `json:"id" db:"id"`
+	SurveyID    uuid.UUID       `json:"surveyId" db:"survey_id"`
+	Type        string          `json:"type" db:"type"`
+	Title       string          `json:"title" db:"title"`
+	Description *string         `json:"description,omitempty" db:"description"`
+	Options     QuestionOptions `json:"options,omitempty" db:"options"`
+	Required    bool            `json:"required" db:"required"`
+	MaxRating   int             `json:"maxRating,omitempty" db:"max_rating"`
+	Logic       []LogicRule     `json:"logic,omitempty" db:"logic"`
+	SortOrder   int             `json:"sortOrder" db:"sort_order"`
+	CreatedAt   time.Time       `json:"createdAt" db:"created_at"`
+	UpdatedAt   time.Time       `json:"updatedAt" db:"updated_at"`
 }
 
 // Response represents a survey response
@@ -175,11 +290,12 @@ type SurveyVersion struct {
 
 // AnswerValue is a flexible container for different answer types
 type AnswerValue struct {
-	Value  *string  `json:"value,omitempty"`  // For single/select
-	Values []string `json:"values,omitempty"` // For multi
-	Text   *string  `json:"text,omitempty"`   // For text/short/long
-	Rating *int     `json:"rating,omitempty"` // For rating
-	Date   *string  `json:"date,omitempty"`   // For date
+	Value     *string  `json:"value,omitempty"`     // For single/select
+	Values    []string `json:"values,omitempty"`    // For multi
+	Text      *string  `json:"text,omitempty"`      // For text/short/long
+	Rating    *int     `json:"rating,omitempty"`    // For rating
+	Date      *string  `json:"date,omitempty"`      // For date
+	OtherText *string  `json:"otherText,omitempty"` // For selected "other" choice text
 }
 
 // Answer represents an answer to a question

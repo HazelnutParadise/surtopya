@@ -182,7 +182,8 @@
     "authRequiredAction": "立即登入/註冊",
     "requireLoginToRespondLabel": "需登入才能填",
     "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。",
-    "publishErrorMissingSurveyId": "找不到問卷 ID，請先儲存草稿後再發布。"
+    "publishErrorMissingSurveyId": "找不到問卷 ID，請先儲存草稿後再發布。",
+    "otherOptionToggle": "其他"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -216,7 +217,8 @@
     "selectPlaceholder": "選擇一個選項",
     "back": "上一頁",
     "submit": "送出",
-    "next": "下一頁"
+    "next": "下一頁",
+    "otherTextPlaceholder": "請補充說明"
   },
   "Datasets": {
     "searchPlaceholder": "搜尋資料集...",

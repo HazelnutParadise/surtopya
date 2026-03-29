@@ -487,7 +487,14 @@ func stringifyAnswerValue(value models.AnswerValue) string {
 		return strings.TrimSpace(*value.Text)
 	}
 	if value.Value != nil {
-		return strings.TrimSpace(*value.Value)
+		base := strings.TrimSpace(*value.Value)
+		if value.OtherText != nil && strings.TrimSpace(*value.OtherText) != "" {
+			if base == "" {
+				return strings.TrimSpace(*value.OtherText)
+			}
+			return base + " | " + strings.TrimSpace(*value.OtherText)
+		}
+		return base
 	}
 	if len(value.Values) > 0 {
 		parts := make([]string, 0, len(value.Values))
@@ -496,6 +503,9 @@ func stringifyAnswerValue(value models.AnswerValue) string {
 			if trimmed != "" {
 				parts = append(parts, trimmed)
 			}
+		}
+		if value.OtherText != nil && strings.TrimSpace(*value.OtherText) != "" {
+			parts = append(parts, strings.TrimSpace(*value.OtherText))
 		}
 		return strings.Join(parts, " | ")
 	}
