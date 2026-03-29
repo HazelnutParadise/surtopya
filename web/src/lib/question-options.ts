@@ -1,4 +1,5 @@
 import type { Question, QuestionOption } from "@/types/survey"
+import { generateClientUUID } from "@/lib/client-uuid"
 
 type LegacyQuestionOption = string | QuestionOption
 
@@ -14,7 +15,10 @@ export const normalizeQuestionOption = (option: unknown): QuestionOption | null 
   if (!isRecord(option)) return null
   if (typeof option.label !== "string") return null
 
+  const id = typeof option.id === "string" && option.id.trim().length > 0 ? option.id : undefined
+
   return {
+    id,
     label: option.label,
     isOther: option.isOther === true,
     requireOtherText: option.requireOtherText === true,
@@ -59,10 +63,30 @@ export const findQuestionOptionByLabel = (
   return options.find((option) => option.label === label) || null
 }
 
+export const findQuestionOptionById = (
+  question: Pick<Question, "type" | "options">,
+  optionId: string
+): QuestionOption | null => {
+  const options = normalizeChoiceQuestionOptions(question)
+  return options.find((option) => option.id === optionId) || null
+}
+
 export const hasOtherQuestionOption = (question: Pick<Question, "type" | "options">) => {
   return normalizeChoiceQuestionOptions(question).some((option) => option.isOther)
 }
 
 export const createDefaultQuestionOptions = (labels: string[]): QuestionOption[] => {
-  return labels.map((label) => ({ label }))
+  return labels.map((label) => ({ id: generateClientUUID(), label }))
+}
+
+export const ensureQuestionOptionIds = (
+  options: QuestionOption[] | undefined,
+  idFactory: () => string = generateClientUUID
+) => {
+  if (!options) return undefined
+
+  return options.map((option) => ({
+    ...option,
+    id: option.id && option.id.trim().length > 0 ? option.id : idFactory(),
+  }))
 }

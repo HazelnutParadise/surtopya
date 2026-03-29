@@ -81,11 +81,19 @@ type SurveyAuthor struct {
 
 // LogicRule represents conditional logic for a question
 type LogicRule struct {
-	TriggerOption         string `json:"triggerOption"`
-	DestinationQuestionID string `json:"destinationQuestionId"`
+	TriggerOption         string           `json:"triggerOption,omitempty"`
+	Conditions            []LogicCondition `json:"conditions,omitempty"`
+	Operator              string           `json:"operator,omitempty"`
+	DestinationQuestionID string           `json:"destinationQuestionId"`
+}
+
+type LogicCondition struct {
+	OptionID string `json:"optionId"`
+	Match    string `json:"match"`
 }
 
 type QuestionOption struct {
+	ID               string `json:"id,omitempty"`
 	Label            string `json:"label"`
 	IsOther          bool   `json:"isOther,omitempty"`
 	RequireOtherText bool   `json:"requireOtherText,omitempty"`
@@ -139,6 +147,7 @@ func (options QuestionOptions) MarshalJSON() ([]byte, error) {
 			continue
 		}
 		normalized = append(normalized, QuestionOption{
+			ID:               option.ID,
 			Label:            label,
 			IsOther:          option.IsOther,
 			RequireOtherText: option.RequireOtherText,
@@ -159,6 +168,7 @@ func (options QuestionOptions) Clone() QuestionOptions {
 			continue
 		}
 		cloned = append(cloned, QuestionOption{
+			ID:               option.ID,
 			Label:            label,
 			IsOther:          option.IsOther,
 			RequireOtherText: option.RequireOtherText,

@@ -1,13 +1,25 @@
 export type QuestionType = 'single' | 'multi' | 'text' | 'short' | 'long' | 'rating' | 'date' | 'select' | 'section';
 
 export interface QuestionOption {
+    id?: string;
     label: string;
     isOther?: boolean;
     requireOtherText?: boolean;
 }
 
+export type LogicConditionMatch = 'includes' | 'excludes';
+
+export interface LogicCondition {
+    optionId: string;
+    match: LogicConditionMatch;
+}
+
+export type LogicOperator = 'and' | 'or';
+
 export interface LogicRule {
-    triggerOption: string;
+    triggerOption?: string;
+    conditions?: LogicCondition[];
+    operator?: LogicOperator;
     destinationQuestionId: string;
 }
 

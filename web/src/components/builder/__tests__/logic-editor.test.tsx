@@ -21,7 +21,15 @@ const messages: Record<string, Record<string, string>> = {
     untitledPage: "Untitled Page",
     invalidTitle: "Logic jump is invalid: {reason}",
     addRule: "Add Logic Rule",
+    addCondition: "Add condition",
     cancel: "Cancel",
+    conditionMatch: "Condition",
+    conditionIncludes: "Contains",
+    conditionExcludes: "Does not contain",
+    contradictoryConditions: "This rule contains contradictory conditions.",
+    operator: "Match",
+    operatorAnd: "All conditions",
+    operatorOr: "Any condition",
     save: "Save Logic",
     precedenceHint: "If multiple logic jumps match on the same page, the later matched rule overrides earlier jumps.",
   },
@@ -44,7 +52,7 @@ const baseQuestions: Question[] = [
     type: "multi",
     title: "Select many",
     required: false,
-    options: [{ label: "A" }, { label: "B" }],
+    options: [{ id: "opt-a", label: "A" }, { id: "opt-b", label: "B" }],
     logic: [],
   },
   { id: "page-2", type: "section", title: "Page 2", required: false },
@@ -65,5 +73,30 @@ describe("LogicEditor", () => {
     expect(screen.queryByText(messages.LogicEditor.unsupported)).not.toBeInTheDocument()
     expect(screen.getByText(messages.LogicEditor.precedenceHint)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: messages.LogicEditor.save })).toBeEnabled()
+  })
+
+  it("shows multi-select operator and condition controls", () => {
+    render(
+      <LogicEditor
+        question={{
+          ...baseQuestions[1],
+          logic: [
+            {
+              operator: "and",
+              conditions: [{ optionId: "opt-a", match: "includes" }],
+              destinationQuestionId: "page-2",
+            },
+          ],
+        }}
+        allQuestions={baseQuestions}
+        open
+        onOpenChange={() => {}}
+        onSave={() => {}}
+      />
+    )
+
+    expect(screen.getByText(messages.LogicEditor.operator)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.conditionMatch)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: messages.LogicEditor.addCondition })).toBeInTheDocument()
   })
 })

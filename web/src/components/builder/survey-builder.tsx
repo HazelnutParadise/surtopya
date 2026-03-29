@@ -21,6 +21,7 @@ import { getContrastColor } from "@/lib/utils";
 import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import { createDefaultQuestionOptions, normalizeQuestionOptions } from "@/lib/question-options";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
+import { getQuestionLogicIssues, normalizeLogicRule, normalizeQuestionLogic } from "@/lib/survey-logic";
 import type { SurveyVersion } from "@/lib/api";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
 import {
@@ -617,7 +618,12 @@ export function SurveyBuilder() {
 
   const saveLogic = (logic: LogicRule[]) => {
     if (activeLogicQuestionId) {
-        updateQuestion(activeLogicQuestionId, { logic });
+        const activeQuestion = questions.find((question) => question.id === activeLogicQuestionId)
+        if (!activeQuestion) return
+        const normalizedQuestion = normalizeQuestionLogic(activeQuestion)
+        updateQuestion(activeLogicQuestionId, {
+          logic: logic.map((rule) => normalizeLogicRule(normalizedQuestion, rule)),
+        });
     }
   };
 
@@ -743,35 +749,59 @@ export function SurveyBuilder() {
     }
   }, [])
 
-  // Validate logic jumps - returns warning message if invalid, null if valid
-  const getLogicWarning = (questionId: string): string | null => {
-    const questionIndex = questions.findIndex(q => q.id === questionId);
-    if (questionIndex === -1) return null;
-    
-    const question = questions[questionIndex];
-    if (!question.logic || question.logic.length === 0) return null;
-    
-    for (const rule of question.logic) {
-      // Skip "end_survey" - always valid
-      if (rule.destinationQuestionId === 'end_survey') continue;
-      
-      // Check if destination exists
-      const destIndex = questions.findIndex(q => q.id === rule.destinationQuestionId);
-      if (destIndex === -1) {
-        return tBuilder("logicWarningDeleted");
-      }
-      
-      // Check if destination is AFTER current question (forward jump only)
-      if (destIndex <= questionIndex) {
-        return tBuilder("logicWarningBackwards");
-      }
+  const normalizedQuestions = React.useMemo(
+    () => questions.map((question) => normalizeQuestionLogic(question)),
+    [questions]
+  )
+
+  const mapLogicIssueToMessage = React.useCallback((code: string) => {
+    switch (code) {
+      case "contradictory_conditions":
+        return tBuilder("logicWarningContradictory")
+      case "deleted_option":
+        return tBuilder("logicWarningDeletedOption")
+      case "deleted_destination":
+        return tBuilder("logicWarningDeleted")
+      case "invalid_destination_position":
+        return tBuilder("logicWarningBackwards")
+      default:
+        return tBuilder("logicWarningGeneric")
     }
-    
-    return null;
-  };
+  }, [tBuilder])
+
+  const logicIssuesByQuestion = React.useMemo(() => {
+    const nextMap = new Map<string, ReturnType<typeof getQuestionLogicIssues>>()
+    normalizedQuestions.forEach((question) => {
+      nextMap.set(question.id, getQuestionLogicIssues(question, normalizedQuestions))
+    })
+    return nextMap
+  }, [normalizedQuestions])
+
+  const publishBlockingLogicEntries = React.useMemo(
+    () =>
+      normalizedQuestions
+        .filter((question) => question.type !== "section")
+        .map((question) => {
+          const issues = logicIssuesByQuestion.get(question.id) || []
+          return {
+            question,
+            issues,
+          }
+        })
+        .filter((entry) => entry.issues.length > 0),
+    [logicIssuesByQuestion, normalizedQuestions]
+  )
+
+  const hasPublishBlockingLogicIssues = publishBlockingLogicEntries.length > 0
+
+  const getLogicWarning = (questionId: string): string | null => {
+    const issues = logicIssuesByQuestion.get(questionId) || []
+    if (issues.length === 0) return null
+    return mapLogicIssueToMessage(issues[0].code)
+  }
 
   const buildQuestionsPayload = () => {
-    return questions
+    return normalizedQuestions
       .filter(q => q.id !== "placeholder")
       .map((q) => ({
         id: q.id,
@@ -1096,9 +1126,9 @@ export function SurveyBuilder() {
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-3 py-3 shadow-sm z-10 dark:border-gray-800 dark:bg-gray-900 md:px-4 md:py-2">
-           <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-start gap-3 md:items-center md:gap-4">
+      <div className="z-10 border-b border-gray-200 bg-white px-3 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:px-4 md:py-2">
+           <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-start gap-3 md:items-center md:gap-4">
                     <Button variant="ghost" size="icon" onClick={requestExitEditor} className="shrink-0">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
@@ -1109,7 +1139,7 @@ export function SurveyBuilder() {
                                 setTitle(e.target.value);
                                 notifyChange();
                             }}
-                            className="h-9 w-full max-w-xl border-transparent bg-transparent px-1 text-sm font-bold hover:border-gray-200 focus:border-purple-500 md:h-7 md:w-auto md:min-w-[150px]"
+                            className="h-9 w-full max-w-xl border-transparent bg-transparent px-1 text-sm font-bold hover:border-gray-200 focus:border-purple-500 md:h-7 md:min-w-[220px] md:max-w-[26rem]"
                             placeholder={tBuilder("untitledSurvey")}
                         />
                         <span className="px-1 text-[10px] capitalize text-gray-400">
@@ -1117,8 +1147,8 @@ export function SurveyBuilder() {
                         </span>
                     </div>
                 </div>
-                <div className="flex flex-col gap-2 lg:items-end">
-                    <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col gap-2 md:min-w-0 md:flex-1 md:flex-row md:items-center md:justify-end md:gap-3">
+                    <div className="flex flex-wrap items-center gap-2 md:min-w-0 md:flex-nowrap">
                         <div className="relative flex items-center rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
                             <span
                                 aria-hidden
@@ -1160,7 +1190,7 @@ export function SurveyBuilder() {
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="cursor-help">{tBuilder("minutesShort", { minutes: calculateEstimatedTime(questions) })}</span>
+                                        <span className="cursor-help whitespace-nowrap">{tBuilder("minutesShort", { minutes: calculateEstimatedTime(questions) })}</span>
                                     </TooltipTrigger>
                                     <TooltipContent>
                                         <p>{tBuilder("estimatedTime")}</p>
@@ -1172,23 +1202,23 @@ export function SurveyBuilder() {
                             size="sm"
                             variant="outline"
                             onClick={() => setActiveSidebar(activeSidebar === 'theme' ? 'toolbox' : 'theme')}
-                            className="hidden h-8 md:inline-flex"
+                            className="hidden h-8 shrink-0 md:inline-flex"
                         >
                             {activeSidebar === 'theme' ? <Layout className="mr-2 h-3 w-3" /> : <Palette className="mr-2 h-3 w-3" />}
                             {activeSidebar === 'theme' ? tBuilder("toolbox") : tBuilder("theme")}
                         </Button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end md:flex-nowrap">
                         <Button 
                             size="sm" 
                             variant="outline"
                             onClick={saveSurvey}
-                            className="h-9 sm:h-8"
+                            className="h-9 shrink-0 sm:h-8"
                             disabled={!isDirty || savingSurvey || loadingSurvey}
                         >
                             <Save className="mr-2 h-3 w-3" /> {tCommon("save")}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-9 sm:h-8">
+                        <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-9 shrink-0 sm:h-8">
                             <Eye className="mr-2 h-3 w-3" /> {tCommon("preview")}
                         </Button>
                         <Button 
@@ -1197,7 +1227,7 @@ export function SurveyBuilder() {
                                 setPublishError(null)
                                 setPublishSettingsOpen(true)
                             }} 
-                            className={`col-span-2 h-9 sm:col-span-1 sm:h-8 ${canOpenPublishDialog ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                            className={`col-span-2 h-9 shrink-0 sm:col-span-1 sm:h-8 ${canOpenPublishDialog ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
                             disabled={!canOpenPublishDialog}
                         >
                             <Send className="mr-2 h-3 w-3" />
@@ -1883,6 +1913,36 @@ export function SurveyBuilder() {
                             />
                         </div>
 
+                        {hasPublishBlockingLogicIssues ? (
+                          <div
+                            className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                            data-testid="builder-publish-logic-block"
+                          >
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div>
+                                <p className="font-medium">{tBuilder("publishBlockedByLogicTitle")}</p>
+                                <p className="text-xs text-red-600 dark:text-red-300/90">
+                                  {tBuilder("publishBlockedByLogicDescription")}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {publishBlockingLogicEntries.map(({ question, issues }) => (
+                                <div
+                                  key={question.id}
+                                  className="rounded-md border border-red-200/80 bg-white/70 px-3 py-2 dark:border-red-900/40 dark:bg-black/10"
+                                >
+                                  <p className="font-medium">{question.title || tBuilder("untitledQuestion")}</p>
+                                  <p className="mt-1 text-xs">
+                                    {issues.map((issue) => mapLogicIssueToMessage(issue.code)).join(" / ")}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
                         <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
                                 <label className="text-sm font-medium">{tBuilder("pointsReward")}</label>
@@ -1916,7 +1976,7 @@ export function SurveyBuilder() {
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
                             onClick={publishSurvey}
-                            disabled={!canOpenPublishDialog}
+                            disabled={!canOpenPublishDialog || hasPublishBlockingLogicIssues}
                         >
                             <Rocket className="mr-2 h-4 w-4" />
                             {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}

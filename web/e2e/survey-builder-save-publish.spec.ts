@@ -162,6 +162,21 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
   await page.getByRole("button", { name: "I Understand and Agree" }).click()
 
   await expect(page.getByPlaceholder("Untitled Survey")).toBeVisible()
+  const builderTab = page.getByRole("button", { name: "Builder" })
+  const saveButton = page.getByRole("button", { name: "Save" })
+  const publishButton = page.getByRole("button", { name: "Publish" })
+
+  const [builderBox, saveBox, publishBox] = await Promise.all([
+    builderTab.boundingBox(),
+    saveButton.boundingBox(),
+    publishButton.boundingBox(),
+  ])
+
+  expect(builderBox).toBeTruthy()
+  expect(saveBox).toBeTruthy()
+  expect(publishBox).toBeTruthy()
+  expect(Math.abs((builderBox?.y ?? 0) - (saveBox?.y ?? 0))).toBeLessThan(12)
+  expect(Math.abs((saveBox?.y ?? 0) - (publishBox?.y ?? 0))).toBeLessThan(12)
 
   await page.getByPlaceholder("Untitled Survey").fill("My Survey")
 

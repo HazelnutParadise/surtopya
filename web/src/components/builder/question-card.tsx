@@ -36,6 +36,7 @@ interface QuestionCardProps {
   canMoveDown?: boolean;
   isHidden?: boolean;
   isOverlay?: boolean;
+  hasLogic?: boolean;
   hasLogicWarning?: boolean;
   logicWarningMessage?: string;
 }
@@ -53,11 +54,13 @@ export function QuestionCard({
   canMoveDown = false,
   isHidden,
   isOverlay,
+  hasLogic,
   hasLogicWarning,
   logicWarningMessage,
 }: QuestionCardProps) {
   const tBuilder = useTranslations("SurveyBuilder");
   const tQuestion = useTranslations("QuestionTypes");
+  const hasConfiguredLogic = hasLogic ?? Boolean(question.logic?.length);
   const {
     attributes,
     listeners,
@@ -181,6 +184,15 @@ export function QuestionCard({
                 {tQuestion(question.type)}
                 </Badge>
             )}
+            {hasConfiguredLogic && !hasLogicWarning ? (
+              <Badge
+                variant="secondary"
+                className="border border-blue-200 bg-blue-50 text-[11px] font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300"
+                data-testid="question-logic-indicator"
+              >
+                {tBuilder("logicJumps")}
+              </Badge>
+            ) : null}
             {hasLogicWarning && (
               <TooltipProvider>
                 <Tooltip>
@@ -305,7 +317,13 @@ export function QuestionCard({
             <Button
               variant="ghost"
               size="icon"
-              className="text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+              className={`${
+                hasLogicWarning
+                  ? "text-red-500 hover:text-red-600 hover:bg-red-50"
+                  : hasLogic
+                    ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+              }`}
               onClick={() => onOpenLogic(question.id)}
               title={tBuilder("logicJumps")}
               aria-label={tBuilder("logicJumps")}

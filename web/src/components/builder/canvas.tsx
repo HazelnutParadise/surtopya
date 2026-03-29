@@ -109,6 +109,7 @@ export function Canvas({
                         onMoveDown={onMoveDown}
                         canMoveUp={canMoveUp(q.id)}
                         canMoveDown={canMoveDown(q.id)}
+                        hasLogic={Boolean(q.logic && q.logic.length > 0)}
                         isHidden={hiddenIds.has(q.id)}
                         hasLogicWarning={!!warning}
                         logicWarningMessage={warning || undefined}
@@ -128,6 +129,7 @@ export function Canvas({
                             onMoveDown={onMoveDown}
                             canMoveUp={canMoveUp(section.header.id)}
                             canMoveDown={canMoveDown(section.header.id)}
+                            hasLogic={Boolean(section.header.logic && section.header.logic.length > 0)}
                             isHidden={hiddenIds.has(section.header.id)}
                         />
                         <div className="pl-4 mt-4 space-y-4 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
@@ -146,6 +148,7 @@ export function Canvas({
                                     onMoveDown={onMoveDown}
                                     canMoveUp={canMoveUp(q.id)}
                                     canMoveDown={canMoveDown(q.id)}
+                                    hasLogic={Boolean(q.logic && q.logic.length > 0)}
                                     isHidden={hiddenIds.has(q.id)}
                                     hasLogicWarning={!!warning}
                                     logicWarningMessage={warning || undefined}

@@ -76,10 +76,25 @@ describe("SurveyRenderer logic precedence", () => {
             type: "multi",
             title: "Choose options",
             required: true,
-            options: [{ label: "A" }, { label: "B" }],
+            options: [
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+              { id: "opt-c", label: "C" },
+            ],
             logic: [
-              { triggerOption: "A", destinationQuestionId: "page-2" },
-              { triggerOption: "B", destinationQuestionId: "page-3" },
+              {
+                operator: "and",
+                conditions: [
+                  { optionId: "opt-a", match: "includes" },
+                  { optionId: "opt-c", match: "excludes" },
+                ],
+                destinationQuestionId: "page-2",
+              },
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-b", match: "includes" }],
+                destinationQuestionId: "page-3",
+              },
             ],
           },
           { id: "page-2", type: "section", title: "Page 2", required: false },
@@ -108,16 +123,28 @@ describe("SurveyRenderer logic precedence", () => {
             type: "single",
             title: "First question",
             required: true,
-            options: [{ label: "A" }],
-            logic: [{ triggerOption: "A", destinationQuestionId: "page-2" }],
+            options: [{ id: "opt-a", label: "A" }],
+            logic: [
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-a", match: "includes" }],
+                destinationQuestionId: "page-2",
+              },
+            ],
           },
           {
             id: "q2",
             type: "single",
             title: "Second question",
             required: true,
-            options: [{ label: "B" }],
-            logic: [{ triggerOption: "B", destinationQuestionId: "page-3" }],
+            options: [{ id: "opt-b", label: "B" }],
+            logic: [
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-b", match: "includes" }],
+                destinationQuestionId: "page-3",
+              },
+            ],
           },
           { id: "page-2", type: "section", title: "Page 2", required: false },
           { id: "q-page-2", type: "short", title: "Question on page 2", required: false },

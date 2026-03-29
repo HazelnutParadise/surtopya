@@ -1,190 +1,372 @@
-import React from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Question, LogicRule } from "@/types/survey";
-import { Plus, Trash2, ArrowRight } from "lucide-react";
-import { useTranslations } from "next-intl";
-import { getQuestionOptionLabel, normalizeQuestionOptions } from "@/lib/question-options";
+import React from "react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { LogicRule, Question } from "@/types/survey"
+import { Plus, Trash2, ArrowRight, AlertTriangle } from "lucide-react"
+import { useTranslations } from "next-intl"
+import { findQuestionOptionById } from "@/lib/question-options"
+import { isContradictoryLogicRule, normalizeQuestionLogic } from "@/lib/survey-logic"
 
 interface LogicEditorProps {
-  question: Question;
-  allQuestions: Question[];
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSave: (logic: LogicRule[]) => void;
+  question: Question
+  allQuestions: Question[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: (logic: LogicRule[]) => void
 }
 
 export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave }: LogicEditorProps) {
-  const t = useTranslations("LogicEditor");
-  const [rules, setRules] = React.useState<LogicRule[]>(question.logic || []);
+  const t = useTranslations("LogicEditor")
+  const normalizedQuestion = React.useMemo(() => normalizeQuestionLogic(question), [question])
+  const [rules, setRules] = React.useState<LogicRule[]>(normalizedQuestion.logic || [])
 
-  // Reset rules when opening for a different question
   React.useEffect(() => {
-    setRules(question.logic || []);
-  }, [question.id, question.logic, open]);
+    setRules(normalizedQuestion.logic || [])
+  }, [normalizedQuestion, open])
 
-  const addRule = () => {
-    const options = normalizeQuestionOptions(question.options) || [];
-    if (options.length === 0) return;
-    setRules([...rules, { triggerOption: getQuestionOptionLabel(options[0]), destinationQuestionId: "" }]);
-  };
+  const isCompatible =
+    normalizedQuestion.type === "single" ||
+    normalizedQuestion.type === "select" ||
+    normalizedQuestion.type === "multi"
+  const isMultiQuestion = normalizedQuestion.type === "multi"
+  const normalizedOptions = normalizedQuestion.options || []
 
-  const removeRule = (index: number) => {
-    const newRules = [...rules];
-    newRules.splice(index, 1);
-    setRules(newRules);
-  };
+  const currentQuestionIndex = allQuestions.findIndex((item) => item.id === normalizedQuestion.id)
 
-  const updateRule = (index: number, field: keyof LogicRule, value: string) => {
-    const newRules = [...rules];
-    newRules[index] = { ...newRules[index], [field]: value };
-    setRules(newRules);
-  };
-
-  const handleSave = () => {
-    onSave(rules);
-    onOpenChange(false);
-  };
-
-  // Only choice-based questions can define jump logic.
-  const isCompatible = question.type === 'single' || question.type === 'select' || question.type === 'multi';
-  const normalizedOptions = normalizeQuestionOptions(question.options) || [];
-  
-  // Filter questions that come AFTER the current question to prevent loops
-  const currentQuestionIndex = allQuestions.findIndex(q => q.id === question.id);
-  
-  // 1. Questions on the same page (after current)
-  const samePageQuestions: Question[] = [];
-  for (let i = currentQuestionIndex + 1; i < allQuestions.length; i++) {
-      if (allQuestions[i].type === 'section') break;
-      samePageQuestions.push(allQuestions[i]);
+  const samePageQuestions: Question[] = []
+  for (let index = currentQuestionIndex + 1; index < allQuestions.length; index += 1) {
+    if (allQuestions[index].type === "section") break
+    samePageQuestions.push(allQuestions[index])
   }
 
-  // 2. Subsequent Pages (Sections)
-  const subsequentPages = allQuestions.slice(currentQuestionIndex + 1).filter(q => q.type === 'section');
+  const subsequentPages = allQuestions.slice(currentQuestionIndex + 1).filter((item) => item.type === "section")
+
+  const addRule = () => {
+    const firstOption = normalizedOptions[0]
+    const firstOptionId = firstOption?.id
+    if (!firstOptionId) return
+
+    setRules((currentRules) => [
+      ...currentRules,
+      {
+        triggerOption: firstOption.label,
+        operator: "or",
+        conditions: [{ optionId: firstOptionId, match: "includes" }],
+        destinationQuestionId: "",
+      },
+    ])
+  }
+
+  const addCondition = (ruleIndex: number) => {
+    const firstOption = normalizedOptions[0]
+    const firstOptionId = firstOption?.id
+    if (!firstOptionId) return
+
+    setRules((currentRules) =>
+      currentRules.map((rule, index) =>
+        index === ruleIndex
+          ? {
+              ...rule,
+              conditions: [...(rule.conditions || []), { optionId: firstOptionId, match: "includes" }],
+            }
+          : rule
+      )
+    )
+  }
+
+  const removeRule = (index: number) => {
+    setRules((currentRules) => currentRules.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  const updateRule = (index: number, updates: Partial<LogicRule>) => {
+    setRules((currentRules) =>
+      currentRules.map((rule, currentIndex) => (currentIndex === index ? { ...rule, ...updates } : rule))
+    )
+  }
+
+  const updateCondition = (
+    ruleIndex: number,
+    conditionIndex: number,
+    field: "optionId" | "match",
+    value: string
+  ) => {
+    setRules((currentRules) =>
+      currentRules.map((rule, currentIndex) => {
+        if (currentIndex !== ruleIndex) return rule
+
+        const nextConditions = [...(rule.conditions || [])]
+        const nextCondition = nextConditions[conditionIndex]
+        if (!nextCondition) return rule
+
+        nextConditions[conditionIndex] = {
+          ...nextCondition,
+          [field]: value,
+        }
+
+        return {
+          ...rule,
+          conditions: nextConditions,
+        }
+      })
+    )
+  }
+
+  const removeCondition = (ruleIndex: number, conditionIndex: number) => {
+    setRules((currentRules) =>
+      currentRules.map((rule, currentIndex) => {
+        if (currentIndex !== ruleIndex) return rule
+
+        return {
+          ...rule,
+          conditions: (rule.conditions || []).filter((_, index) => index !== conditionIndex),
+        }
+      })
+    )
+  }
+
+  const handleSave = () => {
+    onSave(rules)
+    onOpenChange(false)
+  }
+
+  const renderDestinationSelect = (rule: LogicRule, ruleIndex: number) => {
+    const destinationId = rule.destinationQuestionId
+    const isEndSurvey = destinationId === "end_survey"
+    const destinationQuestion = allQuestions.find((item) => item.id === destinationId)
+    const destinationIndex = allQuestions.findIndex((item) => item.id === destinationId)
+    const isInvalid = !isEndSurvey && destinationId && (!destinationQuestion || destinationIndex <= currentQuestionIndex)
+    const invalidReason = !destinationQuestion
+      ? t("invalidDeleted")
+      : destinationIndex <= currentQuestionIndex
+        ? t("invalidPosition")
+        : ""
+
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs text-gray-500">{t("jumpTo")}</Label>
+        <div className="flex items-center gap-2">
+          <Select value={rule.destinationQuestionId} onValueChange={(value) => updateRule(ruleIndex, { destinationQuestionId: value })}>
+            <SelectTrigger className={`h-9 flex-1 ${isInvalid ? "border-red-500 bg-red-50 dark:bg-red-900/20" : ""}`}>
+              <SelectValue placeholder="Select Question">
+                {isInvalid && destinationQuestion ? (
+                  <span className="text-red-600">
+                    {destinationQuestion.title || t("untitledQuestion")} {invalidReason}
+                  </span>
+                ) : isInvalid && !destinationQuestion ? (
+                  <span className="text-red-600">
+                    {t("deletedQuestion")} {invalidReason}
+                  </span>
+                ) : undefined}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="end_survey">{t("endSurvey")}</SelectItem>
+
+              {samePageQuestions.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel>{t("currentPage")}</SelectLabel>
+                  {samePageQuestions.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.title || t("untitledQuestion")}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+
+              {subsequentPages.length > 0 ? (
+                <SelectGroup>
+                  <SelectLabel>{t("goToPage")}</SelectLabel>
+                  {subsequentPages.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.title || t("untitledPage")}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ) : null}
+            </SelectContent>
+          </Select>
+          {isInvalid ? (
+            <div className="text-red-500" title={t("invalidTitle", { reason: invalidReason })}>
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-[720px]" onInteractOutside={(event) => event.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>{t("title", { title: question.title })}</DialogTitle>
+          <DialogTitle>{t("title", { title: normalizedQuestion.title })}</DialogTitle>
           <DialogDescription>{t("precedenceHint")}</DialogDescription>
         </DialogHeader>
 
         {!isCompatible ? (
-          <div className="py-6 text-center text-gray-500">
-            {t("unsupported")}
-          </div>
+          <div className="py-6 text-center text-gray-500">{t("unsupported")}</div>
         ) : (
           <div className="space-y-4 py-4">
             {rules.length === 0 ? (
-              <div className="text-center text-sm text-gray-500 py-4 border-2 border-dashed rounded-lg">
-                {t("empty")}
-              </div>
+              <div className="rounded-lg border-2 border-dashed py-4 text-center text-sm text-gray-500">{t("empty")}</div>
             ) : (
               <div className="space-y-3">
-                {rules.map((rule, index) => (
-                  <div key={index} className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100 dark:bg-gray-900 dark:border-gray-800">
-                    <div className="flex-1 grid grid-cols-[1fr,auto,1fr] gap-2 items-center">
-                      <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">{t("ifAnswerIs")}</Label>
-                        <Select 
-                          value={rule.triggerOption} 
-                          onValueChange={(val) => updateRule(index, 'triggerOption', val)}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder={t("selectOption")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {normalizedOptions.map((option) => {
-                              const optionLabel = getQuestionOptionLabel(option)
-                              return (
-                                <SelectItem key={optionLabel} value={optionLabel}>{optionLabel}</SelectItem>
-                              )
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                {rules.map((rule, ruleIndex) => {
+                  const conditions = rule.conditions || []
+                  const hasContradiction = isContradictoryLogicRule(rule)
 
-                      <ArrowRight className="h-4 w-4 text-gray-400 mt-5" />
-
-                      <div className="space-y-1">
-                        <Label className="text-xs text-gray-500">{t("jumpTo")}</Label>
-                        {(() => {
-                          // Check if current destination is invalid
-                          const destId = rule.destinationQuestionId;
-                          const isEndSurvey = destId === 'end_survey';
-                          const destQuestion = allQuestions.find(q => q.id === destId);
-                          const destIndex = allQuestions.findIndex(q => q.id === destId);
-                          const isInvalid = !isEndSurvey && destId && (
-                            !destQuestion || // Question was deleted
-                            destIndex <= currentQuestionIndex // Question is before or at current position
-                          );
-                          const invalidReason = !destQuestion 
-                            ? t("invalidDeleted")
-                            : destIndex <= currentQuestionIndex 
-                              ? t("invalidPosition")
-                              : '';
-                          
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Select 
-                                value={rule.destinationQuestionId} 
-                                onValueChange={(val) => updateRule(index, 'destinationQuestionId', val)}
+                  return (
+                    <div
+                      key={ruleIndex}
+                      className="space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900"
+                    >
+                      {isMultiQuestion ? (
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-gray-500">{t("operator")}</Label>
+                              <Select
+                                value={rule.operator || "or"}
+                                onValueChange={(value) => updateRule(ruleIndex, { operator: value as LogicRule["operator"] })}
                               >
-                                <SelectTrigger className={`h-9 flex-1 ${isInvalid ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}>
-                                  <SelectValue placeholder="Select Question">
-                                    {isInvalid && destQuestion ? (
-                                      <span className="text-red-600">{destQuestion.title || t("untitledQuestion")} {invalidReason}</span>
-                                    ) : isInvalid && !destQuestion ? (
-                                      <span className="text-red-600">{t("deletedQuestion")} {invalidReason}</span>
-                                    ) : undefined}
-                                  </SelectValue>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="end_survey">{t("endSurvey")}</SelectItem>
-                                  
-                                  {samePageQuestions.length > 0 && (
-                                      <SelectGroup>
-                                          <SelectLabel>{t("currentPage")}</SelectLabel>
-                                          {samePageQuestions.map(q => (
-                                              <SelectItem key={q.id} value={q.id}>{q.title || t("untitledQuestion")}</SelectItem>
-                                          ))}
-                                      </SelectGroup>
-                                  )}
-
-                                  {subsequentPages.length > 0 && (
-                                      <SelectGroup>
-                                          <SelectLabel>{t("goToPage")}</SelectLabel>
-                                          {subsequentPages.map(q => (
-                                              <SelectItem key={q.id} value={q.id}>{q.title || t("untitledPage")}</SelectItem>
-                                          ))}
-                                      </SelectGroup>
-                                  )}
+                                  <SelectItem value="and">{t("operatorAnd")}</SelectItem>
+                                  <SelectItem value="or">{t("operatorOr")}</SelectItem>
                                 </SelectContent>
                               </Select>
-                              {isInvalid && (
-                                <div className="text-red-500" title={t("invalidTitle", { reason: invalidReason })}>
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                                    <path d="M12 9v4"/>
-                                    <path d="M12 17h.01"/>
-                                  </svg>
-                                </div>
-                              )}
                             </div>
-                          );
-                        })()}
+
+                            <div className="space-y-2">
+                              {conditions.map((condition, conditionIndex) => {
+                                const selectedOption = findQuestionOptionById(normalizedQuestion, condition.optionId)
+                                const missingOptionValue = selectedOption ? null : condition.optionId || `missing-${ruleIndex}-${conditionIndex}`
+                                return (
+                                  <div key={`${ruleIndex}-${conditionIndex}`} className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)_auto]">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-gray-500">{t("conditionMatch")}</Label>
+                                      <Select
+                                        value={condition.match}
+                                        onValueChange={(value) => updateCondition(ruleIndex, conditionIndex, "match", value)}
+                                      >
+                                        <SelectTrigger className="h-9">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="includes">{t("conditionIncludes")}</SelectItem>
+                                          <SelectItem value="excludes">{t("conditionExcludes")}</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-gray-500">{t("selectOption")}</Label>
+                                      <Select
+                                        value={selectedOption?.id || missingOptionValue || undefined}
+                                        onValueChange={(value) => updateCondition(ruleIndex, conditionIndex, "optionId", value)}
+                                      >
+                                        <SelectTrigger className="h-9">
+                                          <SelectValue placeholder={t("selectOption")} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {!selectedOption && missingOptionValue ? (
+                                            <SelectItem value={missingOptionValue}>{t("deletedQuestion")}</SelectItem>
+                                          ) : null}
+                                          {normalizedOptions.map((option) => (
+                                            <SelectItem key={option.id} value={option.id!}>
+                                              {option.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+
+                                    <div className="flex items-end">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeCondition(ruleIndex, conditionIndex)}
+                                        disabled={conditions.length <= 1}
+                                        className="h-9 w-9 text-gray-400 hover:text-red-500"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+
+                            <Button variant="outline" onClick={() => addCondition(ruleIndex)} className="border-dashed">
+                              <Plus className="mr-2 h-4 w-4" /> {t("addCondition")}
+                            </Button>
+
+                            {hasContradiction ? (
+                              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+                                <AlertTriangle className="h-4 w-4 shrink-0" />
+                                {t("contradictoryConditions")}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="hidden md:flex pt-6">
+                            <ArrowRight className="h-4 w-4 text-gray-400" />
+                          </div>
+
+                          {renderDestinationSelect(rule, ruleIndex)}
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">{t("ifAnswerIs")}</Label>
+                            <Select
+                              value={conditions[0]?.optionId || undefined}
+                              onValueChange={(value) =>
+                                updateRule(ruleIndex, {
+                                  triggerOption: normalizedOptions.find((option) => option.id === value)?.label,
+                                  operator: "or",
+                                  conditions: [{ optionId: value, match: "includes" }],
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder={t("selectOption")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {normalizedOptions.map((option) => (
+                                  <SelectItem key={option.id} value={option.id!}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="hidden md:flex pt-6">
+                            <ArrowRight className="h-4 w-4 text-gray-400" />
+                          </div>
+
+                          {renderDestinationSelect(rule, ruleIndex)}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRule(ruleIndex)}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    
-                    <Button variant="ghost" size="icon" onClick={() => removeRule(index)} className="mt-5 text-gray-400 hover:text-red-500">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -195,10 +377,14 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
-          <Button onClick={handleSave} disabled={!isCompatible}>{t("save")}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("cancel")}
+          </Button>
+          <Button onClick={handleSave} disabled={!isCompatible}>
+            {t("save")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

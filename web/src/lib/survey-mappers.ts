@@ -1,6 +1,7 @@
 import { Survey as ApiSurvey, Question as ApiQuestion } from "@/lib/api"
 import { Survey as UiSurvey, Question as UiQuestion } from "@/types/survey"
-import { normalizeQuestionOptions } from "@/lib/question-options"
+import { ensureQuestionOptionIds, normalizeQuestionOptions } from "@/lib/question-options"
+import { normalizeQuestionLogic } from "@/lib/survey-logic"
 
 export type SurveyDisplay = UiSurvey & {
   responseCount: number
@@ -18,16 +19,17 @@ export type SurveyDisplay = UiSurvey & {
   createdAt?: string
 }
 
-const mapQuestion = (question: ApiQuestion): UiQuestion => ({
-  id: question.id,
-  type: question.type as UiQuestion["type"],
-  title: question.title,
-  description: question.description || undefined,
-  options: normalizeQuestionOptions(question.options),
-  required: question.required,
-  logic: question.logic,
-  maxRating: question.maxRating,
-})
+const mapQuestion = (question: ApiQuestion): UiQuestion =>
+  normalizeQuestionLogic({
+    id: question.id,
+    type: question.type as UiQuestion["type"],
+    title: question.title,
+    description: question.description || undefined,
+    options: ensureQuestionOptionIds(normalizeQuestionOptions(question.options)),
+    required: question.required,
+    logic: question.logic,
+    maxRating: question.maxRating,
+  })
 
 export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
   const questions = (survey.questions || []).map(mapQuestion)

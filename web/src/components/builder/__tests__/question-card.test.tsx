@@ -113,4 +113,23 @@ describe("QuestionCard", () => {
     expect(screen.getByTestId("question-choice-marker-multi")).toBeInTheDocument()
     expect(screen.queryByTestId("question-choice-marker-single")).not.toBeInTheDocument()
   })
+
+  it("shows a visible indicator when a question has logic configured", () => {
+    renderCard({
+      id: "q-logic",
+      type: "single",
+      title: "With logic",
+      required: false,
+      options: [{ id: "opt-a", label: "A" }],
+      logic: [
+        {
+          operator: "or",
+          conditions: [{ optionId: "opt-a", match: "includes" }],
+          destinationQuestionId: "page-2",
+        },
+      ],
+    })
+
+    expect(screen.getByTestId("question-logic-indicator")).toBeInTheDocument()
+  })
 })

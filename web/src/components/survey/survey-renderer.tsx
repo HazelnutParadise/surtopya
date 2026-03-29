@@ -41,6 +41,7 @@ import {
   isOtherQuestionOption,
   normalizeChoiceQuestionOptions,
 } from "@/lib/question-options";
+import { logicRuleMatchesAnswer, normalizeQuestionLogic } from "@/lib/survey-logic";
 
 interface SurveyRendererProps {
   survey: Survey
@@ -115,31 +116,16 @@ export function SurveyRenderer({
   const getLastMatchedLogicRule = (question: Question, rawAnswer: unknown): LogicRule | null => {
     if (!question.logic || question.logic.length === 0) return null
 
-    if (question.type === "multi") {
-      const selectedValues = getMultiAnswerValues(rawAnswer)
-      if (selectedValues.length === 0) return null
-      let matchedRule: LogicRule | null = null
-      for (const rule of question.logic) {
-        if (selectedValues.includes(rule.triggerOption)) {
-          matchedRule = rule
-        }
+    const normalizedQuestion = normalizeQuestionLogic(question)
+    let matchedRule: LogicRule | null = null
+
+    for (const rule of normalizedQuestion.logic || []) {
+      if (logicRuleMatchesAnswer(normalizedQuestion, rawAnswer, rule)) {
+        matchedRule = rule
       }
-      return matchedRule
     }
 
-    if (question.type === "single" || question.type === "select") {
-      const selectedValue = getSingleAnswerValue(rawAnswer)
-      if (!selectedValue) return null
-      let matchedRule: LogicRule | null = null
-      for (const rule of question.logic) {
-        if (rule.triggerOption === selectedValue) {
-          matchedRule = rule
-        }
-      }
-      return matchedRule
-    }
-
-    return null
+    return matchedRule
   }
 
   const handleNext = () => {

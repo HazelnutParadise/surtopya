@@ -1,6 +1,6 @@
 // API client for Surtopya backend
 
-import type { QuestionOption } from "@/types/survey"
+import type { LogicCondition, LogicOperator, QuestionOption } from "@/types/survey"
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -222,7 +222,9 @@ export interface SurveyTheme {
 }
 
 export interface LogicRule {
-  triggerOption: string;
+  triggerOption?: string;
+  conditions?: LogicCondition[];
+  operator?: LogicOperator;
   destinationQuestionId: string;
 }
 
