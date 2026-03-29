@@ -119,6 +119,23 @@ const isOtherTextRequired = (question: Question, value: string) => {
   return selectedOption?.isOther === true && selectedOption.requireOtherText === true
 }
 
+export const hasMissingRequiredOtherText = (question: Question, raw: unknown) => {
+  if (question.type === "single" || question.type === "select") {
+    const answer = normalizeSingleSelectAnswer(raw)
+    if (!answer) return false
+    return isOtherTextRequired(question, answer.value) && !trimToUndefined(answer.otherText)
+  }
+
+  if (question.type === "multi") {
+    const answer = normalizeMultiSelectAnswer(raw)
+    if (!answer || answer.values.length === 0) return false
+    const selectedRequiredOther = answer.values.some((value) => isOtherTextRequired(question, value))
+    return selectedRequiredOther && !trimToUndefined(answer.otherText)
+  }
+
+  return false
+}
+
 export const setSingleAnswerValue = (question: Question, currentRaw: unknown, value: string): SingleSelectAnswer => {
   const current = normalizeSingleSelectAnswer(currentRaw)
   return {
@@ -165,18 +182,13 @@ export const isQuestionAnswered = (question: Question, raw: unknown) => {
     case "select": {
       const answer = normalizeSingleSelectAnswer(raw)
       if (!answer) return false
-      if (isOtherTextRequired(question, answer.value)) {
-        return Boolean(trimToUndefined(answer.otherText))
-      }
+      if (hasMissingRequiredOtherText(question, raw)) return false
       return true
     }
     case "multi": {
       const answer = normalizeMultiSelectAnswer(raw)
       if (!answer || answer.values.length === 0) return false
-      const selectedRequiredOther = answer.values.some((value) => isOtherTextRequired(question, value))
-      if (selectedRequiredOther) {
-        return Boolean(trimToUndefined(answer.otherText))
-      }
+      if (hasMissingRequiredOtherText(question, raw)) return false
       return true
     }
     case "text":

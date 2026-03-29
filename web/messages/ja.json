@@ -219,7 +219,9 @@
     "back": "戻る",
     "submit": "送信",
     "next": "次へ",
-    "otherTextPlaceholder": "内容を入力してください"
+    "otherTextPlaceholder": "内容を入力してください",
+    "otherTextRequiredAlert": "「{question}」の補足説明を入力してください。",
+    "otherTextRequiredHint": "続行する前に補足説明を入力してください。"
   },
   "Datasets": {
     "searchPlaceholder": "データセットを検索...",

@@ -28,6 +28,7 @@ import {
   getAnswerOtherText,
   getMultiAnswerValues,
   getSingleAnswerValue,
+  hasMissingRequiredOtherText,
   hasSelectedOtherOption,
   isQuestionAnswered,
   normalizeSurveyAnswerMap,
@@ -71,6 +72,8 @@ export function SurveyRenderer({
     normalizeSurveyAnswerMap(survey, initialAnswers || {})
   )
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [validationQuestionId, setValidationQuestionId] = useState<string | null>(null)
+  const [validationKind, setValidationKind] = useState<"required" | "otherText" | null>(null)
 
   // Default theme
   const activeTheme = theme || {
@@ -110,14 +113,28 @@ export function SurveyRenderer({
   const renderableQuestions = currentQuestions.filter(q => q.type !== 'section');
 
   const handleNext = () => {
-    const missingRequired = renderableQuestions.filter((question) => {
+    const missingOtherTextQuestion = renderableQuestions.find((question) =>
+      hasMissingRequiredOtherText(question, answers[question.id])
+    )
+    if (missingOtherTextQuestion) {
+      setValidationKind("otherText")
+      setValidationQuestionId(missingOtherTextQuestion.id)
+      setValidationError(t("otherTextRequiredAlert", { question: missingOtherTextQuestion.title }))
+      return
+    }
+
+    const missingRequired = renderableQuestions.find((question) => {
       return question.required && !isQuestionAnswered(question, answers[question.id])
     })
-    if (missingRequired.length > 0) {
+    if (missingRequired) {
+      setValidationKind("required")
+      setValidationQuestionId(missingRequired.id)
       setValidationError(t("requiredAlert"))
       return
     }
     setValidationError(null)
+    setValidationQuestionId(null)
+    setValidationKind(null)
 
     // Check logic jumps
     let jumpToPage = -1;
@@ -167,12 +184,18 @@ export function SurveyRenderer({
   };
 
   const handleAnswer = (questionId: string, value: unknown) => {
+    setValidationError(null)
+    setValidationQuestionId(null)
+    setValidationKind(null)
     setAnswers(prev => {
       const nextAnswers = { ...prev, [questionId]: value }
       onAnswerChange?.(questionId, value, nextAnswers)
       return nextAnswers
     })
   };
+
+  const showOtherTextError = (questionId: string) =>
+    validationKind === "otherText" && validationQuestionId === questionId
 
   return (
     <div 
@@ -266,6 +289,7 @@ export function SurveyRenderer({
                 (() => {
                   const value = getSingleAnswerValue(answers[question.id])
                   const otherText = getAnswerOtherText(answers[question.id])
+                  const showInlineOtherTextError = showOtherTextError(question.id)
                   return (
                 <RadioGroup 
                   value={value} 
@@ -293,13 +317,19 @@ export function SurveyRenderer({
                         </Label>
                       </div>
                       {selectedOther ? (
-                        <Input
-                          placeholder={t("otherTextPlaceholder")}
-                          className="mt-3"
-                          value={otherText}
-                          onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <div className="mt-3 space-y-2">
+                          <Input
+                            placeholder={t("otherTextPlaceholder")}
+                            className={showInlineOtherTextError ? "border-red-300 focus-visible:ring-red-200" : ""}
+                            value={otherText}
+                            onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-invalid={showInlineOtherTextError}
+                          />
+                          {showInlineOtherTextError ? (
+                            <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
                   )})}
@@ -315,6 +345,7 @@ export function SurveyRenderer({
                     const currentAnswers = getMultiAnswerValues(answers[question.id])
                     const isChecked = currentAnswers.includes(optionLabel);
                     const selectedOther = isChecked && isOtherQuestionOption(option)
+                    const showInlineOtherTextError = showOtherTextError(question.id)
                     return (
                       <div 
                         key={optionLabel} 
@@ -337,13 +368,19 @@ export function SurveyRenderer({
                           </Label>
                         </div>
                         {selectedOther ? (
-                          <Input
-                            placeholder={t("otherTextPlaceholder")}
-                            className="mt-3"
-                            value={getAnswerOtherText(answers[question.id])}
-                            onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                          <div className="mt-3 space-y-2">
+                            <Input
+                              placeholder={t("otherTextPlaceholder")}
+                              className={showInlineOtherTextError ? "border-red-300 focus-visible:ring-red-200" : ""}
+                              value={getAnswerOtherText(answers[question.id])}
+                              onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-invalid={showInlineOtherTextError}
+                            />
+                            {showInlineOtherTextError ? (
+                              <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     );
@@ -407,6 +444,7 @@ export function SurveyRenderer({
               {question.type === "select" && (
                 (() => {
                   const value = getSingleAnswerValue(answers[question.id])
+                  const showInlineOtherTextError = showOtherTextError(question.id)
                   return (
                 <div className="space-y-3">
                   <Select
@@ -428,11 +466,18 @@ export function SurveyRenderer({
                     </SelectContent>
                   </Select>
                   {hasSelectedOtherOption(question, answers[question.id]) ? (
-                    <Input
-                      placeholder={t("otherTextPlaceholder")}
-                      value={getAnswerOtherText(answers[question.id])}
-                      onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
-                    />
+                    <div className="space-y-2">
+                      <Input
+                        placeholder={t("otherTextPlaceholder")}
+                        value={getAnswerOtherText(answers[question.id])}
+                        onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
+                        className={showInlineOtherTextError ? "border-red-300 focus-visible:ring-red-200" : ""}
+                        aria-invalid={showInlineOtherTextError}
+                      />
+                      {showInlineOtherTextError ? (
+                        <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                   )

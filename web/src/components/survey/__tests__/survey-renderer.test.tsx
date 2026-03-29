@@ -6,6 +6,8 @@ import type { Survey } from "@/types/survey"
 const messages: Record<string, Record<string, string>> = {
   SurveyRenderer: {
     requiredAlert: "Please complete required questions.",
+    otherTextRequiredAlert: 'Please add details for "{question}".',
+    otherTextRequiredHint: "Please fill in the details before continuing.",
     previewBanner: "Preview mode",
     pageProgress: "Page {current} / {total}",
     percentComplete: "{percent}%",
@@ -143,7 +145,8 @@ describe("SurveyRenderer", () => {
     fireEvent.click(screen.getByText("Can add details"))
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
 
-    expect(screen.getByText("Please complete required questions.")).toBeInTheDocument()
+    expect(screen.getByText('Please add details for "Favorite option".')).toBeInTheDocument()
+    expect(screen.getByText("Please fill in the details before continuing.")).toBeInTheDocument()
     expect(onComplete).not.toHaveBeenCalled()
   })
 

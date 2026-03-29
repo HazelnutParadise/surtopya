@@ -214,6 +214,8 @@
     "pageProgress": "Page {current} of {total}",
     "percentComplete": "{percent}% completed",
     "requiredLabel": "Required",
+    "otherTextRequiredAlert": "Please add details for \"{question}\".",
+    "otherTextRequiredHint": "Please fill in the details before continuing.",
     "textPlaceholder": "Type your answer here...",
     "selectPlaceholder": "Select an option",
     "back": "Back",

@@ -219,7 +219,9 @@
     "back": "上一頁",
     "submit": "送出",
     "next": "下一頁",
-    "otherTextPlaceholder": "請補充說明"
+    "otherTextPlaceholder": "請補充說明",
+    "otherTextRequiredAlert": "請補充「{question}」的說明。",
+    "otherTextRequiredHint": "請先填寫補充說明再繼續。"
   },
   "Datasets": {
     "searchPlaceholder": "搜尋資料集...",
