@@ -183,7 +183,8 @@
     "requireLoginToRespondLabel": "需登入才能填",
     "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。",
     "publishErrorMissingSurveyId": "找不到問卷 ID，請先儲存草稿後再發布。",
-    "otherOptionToggle": "其他"
+    "otherOptionToggle": "可補充說明",
+    "otherTextRequiredToggle": "一定要補充"
   },
   "QuestionTypes": {
     "single": "單選題",

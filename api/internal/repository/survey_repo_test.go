@@ -355,7 +355,7 @@ func TestSurveyRepository_GetQuestions_NormalizesStructuredOptions(t *testing.T)
 			"single",
 			"Favorite option",
 			"Desc",
-			[]byte(`[{"label":"Regular"},{"label":"Other","isOther":true}]`),
+			[]byte(`[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]`),
 			true,
 			0,
 			[]byte(`[]`),
@@ -370,7 +370,7 @@ func TestSurveyRepository_GetQuestions_NormalizesStructuredOptions(t *testing.T)
 
 	optionsJSON, err := json.Marshal(questions[0].Options)
 	require.NoError(t, err)
-	require.JSONEq(t, `[{"label":"Regular"},{"label":"Other","isOther":true}]`, string(optionsJSON))
+	require.JSONEq(t, `[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]`, string(optionsJSON))
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -430,7 +430,7 @@ func TestSurveyRepository_SaveQuestions_WritesStructuredOptions(t *testing.T) {
 			"single",
 			"Favorite option",
 			sqlmock.AnyArg(),
-			jsonArgumentMatcher{expected: `[{"label":"Regular"},{"label":"Other","isOther":true}]`},
+			jsonArgumentMatcher{expected: `[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]`},
 			true,
 			0,
 			jsonArgumentMatcher{expected: `[]`},
@@ -448,7 +448,7 @@ func TestSurveyRepository_SaveQuestions_WritesStructuredOptions(t *testing.T) {
 			Description: ptrString("Desc"),
 			Options: models.QuestionOptions{
 				{Label: "Regular"},
-				{Label: "Other", IsOther: true},
+				{Label: "Can add details", IsOther: true, RequireOtherText: true},
 			},
 			Required:  true,
 			MaxRating: 0,

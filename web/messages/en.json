@@ -183,7 +183,8 @@
     "requireLoginToRespondLabel": "Require login to respond",
     "requireLoginToRespondDescription": "Guests must sign in before they can start this survey.",
     "publishErrorMissingSurveyId": "Missing survey id. Save draft before publishing.",
-    "otherOptionToggle": "Other"
+    "otherOptionToggle": "Can add details",
+    "otherTextRequiredToggle": "Require details"
   },
   "QuestionTypes": {
     "single": "Single Choice",

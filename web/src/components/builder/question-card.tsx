@@ -15,7 +15,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTranslations } from "next-intl";
-import { createDefaultQuestionOptions, getQuestionOptionLabel, normalizeQuestionOptions } from "@/lib/question-options";
+import {
+  createDefaultQuestionOptions,
+  getQuestionOptionLabel,
+  isOtherQuestionOption,
+  isOtherTextRequiredQuestionOption,
+  normalizeQuestionOptions,
+} from "@/lib/question-options";
 
 interface QuestionCardProps {
   question: Question;
@@ -77,7 +83,21 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
     const newOptions = currentOptions.map((option, optionIndex) => ({
       ...option,
       isOther: optionIndex === index ? !option.isOther : false,
+      requireOtherText: optionIndex === index ? (option.isOther ? false : option.requireOtherText === true) : false,
     }));
+    onUpdate(question.id, { options: newOptions });
+  };
+
+  const toggleRequireOtherText = (index: number, checked: boolean) => {
+    if (!question.options) return;
+    const currentOptions = normalizeQuestionOptions(question.options) || [];
+    const newOptions = currentOptions.map((option, optionIndex) => {
+      if (optionIndex !== index) return option;
+      return {
+        ...option,
+        requireOtherText: option.isOther ? checked : false,
+      };
+    });
     onUpdate(question.id, { options: newOptions });
   };
 
@@ -150,25 +170,36 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
             {(question.type === 'single' || question.type === 'multi' || question.type === 'select') && (
               <div className="space-y-2">
                 {question.options?.map((option, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className={`h-4 w-4 border border-gray-300 ${question.type === 'multi' ? 'rounded-sm' : 'rounded-full'}`} />
-                    <Input 
-                      value={getQuestionOptionLabel(option)} 
-                      onChange={(e) => handleOptionChange(index, e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant={(normalizeQuestionOptions(question.options) || [])[index]?.isOther ? "secondary" : "outline"}
-                      size="sm"
-                      className="h-8 shrink-0"
-                      onClick={() => toggleOtherOption(index)}
-                    >
-                      {tBuilder("otherOptionToggle")}
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => removeOption(index)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-4 w-4 border border-gray-300 ${question.type === 'multi' ? 'rounded-sm' : 'rounded-full'}`} />
+                      <Input 
+                        value={getQuestionOptionLabel(option)} 
+                        onChange={(e) => handleOptionChange(index, e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant={isOtherQuestionOption(option) ? "secondary" : "outline"}
+                        size="sm"
+                        className="h-8 shrink-0"
+                        onClick={() => toggleOtherOption(index)}
+                      >
+                        {tBuilder("otherOptionToggle")}
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => removeOption(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {isOtherQuestionOption(option) ? (
+                      <div className="ml-6 flex items-center justify-between rounded-md border border-dashed border-gray-200 px-3 py-2">
+                        <span className="text-xs text-gray-600">{tBuilder("otherTextRequiredToggle")}</span>
+                        <Switch
+                          checked={isOtherTextRequiredQuestionOption(option)}
+                          onCheckedChange={(checked) => toggleRequireOtherText(index, checked)}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 ))}
                 <Button variant="ghost" size="sm" onClick={addOption} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50">

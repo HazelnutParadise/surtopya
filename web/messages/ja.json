@@ -183,7 +183,8 @@
     "requireLoginToRespondLabel": "回答にログイン必須",
     "requireLoginToRespondDescription": "有効にすると、ゲストはログインしないと回答を開始できません。",
     "publishErrorMissingSurveyId": "アンケート ID が見つかりません。先に下書きを保存してから公開してください。",
-    "otherOptionToggle": "その他"
+    "otherOptionToggle": "補足説明可",
+    "otherTextRequiredToggle": "補足必須"
   },
   "QuestionTypes": {
     "single": "単一選択",

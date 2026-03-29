@@ -114,6 +114,11 @@ const clearOtherTextIfNeeded = (question: Question, selectedValue: string, other
   return selectedOption?.isOther ? otherText : undefined
 }
 
+const isOtherTextRequired = (question: Question, value: string) => {
+  const selectedOption = findQuestionOptionByLabel(question, value)
+  return selectedOption?.isOther === true && selectedOption.requireOtherText === true
+}
+
 export const setSingleAnswerValue = (question: Question, currentRaw: unknown, value: string): SingleSelectAnswer => {
   const current = normalizeSingleSelectAnswer(currentRaw)
   return {
@@ -160,8 +165,7 @@ export const isQuestionAnswered = (question: Question, raw: unknown) => {
     case "select": {
       const answer = normalizeSingleSelectAnswer(raw)
       if (!answer) return false
-      const selectedOption = findQuestionOptionByLabel(question, answer.value)
-      if (selectedOption?.isOther) {
+      if (isOtherTextRequired(question, answer.value)) {
         return Boolean(trimToUndefined(answer.otherText))
       }
       return true
@@ -169,8 +173,8 @@ export const isQuestionAnswered = (question: Question, raw: unknown) => {
     case "multi": {
       const answer = normalizeMultiSelectAnswer(raw)
       if (!answer || answer.values.length === 0) return false
-      const selectedOther = answer.values.some((value) => findQuestionOptionByLabel(question, value)?.isOther)
-      if (selectedOther) {
+      const selectedRequiredOther = answer.values.some((value) => isOtherTextRequired(question, value))
+      if (selectedRequiredOther) {
         return Boolean(trimToUndefined(answer.otherText))
       }
       return true

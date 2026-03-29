@@ -17,6 +17,7 @@ export const normalizeQuestionOption = (option: unknown): QuestionOption | null 
   return {
     label: option.label,
     isOther: option.isOther === true,
+    requireOtherText: option.requireOtherText === true,
   }
 }
 
@@ -44,6 +45,10 @@ export const getQuestionOptionLabel = (option: LegacyQuestionOption) => {
 
 export const isOtherQuestionOption = (option: LegacyQuestionOption) => {
   return typeof option !== "string" && option.isOther === true
+}
+
+export const isOtherTextRequiredQuestionOption = (option: LegacyQuestionOption) => {
+  return typeof option !== "string" && option.isOther === true && option.requireOtherText === true
 }
 
 export const findQuestionOptionByLabel = (

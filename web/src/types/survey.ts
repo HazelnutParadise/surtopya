@@ -3,6 +3,7 @@ export type QuestionType = 'single' | 'multi' | 'text' | 'short' | 'long' | 'rat
 export interface QuestionOption {
     label: string;
     isOther?: boolean;
+    requireOtherText?: boolean;
 }
 
 export interface LogicRule {

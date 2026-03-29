@@ -358,7 +358,7 @@ func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(
 				"description": "Updated description",
 				"options": []map[string]any{
 					{"label": "Regular"},
-					{"label": "Other", "isOther": true},
+					{"label": "Can add details", "isOther": true, "requireOtherText": true},
 				},
 				"required":  true,
 				"maxRating": 0,
@@ -375,5 +375,6 @@ func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"isOther":true`)
+	require.Contains(t, w.Body.String(), `"requireOtherText":true`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

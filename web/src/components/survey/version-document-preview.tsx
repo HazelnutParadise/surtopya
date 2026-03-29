@@ -7,7 +7,12 @@ import { Star } from "lucide-react"
 import type { SurveyVersion } from "@/lib/api"
 import { formatUtcDateTime } from "@/lib/date-time"
 import type { QuestionOption } from "@/types/survey"
-import { getQuestionOptionLabel, isOtherQuestionOption, normalizeQuestionOptions } from "@/lib/question-options"
+import {
+  getQuestionOptionLabel,
+  isOtherQuestionOption,
+  isOtherTextRequiredQuestionOption,
+  normalizeQuestionOptions,
+} from "@/lib/question-options"
 import { MarkdownContent } from "@/components/ui/markdown-content"
 
 type SnapshotQuestion = {
@@ -252,7 +257,11 @@ export function VersionDocumentPreview({
               <span className={markerClass} />
               <span>
                 {getQuestionOptionLabel(option) || "-"}
-                {isOtherQuestionOption(option) ? " (Other)" : ""}
+                {isOtherQuestionOption(option)
+                  ? isOtherTextRequiredQuestionOption(option)
+                    ? ` (${tBuilder("otherOptionToggle")} / ${tBuilder("otherTextRequiredToggle")})`
+                    : ` (${tBuilder("otherOptionToggle")})`
+                  : ""}
               </span>
             </li>
           ))}

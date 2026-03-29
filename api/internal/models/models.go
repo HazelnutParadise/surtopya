@@ -86,8 +86,9 @@ type LogicRule struct {
 }
 
 type QuestionOption struct {
-	Label   string `json:"label"`
-	IsOther bool   `json:"isOther,omitempty"`
+	Label            string `json:"label"`
+	IsOther          bool   `json:"isOther,omitempty"`
+	RequireOtherText bool   `json:"requireOtherText,omitempty"`
 }
 
 type QuestionOptions []QuestionOption
@@ -138,8 +139,9 @@ func (options QuestionOptions) MarshalJSON() ([]byte, error) {
 			continue
 		}
 		normalized = append(normalized, QuestionOption{
-			Label:   label,
-			IsOther: option.IsOther,
+			Label:            label,
+			IsOther:          option.IsOther,
+			RequireOtherText: option.RequireOtherText,
 		})
 	}
 	return json.Marshal(normalized)
@@ -157,8 +159,9 @@ func (options QuestionOptions) Clone() QuestionOptions {
 			continue
 		}
 		cloned = append(cloned, QuestionOption{
-			Label:   label,
-			IsOther: option.IsOther,
+			Label:            label,
+			IsOther:          option.IsOther,
+			RequireOtherText: option.RequireOtherText,
 		})
 	}
 	if len(cloned) == 0 {

@@ -15,7 +15,6 @@ const messages: Record<string, Record<string, string>> = {
     back: "Back",
     submit: "Submit",
     next: "Next",
-    otherOptionLabel: "Other",
     otherTextPlaceholder: "Please specify",
   },
   QuestionTypes: {
@@ -85,7 +84,7 @@ describe("SurveyRenderer", () => {
     expect(screen.getByText("something", { selector: "em" })).toBeInTheDocument()
   })
 
-  it("shows the question type badge and blocks preview submission when other text is missing", () => {
+  it("allows submitting when supplemental text is optional", () => {
     const onComplete = vi.fn()
 
     render(
@@ -98,7 +97,7 @@ describe("SurveyRenderer", () => {
             required: true,
             options: [
               { label: "Regular" },
-              { label: "Other", isOther: true },
+              { label: "Can add details", isOther: true },
             ] as unknown as string[],
           },
         ])}
@@ -109,10 +108,39 @@ describe("SurveyRenderer", () => {
 
     expect(screen.getByText("Single choice")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText("Other"))
+    fireEvent.click(screen.getByText("Can add details"))
 
     expect(screen.getByPlaceholderText("Please specify")).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+
+    expect(screen.queryByText("Please complete required questions.")).not.toBeInTheDocument()
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it("blocks preview submission when required supplemental text is missing", () => {
+    const onComplete = vi.fn()
+
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "q1",
+            type: "single",
+            title: "Favorite option",
+            required: true,
+            options: [
+              { label: "Regular" },
+              { label: "Can add details", isOther: true, requireOtherText: true },
+            ] as unknown as string[],
+          },
+        ])}
+        isPreview
+        onComplete={onComplete}
+      />
+    )
+
+    fireEvent.click(screen.getByText("Can add details"))
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
 
     expect(screen.getByText("Please complete required questions.")).toBeInTheDocument()
