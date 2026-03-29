@@ -9,10 +9,9 @@ import { Canvas } from "./canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Save, Eye, Palette, Layout, Split, ArrowLeft, Settings, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket, RotateCcw } from "lucide-react";
+import { Save, Eye, Palette, Layout, ArrowLeft, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { nanoid } from "nanoid";
 import { ThemeEditor } from "./theme-editor";
 import { LogicEditor } from "./logic-editor";
 import { SurveyTheme, LogicRule } from "@/types/survey";
@@ -47,9 +46,9 @@ import {
   resolveUiError,
   toUiErrorMessage,
 } from "@/lib/ui-error";
+import { generateClientUUID } from "@/lib/client-uuid";
 
-// Simple ID generator if nanoid causes issues or for simplicity
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const generateId = () => generateClientUUID();
 
 const calculateEstimatedTime = (questions: Question[]) => {
     return questions.reduce((acc, q) => {
@@ -1581,7 +1580,7 @@ export function SurveyBuilder() {
                                                 if (questions[i].type === 'section') break;
                                                 sectionQuestions.push(questions[i]);
                                             }
-                                            return sectionQuestions.map((q, i) => (
+                                            return sectionQuestions.map((q) => (
                                                 <QuestionCard 
                                                     key={q.id}
                                                     question={q} 

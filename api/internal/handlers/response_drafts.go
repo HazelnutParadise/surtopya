@@ -223,6 +223,12 @@ func (h *ResponseHandler) StartDraft(c *gin.Context) {
 		return
 	}
 	if existingDraft != nil {
+		if existingDraft.SurveyVersionID != version.ID || existingDraft.SurveyVersionNumber != version.VersionNumber {
+			if err := h.draftRepo.ResetToVersion(existingDraft, version.ID, version.VersionNumber); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh response draft"})
+				return
+			}
+		}
 		c.JSON(http.StatusOK, existingDraft)
 		return
 	}

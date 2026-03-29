@@ -140,6 +140,53 @@ func (r *ResponseDraftRepository) SaveAnswer(draftID uuid.UUID, questionID uuid.
 	return answer, draftUpdatedAt, nil
 }
 
+func (r *ResponseDraftRepository) ResetToVersion(draft *models.ResponseDraft, surveyVersionID uuid.UUID, surveyVersionNumber int) error {
+	if draft == nil {
+		return fmt.Errorf("draft is required")
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start draft reset transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(
+		"DELETE FROM response_draft_answers WHERE draft_id = $1",
+		draft.ID,
+	); err != nil {
+		return fmt.Errorf("failed to clear draft answers: %w", err)
+	}
+
+	var startedAt time.Time
+	var updatedAt time.Time
+	if err := tx.QueryRow(
+		`UPDATE response_drafts
+		 SET survey_version_id = $2,
+		     survey_version_number = $3,
+		     started_at = NOW(),
+		     updated_at = NOW()
+		 WHERE id = $1
+		 RETURNING started_at, updated_at`,
+		draft.ID,
+		surveyVersionID,
+		surveyVersionNumber,
+	).Scan(&startedAt, &updatedAt); err != nil {
+		return fmt.Errorf("failed to reset response draft version: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit draft reset transaction: %w", err)
+	}
+
+	draft.SurveyVersionID = surveyVersionID
+	draft.SurveyVersionNumber = surveyVersionNumber
+	draft.StartedAt = startedAt
+	draft.UpdatedAt = updatedAt
+	draft.Answers = nil
+	return nil
+}
+
 func (r *ResponseDraftRepository) GetAnswers(draftID uuid.UUID) ([]models.ResponseDraftAnswer, error) {
 	query := `
 		SELECT id, draft_id, question_id, value, created_at, updated_at

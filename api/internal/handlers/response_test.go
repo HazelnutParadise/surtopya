@@ -145,6 +145,77 @@ func TestResponseHandler_StartResponse_AuthenticatedCreatesDraft(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResponseHandler_StartResponse_AuthenticatedResetsStaleDraftToCurrentPublishedVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	respondentID := uuid.New()
+	currentVersionID := uuid.New()
+	staleVersionID := uuid.New()
+	draftID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+	resetStartedAt := now.Add(2 * time.Minute)
+	resetUpdatedAt := now.Add(2 * time.Minute)
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, publisherID, 0, true, currentVersionID, 2)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 2, []byte(`{"questions":[]}`), 0, nil, now, publisherID, now))
+	mock.ExpectQuery("SELECT EXISTS\\(\\s*SELECT 1\\s*FROM survey_response_once_locks\\s*WHERE survey_id = \\$1 AND user_id = \\$2\\s*\\)").
+		WithArgs(surveyID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+	mock.ExpectQuery("FROM response_drafts\\s+WHERE survey_id = \\$1 AND user_id = \\$2").
+		WithArgs(surveyID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "started_at", "updated_at", "created_at",
+		}).AddRow(draftID, surveyID, staleVersionID, 1, respondentID, now, now, now))
+	mock.ExpectQuery("FROM response_draft_answers\\s+WHERE draft_id = \\$1").
+		WithArgs(draftID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "draft_id", "question_id", "value", "created_at", "updated_at",
+		}).AddRow(uuid.New(), draftID, questionID, []byte(`{"text":"stale answer"}`), now, now))
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM response_draft_answers WHERE draft_id = \\$1").
+		WithArgs(draftID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("UPDATE response_drafts SET survey_version_id = \\$2, survey_version_number = \\$3, started_at = NOW\\(\\), updated_at = NOW\\(\\) WHERE id = \\$1 RETURNING started_at, updated_at").
+		WithArgs(draftID, currentVersionID, 2).
+		WillReturnRows(sqlmock.NewRows([]string{"started_at", "updated_at"}).AddRow(resetStartedAt, resetUpdatedAt))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/start", func(c *gin.Context) {
+		c.Set("userID", respondentID)
+		h.StartResponse(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/start", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"id":"`+draftID.String()+`"`)
+	require.Contains(t, w.Body.String(), `"surveyVersionId":"`+currentVersionID.String()+`"`)
+	require.Contains(t, w.Body.String(), `"surveyVersionNumber":2`)
+	require.NotContains(t, w.Body.String(), `"questionId":"`+questionID.String()+`"`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResponseHandler_StartResponse_AuthenticatedAlreadySubmitted(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
