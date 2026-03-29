@@ -1,13 +1,13 @@
-import { test, expect } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 
-test("survey builder can add a question, save, and publish (mocked API)", async ({
-  page,
-}) => {
-  const surveyId = "33333333-3333-3333-3333-333333333333"
+test("mobile builder supports click-add, reorder, save, and publish", async ({ page }) => {
+  const surveyId = "44444444-4444-4444-4444-444444444444"
 
   let createCalls = 0
   let publishCalls = 0
   let lastCreatePayload: Record<string, unknown> | null = null
+
+  await page.setViewportSize({ width: 390, height: 844 })
 
   await page.route("**/api/app/me", async (route) => {
     await route.fulfill({
@@ -29,7 +29,7 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
       return
     }
 
-    createCalls++
+    createCalls += 1
     lastCreatePayload = req.postDataJSON() as Record<string, unknown>
 
     await route.fulfill({
@@ -52,21 +52,21 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         publishedAt: null,
-        questions: ((lastCreatePayload.questions as unknown[]) || []).map((qUnknown, idx: number) => {
+        questions: (((lastCreatePayload.questions as unknown[]) || [])).map((qUnknown, idx: number) => {
           const q = qUnknown as Record<string, unknown>
           return {
             id: q.id,
-          surveyId,
-          type: q.type,
-          title: q.title,
-          description: q.description,
-          options: q.options,
-          required: q.required,
-          maxRating: q.maxRating,
-          logic: q.logic,
-          sortOrder: idx,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+            surveyId,
+            type: q.type,
+            title: q.title,
+            description: q.description,
+            options: q.options,
+            required: q.required,
+            maxRating: q.maxRating,
+            logic: q.logic,
+            sortOrder: idx,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           }
         }),
       }),
@@ -80,7 +80,7 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
       return
     }
 
-    publishCalls++
+    publishCalls += 1
     const body = req.postDataJSON() as Record<string, unknown>
 
     await route.fulfill({
@@ -89,7 +89,7 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
       body: JSON.stringify({
         id: surveyId,
         userId: "u1",
-        title: lastCreatePayload?.title || "My Survey",
+        title: lastCreatePayload?.title || "Mobile Survey",
         description: lastCreatePayload?.description || "",
         visibility: body.visibility,
         isPublished: true,
@@ -107,17 +107,17 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
           const q = qUnknown as Record<string, unknown>
           return {
             id: q.id,
-          surveyId,
-          type: q.type,
-          title: q.title,
-          description: q.description,
-          options: q.options,
-          required: q.required,
-          maxRating: q.maxRating,
-          logic: q.logic,
-          sortOrder: idx,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+            surveyId,
+            type: q.type,
+            title: q.title,
+            description: q.description,
+            options: q.options,
+            required: q.required,
+            maxRating: q.maxRating,
+            logic: q.logic,
+            sortOrder: idx,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           }
         }),
       }),
@@ -140,7 +140,7 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
             surveyId,
             versionNumber: 1,
             snapshot: {
-              title: lastCreatePayload?.title || "My Survey",
+              title: lastCreatePayload?.title || "Mobile Survey",
               description: lastCreatePayload?.description || "",
               visibility: "public",
               includeInDatasets: true,
@@ -162,32 +162,47 @@ test("survey builder can add a question, save, and publish (mocked API)", async 
   await page.getByRole("button", { name: "I Understand and Agree" }).click()
 
   await expect(page.getByPlaceholder("Untitled Survey")).toBeVisible()
+  await page.getByPlaceholder("Untitled Survey").fill("Mobile Survey")
 
-  await page.getByPlaceholder("Untitled Survey").fill("My Survey")
+  const toolboxPanel = page.locator("details").filter({ hasText: "Toolbox" }).first()
+  await toolboxPanel.locator("summary").click()
+  await toolboxPanel.getByTestId("toolbox-text").click()
+  await toolboxPanel.getByTestId("toolbox-text").click()
 
-  const toolboxText = page.getByTestId("toolbox-text").first()
-  const dropTarget = page.locator('input[value="Page"]').first()
+  await page.locator('input[value="Page"]').first().fill("Intro Page")
+  await page.locator('input[value="New Question"]').nth(0).fill("First question")
+  await page.locator('input[value="New Question"]').first().fill("Second question")
 
-  const from = await toolboxText.boundingBox()
-  const to = await dropTarget.boundingBox()
-  expect(from).toBeTruthy()
-  expect(to).toBeTruthy()
+  const secondQuestionCard = page
+    .locator('input[value="Second question"]')
+    .locator('xpath=ancestor::div[contains(@class, "group")][1]')
+  await secondQuestionCard.getByRole("button", { name: "Move up" }).click()
 
-  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2)
-  await page.mouse.up()
+  let canvasValues = await page.locator('[data-testid="survey-canvas"] input').evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLInputElement).value)
+  )
 
-  await page.locator('input[value="New Question"]').first().fill("How are you?")
+  expect(canvasValues.indexOf("Second question")).toBeLessThan(canvasValues.indexOf("First question"))
+
+  const addPageButton = page.getByRole("button", { name: "Add New Page" })
+  await addPageButton.scrollIntoViewIfNeeded()
+  await addPageButton.click()
+
+  await page.locator('input[value="New Page"]').last().fill("Follow-up Page")
+
+  const followUpPageCard = page
+    .locator('input[value="Follow-up Page"]')
+    .locator('xpath=ancestor::div[contains(@class, "group")][1]')
+  await followUpPageCard.getByRole("button", { name: "Move up" }).click()
+
+  canvasValues = await page.locator('[data-testid="survey-canvas"] input').evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLInputElement).value)
+  )
+
+  expect(canvasValues.indexOf("Follow-up Page")).toBeLessThan(canvasValues.indexOf("Intro Page"))
 
   await page.getByRole("button", { name: "Save" }).click()
   await expect.poll(() => createCalls).toBe(1)
-
-  expect(lastCreatePayload).toBeTruthy()
-  const questions = (lastCreatePayload!.questions as unknown[]) || []
-  expect(Array.isArray(questions)).toBe(true)
-  expect(questions.length).toBeGreaterThan(0)
-  expect((questions[0] as Record<string, unknown>).points).toBeUndefined()
 
   await page.getByRole("button", { name: "Publish" }).click()
   await page.getByRole("button", { name: "Confirm & Publish" }).click()

@@ -10,11 +10,27 @@ interface CanvasProps {
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onOpenLogic: (id: string) => void;
+  onMoveUp: (id: string) => void;
+  onMoveDown: (id: string) => void;
+  canMoveUp: (id: string) => boolean;
+  canMoveDown: (id: string) => boolean;
   activeId: string | null;
   getLogicWarning: (questionId: string) => string | null;
 }
 
-export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic, activeId, getLogicWarning }: CanvasProps) {
+export function Canvas({
+  questions,
+  onUpdate,
+  onDelete,
+  onDuplicate,
+  onOpenLogic,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  activeId,
+  getLogicWarning,
+}: CanvasProps) {
   const t = useTranslations("SurveyBuilder");
   const { setNodeRef } = useDroppable({
     id: 'canvas-droppable',
@@ -89,6 +105,10 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
                         onDelete={onDelete} 
                         onDuplicate={onDuplicate}
                         onOpenLogic={onOpenLogic}
+                        onMoveUp={onMoveUp}
+                        onMoveDown={onMoveDown}
+                        canMoveUp={canMoveUp(q.id)}
+                        canMoveDown={canMoveDown(q.id)}
                         isHidden={hiddenIds.has(q.id)}
                         hasLogicWarning={!!warning}
                         logicWarningMessage={warning || undefined}
@@ -104,6 +124,10 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
                             onDelete={onDelete} 
                             onDuplicate={onDuplicate}
                             onOpenLogic={onOpenLogic}
+                            onMoveUp={onMoveUp}
+                            onMoveDown={onMoveDown}
+                            canMoveUp={canMoveUp(section.header.id)}
+                            canMoveDown={canMoveDown(section.header.id)}
                             isHidden={hiddenIds.has(section.header.id)}
                         />
                         <div className="pl-4 mt-4 space-y-4 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
@@ -118,6 +142,10 @@ export function Canvas({ questions, onUpdate, onDelete, onDuplicate, onOpenLogic
                                     onDelete={onDelete} 
                                     onDuplicate={onDuplicate}
                                     onOpenLogic={onOpenLogic}
+                                    onMoveUp={onMoveUp}
+                                    onMoveDown={onMoveDown}
+                                    canMoveUp={canMoveUp(q.id)}
+                                    canMoveDown={canMoveDown(q.id)}
                                     isHidden={hiddenIds.has(q.id)}
                                     hasLogicWarning={!!warning}
                                     logicWarningMessage={warning || undefined}

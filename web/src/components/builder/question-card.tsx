@@ -6,7 +6,7 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch"; // Need to install switch
-import { GripVertical, Trash2, Plus, X, Copy, AlertTriangle } from "lucide-react";
+import { GripVertical, Trash2, Plus, X, Copy, AlertTriangle, Check, Circle, ChevronUp, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -30,13 +30,32 @@ interface QuestionCardProps {
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onOpenLogic: (id: string) => void;
+  onMoveUp?: (id: string) => void;
+  onMoveDown?: (id: string) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   isHidden?: boolean;
   isOverlay?: boolean;
   hasLogicWarning?: boolean;
   logicWarningMessage?: string;
 }
 
-export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onDuplicate, onOpenLogic, isHidden, isOverlay, hasLogicWarning, logicWarningMessage }: QuestionCardProps) {
+export function QuestionCard({
+  question,
+  isFirstSection,
+  onUpdate,
+  onDelete,
+  onDuplicate,
+  onOpenLogic,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+  isHidden,
+  isOverlay,
+  hasLogicWarning,
+  logicWarningMessage,
+}: QuestionCardProps) {
   const tBuilder = useTranslations("SurveyBuilder");
   const tQuestion = useTranslations("QuestionTypes");
   const {
@@ -101,6 +120,28 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
     onUpdate(question.id, { options: newOptions });
   };
 
+  const renderChoiceMarker = (type: Question["type"]) => {
+    if (type === "multi") {
+      return (
+        <div
+          className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-emerald-500 bg-emerald-50 text-emerald-600 shadow-sm"
+          data-testid="question-choice-marker-multi"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </div>
+      )
+    }
+
+    return (
+      <div
+        className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-sky-500 bg-sky-50 text-sky-600 shadow-sm"
+        data-testid="question-choice-marker-single"
+      >
+        <Circle className="h-2.5 w-2.5 fill-current stroke-none" />
+      </div>
+    )
+  }
+
   return (
     <div 
       ref={setNodeRef} 
@@ -118,7 +159,7 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
           <div 
             {...attributes} 
             {...listeners} 
-            className={`mt-2 cursor-grab active:cursor-grabbing ${question.type === 'section' ? 'text-[var(--primary-foreground)] opacity-50 hover:opacity-100' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`mt-2 hidden md:block cursor-grab active:cursor-grabbing ${question.type === 'section' ? 'text-[var(--primary-foreground)] opacity-50 hover:opacity-100' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <GripVertical className="h-5 w-5" />
           </div>
@@ -170,9 +211,9 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
             {(question.type === 'single' || question.type === 'multi' || question.type === 'select') && (
               <div className="space-y-2">
                 {question.options?.map((option, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-4 w-4 border border-gray-300 ${question.type === 'multi' ? 'rounded-sm' : 'rounded-full'}`} />
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                      {renderChoiceMarker(question.type)}
                       <Input 
                         value={getQuestionOptionLabel(option)} 
                         onChange={(e) => handleOptionChange(index, e.target.value)}
@@ -233,11 +274,42 @@ export function QuestionCard({ question, isFirstSection, onUpdate, onDelete, onD
         </div>
 
         <div className="flex flex-col gap-2">
+          <div className="flex md:hidden flex-col gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+              onClick={() => onMoveUp?.(question.id)}
+              disabled={!canMoveUp}
+              aria-label={tBuilder("moveUp")}
+              data-testid={`question-move-up-${question.id}`}
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+              onClick={() => onMoveDown?.(question.id)}
+              disabled={!canMoveDown}
+              aria-label={tBuilder("moveDown")}
+              data-testid={`question-move-down-${question.id}`}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </div>
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-purple-600 hover:bg-purple-50" onClick={() => onDuplicate(question.id)} title={tBuilder("duplicate")}>
             <Copy className="h-5 w-5" />
           </Button>
-          {(question.type === 'single' || question.type === 'select') && (
-            <Button variant="ghost" size="icon" className="text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => onOpenLogic(question.id)} title={tBuilder("logicJumps")}>
+          {(question.type === 'single' || question.type === 'select' || question.type === 'multi') && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+              onClick={() => onOpenLogic(question.id)}
+              title={tBuilder("logicJumps")}
+              aria-label={tBuilder("logicJumps")}
+            >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
             </Button>
           )}

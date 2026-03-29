@@ -1,5 +1,5 @@
 import React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -48,8 +48,8 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     onOpenChange(false);
   };
 
-  // Only allow logic for single choice or dropdown questions
-  const isCompatible = question.type === 'single' || question.type === 'select';
+  // Only choice-based questions can define jump logic.
+  const isCompatible = question.type === 'single' || question.type === 'select' || question.type === 'multi';
   const normalizedOptions = normalizeQuestionOptions(question.options) || [];
   
   // Filter questions that come AFTER the current question to prevent loops
@@ -70,6 +70,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
       <DialogContent className="sm:max-w-[600px]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t("title", { title: question.title })}</DialogTitle>
+          <DialogDescription>{t("precedenceHint")}</DialogDescription>
         </DialogHeader>
 
         {!isCompatible ? (

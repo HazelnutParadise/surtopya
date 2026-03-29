@@ -117,6 +117,7 @@ export default function SurveyManagementPage() {
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null)
   const [restoringVersionNumber, setRestoringVersionNumber] = useState<number | null>(null)
   const [confirmRestoreVersionNumber, setConfirmRestoreVersionNumber] = useState<number | null>(null)
+  const [pendingPublishAction, setPendingPublishAction] = useState<"initial_publish" | "publish_new_version" | null>(null)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
   const [formState, setFormState] = useState({
     title: "",
@@ -458,11 +459,18 @@ export default function SurveyManagementPage() {
   };
 
   const handleInitialPublish = async () => {
-    await publishSurveyVersion("initial_publish")
+    setPendingPublishAction("initial_publish")
   }
 
   const handlePublishNewVersion = async () => {
-    await publishSurveyVersion("publish_new_version")
+    setPendingPublishAction("publish_new_version")
+  }
+
+  const confirmPublishVersion = async () => {
+    if (!pendingPublishAction) return
+    const action = pendingPublishAction
+    setPendingPublishAction(null)
+    await publishSurveyVersion(action)
   }
 
   const handleToggleResponses = async (nextOpen: boolean) => {
@@ -1277,6 +1285,26 @@ export default function SurveyManagementPage() {
               disabled={confirmRestoreVersionNumber == null || restoringVersionNumber != null}
             >
               {tBuilder("restoreDraftConfirmAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={pendingPublishAction != null} onOpenChange={(open) => !open && setPendingPublishAction(null)}>
+        <DialogContent onInteractOutside={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t("publishConfirmTitle")}</DialogTitle>
+            <DialogDescription>{t("publishConfirmDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingPublishAction(null)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={confirmPublishVersion}
+              disabled={pendingPublishAction == null || publishing}
+            >
+              {t("publishConfirmAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

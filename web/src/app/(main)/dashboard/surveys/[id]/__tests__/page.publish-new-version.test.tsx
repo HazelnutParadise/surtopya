@@ -3,62 +3,51 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import SurveyManagementPage from "../page"
 
-const {
-  pushMock,
-  replaceMock,
-  openMock,
-  trackUIEventMock,
-  commonTranslator,
-  surveyManagementTranslator,
-  surveyBuilderTranslator,
-} = vi.hoisted(() => {
-  const commonMessages: Record<string, string> = {
-    publish: "Publish",
-    openResponses: "Open responses",
-    closeResponses: "Close responses",
-    error: "Error",
-    loading: "Loading",
-    saving: "Saving",
-    cancel: "Cancel",
-  }
+const openMock = vi.fn()
 
-  const surveyManagementMessages: Record<string, string> = {
-    publishNewVersion: "Publish new version",
-  }
+const commonMessages: Record<string, string> = {
+  publish: "Publish",
+  openResponses: "Open responses",
+  closeResponses: "Close responses",
+  error: "Error",
+  loading: "Loading",
+  saving: "Saving",
+  cancel: "Cancel",
+}
 
-  const surveyBuilderMessages: Record<string, string> = {
-    versionHistory: "Version history",
-    versionEmpty: "No versions",
-    versionLoadFailed: "Failed to load versions",
-    viewVersion: "View version",
-    restoreToDraft: "Restore to draft",
-    restoredToDraft: "Restored to draft",
-    versionRestoreFailed: "Failed to restore version",
-    restoreDraftConfirmTitle: "Restore version?",
-    restoreDraftConfirmDescription: "This will overwrite your draft.",
-    restoreDraftConfirmAction: "Restore",
-  }
+const surveyManagementMessages: Record<string, string> = {
+  publishNewVersion: "Publish new version",
+  publishConfirmTitle: "Confirm publish",
+  publishConfirmDescription: "This will publish the current draft.",
+  publishConfirmAction: "Confirm publish",
+}
 
-  return {
-    pushMock: vi.fn(),
-    replaceMock: vi.fn(),
-    openMock: vi.fn(),
-    trackUIEventMock: vi.fn(() => Promise.resolve()),
-    commonTranslator: (key: string) => commonMessages[key] ?? key,
-    surveyManagementTranslator: (key: string) => surveyManagementMessages[key] ?? key,
-    surveyBuilderTranslator: (key: string, values?: Record<string, unknown>) =>
-      key === "versionLabel" && values && typeof values.version === "number"
-        ? `Version ${values.version}`
-        : surveyBuilderMessages[key] ?? key,
-  }
-})
+const surveyBuilderMessages: Record<string, string> = {
+  versionHistory: "Version history",
+  versionEmpty: "No versions",
+  versionLoadFailed: "Failed to load versions",
+  viewVersion: "View version",
+  restoreToDraft: "Restore to draft",
+  restoredToDraft: "Restored to draft",
+  versionRestoreFailed: "Failed to restore version",
+  restoreDraftConfirmTitle: "Restore version?",
+  restoreDraftConfirmDescription: "This will overwrite your draft.",
+  restoreDraftConfirmAction: "Restore",
+}
+
+const commonTranslator = (key: string) => commonMessages[key] ?? key
+const surveyManagementTranslator = (key: string) => surveyManagementMessages[key] ?? key
+const surveyBuilderTranslator = (key: string, values?: Record<string, unknown>) =>
+  key === "versionLabel" && values && typeof values.version === "number"
+    ? `Version ${values.version}`
+    : surveyBuilderMessages[key] ?? key
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "survey-1" }),
   usePathname: () => "/zh-TW/dashboard/surveys/survey-1",
   useRouter: () => ({
-    push: pushMock,
-    replace: replaceMock,
+    push: vi.fn(),
+    replace: vi.fn(),
   }),
 }))
 
@@ -98,7 +87,7 @@ vi.mock("@/components/survey/survey-responses-export-menu", () => ({
 }))
 
 vi.mock("@/lib/ui-telemetry", () => ({
-  trackUIEvent: trackUIEventMock,
+  trackUIEvent: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -243,6 +232,10 @@ describe("SurveyManagementPage publish new version", () => {
     const publishButton = await screen.findByRole("button", { name: "Publish new version" })
     fireEvent.click(publishButton)
 
+    expect(await screen.findByRole("button", { name: "Confirm publish" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm publish" }))
+
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/app/surveys/survey-1/publish",
@@ -264,6 +257,31 @@ describe("SurveyManagementPage publish new version", () => {
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: "Publish new version" })).not.toBeInTheDocument()
     })
+  })
+
+  it("does not publish when the confirmation dialog is canceled", async () => {
+    render(<SurveyManagementPage />)
+
+    const publishButton = await screen.findByRole("button", { name: "Publish new version" })
+    fireEvent.click(publishButton)
+
+    expect(await screen.findByRole("button", { name: "Confirm publish" })).toBeInTheDocument()
+
+    const publishCallsBeforeCancel = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/app/surveys/survey-1/publish" &&
+        (init as RequestInit | undefined)?.method === "POST"
+    )
+    expect(publishCallsBeforeCancel).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    const publishCallsAfterCancel = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/app/surveys/survey-1/publish" &&
+        (init as RequestInit | undefined)?.method === "POST"
+    )
+    expect(publishCallsAfterCancel).toHaveLength(0)
   })
 
   it("opens version preview dialog and keeps version list scrollable", async () => {

@@ -19,7 +19,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Eye } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation";
-import { Survey, Question, SurveyTheme } from "@/types/survey"
+import { Survey, Question, SurveyTheme, LogicRule } from "@/types/survey"
 import { getContrastColor } from "@/lib/utils"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { useTranslations } from "next-intl"
@@ -109,8 +109,38 @@ export function SurveyRenderer({
   const pageHeader = currentQuestions.length > 0 && currentQuestions[0].type === 'section' 
     ? currentQuestions[0] 
     : null;
-    
+     
   const renderableQuestions = currentQuestions.filter(q => q.type !== 'section');
+
+  const getLastMatchedLogicRule = (question: Question, rawAnswer: unknown): LogicRule | null => {
+    if (!question.logic || question.logic.length === 0) return null
+
+    if (question.type === "multi") {
+      const selectedValues = getMultiAnswerValues(rawAnswer)
+      if (selectedValues.length === 0) return null
+      let matchedRule: LogicRule | null = null
+      for (const rule of question.logic) {
+        if (selectedValues.includes(rule.triggerOption)) {
+          matchedRule = rule
+        }
+      }
+      return matchedRule
+    }
+
+    if (question.type === "single" || question.type === "select") {
+      const selectedValue = getSingleAnswerValue(rawAnswer)
+      if (!selectedValue) return null
+      let matchedRule: LogicRule | null = null
+      for (const rule of question.logic) {
+        if (rule.triggerOption === selectedValue) {
+          matchedRule = rule
+        }
+      }
+      return matchedRule
+    }
+
+    return null
+  }
 
   const handleNext = () => {
     const missingOtherTextQuestion = renderableQuestions.find((question) =>
@@ -136,34 +166,29 @@ export function SurveyRenderer({
     setValidationQuestionId(null)
     setValidationKind(null)
 
-    // Check logic jumps
-    let jumpToPage = -1;
-    
+    // Evaluate page logic with "last matched rule wins" precedence.
+    let matchedRule: LogicRule | null = null
+
     for (const q of renderableQuestions) {
-      const answer = answers[q.id];
-      if (q.logic && q.logic.length > 0) {
-        const matchedRule = q.logic.find(rule => rule.triggerOption === answer);
-        if (matchedRule) {
-          if (matchedRule.destinationQuestionId === 'end_survey') {
-            if (onComplete) {
-              onComplete(answers);
-            } else {
-              router.push(withLocalePath("/survey/thank-you"));
-            }
-            return;
-          }
-          const destPageIdx = pages.findIndex(page => page.some(pq => pq.id === matchedRule.destinationQuestionId));
-          if (destPageIdx !== -1) {
-            jumpToPage = destPageIdx;
-            break;
-          }
-        }
-      }
+      const nextMatchedRule = getLastMatchedLogicRule(q, answers[q.id])
+      if (nextMatchedRule) matchedRule = nextMatchedRule
     }
 
-    if (jumpToPage !== -1) {
-      setCurrentStep(jumpToPage);
-      return;
+    if (matchedRule) {
+      if (matchedRule.destinationQuestionId === 'end_survey') {
+        if (onComplete) {
+          onComplete(answers);
+        } else {
+          router.push(withLocalePath("/survey/thank-you"));
+        }
+        return;
+      }
+
+      const jumpToPage = pages.findIndex(page => page.some(pq => pq.id === matchedRule?.destinationQuestionId));
+      if (jumpToPage !== -1) {
+        setCurrentStep(jumpToPage);
+        return;
+      }
     }
 
     if (currentStep < totalSteps - 1) {

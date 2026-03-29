@@ -9,7 +9,7 @@ import { Canvas } from "./canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Save, Eye, Palette, Layout, ArrowLeft, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket } from "lucide-react";
+import { Save, Eye, Palette, Layout, ArrowLeft, Send, History as HistoryIcon, Database, AlertTriangle, Globe, Lock, Rocket, Plus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ThemeEditor } from "./theme-editor";
@@ -65,6 +65,22 @@ type DragData = Record<string, unknown>
 
 const isToolboxDrag = (data: DragData | null | undefined): data is DragData & { isToolboxItem: true; type: QuestionType } => {
   return data != null && data["isToolboxItem"] === true && typeof data["type"] === "string"
+}
+
+const getSectionBlockBounds = (items: Question[], sectionStartIndex: number) => {
+  let endIndex = sectionStartIndex
+  while (endIndex + 1 < items.length && items[endIndex + 1].type !== "section") {
+    endIndex += 1
+  }
+  return { startIndex: sectionStartIndex, endIndex }
+}
+
+const findOwningSectionStart = (items: Question[], questionIndex: number) => {
+  let cursor = questionIndex
+  while (cursor >= 0 && items[cursor].type !== "section") {
+    cursor -= 1
+  }
+  return cursor
 }
 
 export function SurveyBuilder() {
@@ -160,6 +176,19 @@ export function SurveyBuilder() {
       setIsDirty(true);
       setHasUnpublishedChanges(true);
   };
+
+  const createQuestionDraft = (type: QuestionType): Question => ({
+    id: generateId(),
+    type,
+    title: tBuilder("newQuestion"),
+    required: false,
+    options: type === "single" || type === "multi" || type === "select"
+      ? createDefaultQuestionOptions([
+          tBuilder("optionLabel", { index: 1 }),
+          tBuilder("optionLabel", { index: 2 }),
+        ])
+      : undefined,
+  })
 
   // Settings Draft State (for cancel/unsaved changes)
   const [settingsDraft, setSettingsDraft] = useState<{
@@ -390,18 +419,7 @@ export function SurveyBuilder() {
     // Dropping a new item from Toolbox
     if (active.data.current?.isToolboxItem) {
       const type = active.data.current.type as QuestionType;
-      const newQuestion: Question = {
-        id: generateId(),
-        type,
-        title: tBuilder("newQuestion"),
-        required: false,
-        options: type === 'single' || type === 'multi' || type === 'select'
-          ? createDefaultQuestionOptions([
-              tBuilder("optionLabel", { index: 1 }),
-              tBuilder("optionLabel", { index: 2 }),
-            ])
-          : undefined,
-      };
+      const newQuestion = createQuestionDraft(type)
 
       // Replace placeholder with real question
       const placeholderIndex = questions.findIndex(q => q.id === 'placeholder');
@@ -613,6 +631,117 @@ export function SurveyBuilder() {
     setQuestions([...questions, newSection]);
     notifyChange();
   };
+
+  const addQuestionFromToolbox = (type: QuestionType) => {
+    setQuestions((items) => [...items, createQuestionDraft(type)])
+    notifyChange()
+  }
+
+  const canMoveItemUp = React.useCallback((id: string) => {
+    const index = questions.findIndex((item) => item.id === id)
+    if (index === -1) return false
+    const item = questions[index]
+
+    if (item.type === "section") {
+      for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+        if (questions[cursor].type === "section") return true
+      }
+      return false
+    }
+
+    const sectionStart = findOwningSectionStart(questions, index)
+    return sectionStart >= 0 && index - 1 > sectionStart
+  }, [questions])
+
+  const canMoveItemDown = React.useCallback((id: string) => {
+    const index = questions.findIndex((item) => item.id === id)
+    if (index === -1) return false
+    const item = questions[index]
+
+    if (item.type === "section") {
+      const { endIndex } = getSectionBlockBounds(questions, index)
+      for (let cursor = endIndex + 1; cursor < questions.length; cursor += 1) {
+        if (questions[cursor].type === "section") return true
+      }
+      return false
+    }
+
+    const sectionStart = findOwningSectionStart(questions, index)
+    if (sectionStart < 0) return false
+    const { endIndex } = getSectionBlockBounds(questions, sectionStart)
+    return index + 1 <= endIndex
+  }, [questions])
+
+  const moveItem = React.useCallback((id: string, direction: "up" | "down") => {
+    let didMove = false
+
+    setQuestions((items) => {
+      const index = items.findIndex((item) => item.id === id)
+      if (index === -1) return items
+
+      const item = items[index]
+      if (item.type === "section") {
+        const { endIndex } = getSectionBlockBounds(items, index)
+
+        if (direction === "up") {
+          let previousSectionStart = -1
+          for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+            if (items[cursor].type === "section") {
+              previousSectionStart = cursor
+              break
+            }
+          }
+          if (previousSectionStart === -1) return items
+
+          const movingBlock = items.slice(index, endIndex + 1)
+          const previousBlock = items.slice(previousSectionStart, index)
+          didMove = true
+
+          return [
+            ...items.slice(0, previousSectionStart),
+            ...movingBlock,
+            ...previousBlock,
+            ...items.slice(endIndex + 1),
+          ]
+        }
+
+        let nextSectionStart = -1
+        for (let cursor = endIndex + 1; cursor < items.length; cursor += 1) {
+          if (items[cursor].type === "section") {
+            nextSectionStart = cursor
+            break
+          }
+        }
+        if (nextSectionStart === -1) return items
+
+        const { endIndex: nextSectionEnd } = getSectionBlockBounds(items, nextSectionStart)
+        const movingBlock = items.slice(index, endIndex + 1)
+        const nextBlock = items.slice(nextSectionStart, nextSectionEnd + 1)
+        didMove = true
+
+        return [
+          ...items.slice(0, index),
+          ...nextBlock,
+          ...movingBlock,
+          ...items.slice(nextSectionEnd + 1),
+        ]
+      }
+
+      const sectionStart = findOwningSectionStart(items, index)
+      if (sectionStart < 0) return items
+
+      const { endIndex } = getSectionBlockBounds(items, sectionStart)
+      const targetIndex = direction === "up" ? index - 1 : index + 1
+      if (targetIndex <= sectionStart || targetIndex > endIndex) return items
+
+      didMove = true
+      return arrayMove(items, index, targetIndex)
+    })
+
+    if (didMove) {
+      notifyChange()
+    }
+  }, [])
 
   // Validate logic jumps - returns warning message if invalid, null if valid
   const getLogicWarning = (questionId: string): string | null => {
@@ -967,105 +1096,115 @@ export function SurveyBuilder() {
   return (
     <div className="flex h-screen flex-col bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between shadow-sm z-10 dark:bg-gray-900 dark:border-gray-800">
-           <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={requestExitEditor}>
-                    <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex flex-col">
-                    <Input 
-                        value={title} 
-                        onChange={(e) => {
-                            setTitle(e.target.value);
-                            notifyChange();
-                        }}
-                        className="h-7 text-sm font-bold border-transparent hover:border-gray-200 focus:border-purple-500 bg-transparent px-1 w-auto min-w-[150px]"
-                        placeholder={tBuilder("untitledSurvey")}
-                    />
-                    <span className="text-[10px] text-gray-400 capitalize px-1">
-                      {isPublished ? tDashboard("published") : tDashboard("draft")} · {tBuilder("questionCount", { count: questionCount })}
-                    </span>
-                </div>
-           </div>
-           <div className="flex items-center gap-3">
-                <div className="relative flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-                    <span
-                        aria-hidden
-                        className={`absolute left-1 top-1 h-7 w-20 rounded-md bg-white shadow-sm transition-transform duration-200 dark:bg-gray-900 ${viewMode === 'settings' ? 'translate-x-20' : 'translate-x-0'}`}
-                    />
-                    <Button 
-                        variant="ghost"
-                        size="sm" 
-                        onClick={() => setViewMode('builder')} 
-                        className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'builder' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
-                    >
-                        {tBuilder("builder")}
+      <div className="border-b border-gray-200 bg-white px-3 py-3 shadow-sm z-10 dark:border-gray-800 dark:bg-gray-900 md:px-4 md:py-2">
+           <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-3 md:items-center md:gap-4">
+                    <Button variant="ghost" size="icon" onClick={requestExitEditor} className="shrink-0">
+                        <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            if (isDirty) notifyChange();
-                                // Initialize settings draft with current values
-                            setSettingsDraft({
-                                title,
-                                description,
-                                pointsReward,
-                                expiresAtLocal,
-                                isPublic,
-                                includeInDatasets,
-                                requireLoginToRespond,
-                            });
-                            setViewMode('settings');
-                        }}
-                        data-testid="builder-tab-settings"
-                        className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'settings' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
-                    >
-                        {tBuilder("settings")}
-                    </Button>
+                    <div className="min-w-0 flex-1">
+                        <Input 
+                            value={title} 
+                            onChange={(e) => {
+                                setTitle(e.target.value);
+                                notifyChange();
+                            }}
+                            className="h-9 w-full max-w-xl border-transparent bg-transparent px-1 text-sm font-bold hover:border-gray-200 focus:border-purple-500 md:h-7 md:w-auto md:min-w-[150px]"
+                            placeholder={tBuilder("untitledSurvey")}
+                        />
+                        <span className="px-1 text-[10px] capitalize text-gray-400">
+                          {isPublished ? tDashboard("published") : tDashboard("draft")} · {tBuilder("questionCount", { count: questionCount })}
+                        </span>
+                    </div>
                 </div>
-               <Separator orientation="vertical" className="h-6" />
-               <span className="flex items-center gap-1 text-xs text-gray-500">
-                      <HistoryIcon className="h-3 w-3" />
-                      <TooltipProvider>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <span className="cursor-help">{tBuilder("minutesShort", { minutes: calculateEstimatedTime(questions) })}</span>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                  <p>{tBuilder("estimatedTime")}</p>
-                              </TooltipContent>
-                          </Tooltip>
-                      </TooltipProvider>
-               </span>
-               <Button size="sm" variant="outline" onClick={() => setActiveSidebar(activeSidebar === 'theme' ? 'toolbox' : 'theme')} className="h-8">
-                      {activeSidebar === 'theme' ? <Layout className="mr-2 h-3 w-3" /> : <Palette className="mr-2 h-3 w-3" />}
-                      {activeSidebar === 'theme' ? tBuilder("toolbox") : tBuilder("theme")}
-               </Button>
-               <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={saveSurvey}
-                      className="h-8"
-                      disabled={!isDirty || savingSurvey || loadingSurvey}
-                 >
-                      <Save className="mr-2 h-3 w-3" /> {tCommon("save")}
-               </Button>
-                <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-8">
-                       <Eye className="mr-2 h-3 w-3" /> {tCommon("preview")}
-                </Button>
-                <Button 
-                       size="sm" 
-                      onClick={() => {
-                        setPublishError(null)
-                        setPublishSettingsOpen(true)
-                      }} 
-                      className={`h-8 ${canOpenPublishDialog ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-                      disabled={!canOpenPublishDialog}
-                  >
-                      <Send className="mr-2 h-3 w-3" />
-                      {isPublished ? tBuilder("republish") : tCommon("publish")}
-               </Button>
+                <div className="flex flex-col gap-2 lg:items-end">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative flex items-center rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+                            <span
+                                aria-hidden
+                                className={`absolute left-1 top-1 h-7 w-20 rounded-md bg-white shadow-sm transition-transform duration-200 dark:bg-gray-900 ${viewMode === 'settings' ? 'translate-x-20' : 'translate-x-0'}`}
+                            />
+                            <Button 
+                                variant="ghost"
+                                size="sm" 
+                                onClick={() => setViewMode('builder')} 
+                                className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'builder' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                {tBuilder("builder")}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    if (isDirty) notifyChange();
+                                    setSettingsDraft({
+                                        title,
+                                        description,
+                                        pointsReward,
+                                        expiresAtLocal,
+                                        isPublic,
+                                        includeInDatasets,
+                                        requireLoginToRespond,
+                                    });
+                                    setViewMode('settings');
+                                }}
+                                data-testid="builder-tab-settings"
+                                className={`relative z-10 h-7 w-20 text-xs ${viewMode === 'settings' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
+                            >
+                                {tBuilder("settings")}
+                            </Button>
+                        </div>
+                        <Separator orientation="vertical" className="hidden h-6 md:block" />
+                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <HistoryIcon className="h-3 w-3" />
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="cursor-help">{tBuilder("minutesShort", { minutes: calculateEstimatedTime(questions) })}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{tBuilder("estimatedTime")}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </span>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setActiveSidebar(activeSidebar === 'theme' ? 'toolbox' : 'theme')}
+                            className="hidden h-8 md:inline-flex"
+                        >
+                            {activeSidebar === 'theme' ? <Layout className="mr-2 h-3 w-3" /> : <Palette className="mr-2 h-3 w-3" />}
+                            {activeSidebar === 'theme' ? tBuilder("toolbox") : tBuilder("theme")}
+                        </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                        <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={saveSurvey}
+                            className="h-9 sm:h-8"
+                            disabled={!isDirty || savingSurvey || loadingSurvey}
+                        >
+                            <Save className="mr-2 h-3 w-3" /> {tCommon("save")}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => openPreview()} className="h-9 sm:h-8">
+                            <Eye className="mr-2 h-3 w-3" /> {tCommon("preview")}
+                        </Button>
+                        <Button 
+                            size="sm" 
+                            onClick={() => {
+                                setPublishError(null)
+                                setPublishSettingsOpen(true)
+                            }} 
+                            className={`col-span-2 h-9 sm:col-span-1 sm:h-8 ${canOpenPublishDialog ? "bg-purple-600 text-white hover:bg-purple-700" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+                            disabled={!canOpenPublishDialog}
+                        >
+                            <Send className="mr-2 h-3 w-3" />
+                            {isPublished ? tBuilder("republish") : tCommon("publish")}
+                        </Button>
+                    </div>
+                </div>
            </div>
       </div>
       {saveError ? (
@@ -1333,9 +1472,9 @@ export function SurveyBuilder() {
                 onDragEnd={handleDragEnd}
               >
 
-                <div className="flex flex-1 overflow-hidden">
+                <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
                   {/* Sidebar */}
-                  <aside className="w-64 border-r border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 overflow-y-auto">
+                  <aside className="hidden w-64 overflow-y-auto border-r border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:block">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
                             {activeSidebar === 'toolbox' ? tBuilder("toolbox") : tBuilder("theme")}
@@ -1371,7 +1510,7 @@ export function SurveyBuilder() {
 
                   {/* Canvas */}
                   <main 
-                    className="flex-1 overflow-y-auto p-8 transition-colors duration-200"
+                    className="flex-1 overflow-y-auto p-4 transition-colors duration-200 md:p-6 xl:p-8"
                     style={{
                         backgroundColor: theme.backgroundColor,
                         color: getContrastColor(theme.backgroundColor) === 'white' ? '#ffffff' : '#111827',
@@ -1379,6 +1518,101 @@ export function SurveyBuilder() {
                     }}
                   >
                     <div className="mx-auto max-w-3xl" style={{ '--primary': theme.primaryColor, '--primary-foreground': getContrastColor(theme.primaryColor) === 'white' ? '#ffffff' : '#111827' } as React.CSSProperties}>
+                      <div className="mb-4 space-y-3 md:hidden">
+                        <details className="overflow-hidden rounded-xl border border-gray-200 bg-white/90 dark:border-gray-800 dark:bg-gray-900/80">
+                          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            <span className="flex items-center gap-2">
+                              <Layout className="h-4 w-4" />
+                              {tBuilder("toolbox")}
+                            </span>
+                            <Plus className="h-4 w-4 text-gray-400" />
+                          </summary>
+                          <div className="border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+                            <Toolbox onAddQuestion={addQuestionFromToolbox} />
+                            {isBuilderDatasetSharingEnabled ? (
+                              <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50 p-4 dark:border-purple-800/50 dark:bg-purple-900/10">
+                                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-purple-600">
+                                  <Database className="h-3.5 w-3.5" />
+                                  {tBuilder("datasetNotice")}
+                                </div>
+                                <p className="text-[11px] leading-relaxed text-purple-700 dark:text-purple-400">
+                                  {tBuilder("datasetNoticeText")}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </details>
+
+                        <details className="overflow-hidden rounded-xl border border-gray-200 bg-white/90 dark:border-gray-800 dark:bg-gray-900/80">
+                          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            <span className="flex items-center gap-2">
+                              <Palette className="h-4 w-4" />
+                              {tBuilder("theme")}
+                            </span>
+                            <Palette className="h-4 w-4 text-gray-400" />
+                          </summary>
+                          <div className="border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+                            <ThemeEditor
+                              theme={theme}
+                              onUpdate={(updates) => {
+                                setTheme({ ...theme, ...updates });
+                                notifyChange();
+                              }}
+                            />
+                          </div>
+                        </details>
+
+                        {surveyId ? (
+                          <details className="overflow-hidden rounded-xl border border-gray-200 bg-white/90 dark:border-gray-800 dark:bg-gray-900/80">
+                            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                              <span className="flex items-center gap-2">
+                                <HistoryIcon className="h-4 w-4" />
+                                {tBuilder("versionHistory")}
+                              </span>
+                              <HistoryIcon className="h-4 w-4 text-gray-400" />
+                            </summary>
+                            <div className="border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+                              {versionsLoading ? (
+                                <p className="text-xs text-gray-500">{tCommon("loading")}</p>
+                              ) : versions.length === 0 ? (
+                                <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
+                              ) : (
+                                <div data-testid="builder-version-history-list-mobile" className="max-h-[22rem] space-y-2 overflow-y-auto pr-1">
+                                  {versions.map((version) => (
+                                    <div key={version.id} className="rounded-md border border-gray-200 bg-white px-2 py-1.5 dark:border-gray-800 dark:bg-gray-900">
+                                      <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
+                                        {tBuilder("versionLabel", { version: version.versionNumber })}
+                                      </div>
+                                      <div className="mt-1 flex items-center gap-1">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2 text-[11px]"
+                                          data-testid={`builder-version-view-mobile-${version.versionNumber}`}
+                                          onClick={() => handleViewVersion(version)}
+                                        >
+                                          {tBuilder("viewVersion")}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 px-2 text-[11px]"
+                                          onClick={() => setConfirmRestoreVersionNumber(version.versionNumber)}
+                                          disabled={restoringVersionNumber === version.versionNumber}
+                                        >
+                                          {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {versionError ? <p className="mt-2 text-[11px] text-red-600">{versionError}</p> : null}
+                              {restoreNotice ? <p className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
+                            </div>
+                          </details>
+                        ) : null}
+                      </div>
                       <SortableContext 
                         items={questions.map(q => q.id).filter(id => {
                             if (!activeItem) return true;
@@ -1400,6 +1634,10 @@ export function SurveyBuilder() {
                           onDelete={deleteQuestion} 
                           onDuplicate={duplicateQuestion}
                           onOpenLogic={openLogicEditor}
+                          onMoveUp={(id) => moveItem(id, "up")}
+                          onMoveDown={(id) => moveItem(id, "down")}
+                          canMoveUp={canMoveItemUp}
+                          canMoveDown={canMoveItemDown}
                           activeId={activeId}
                           getLogicWarning={getLogicWarning}
                         />
@@ -1417,51 +1655,6 @@ export function SurveyBuilder() {
                             <span className="text-[10px] font-normal opacity-60">{tBuilder("addPageDescription")}</span>
                          </Button>
                        </div>
-                       {surveyId ? (
-                         <section className="xl:hidden mt-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-900/80 p-4 space-y-3">
-                           <div className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                             <HistoryIcon className="h-3.5 w-3.5" />
-                             {tBuilder("versionHistory")}
-                           </div>
-                            {versionsLoading ? (
-                              <p className="text-xs text-gray-500">{tCommon("loading")}</p>
-                            ) : versions.length === 0 ? (
-                              <p className="text-xs text-gray-500">{tBuilder("versionEmpty")}</p>
-                            ) : (
-                              <div data-testid="builder-version-history-list-mobile" className="max-h-[22rem] overflow-y-auto pr-1 space-y-2">
-                                {versions.map((version) => (
-                                  <div key={version.id} className="rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1.5">
-                                    <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200">
-                                      {tBuilder("versionLabel", { version: version.versionNumber })}
-                                    </div>
-                                    <div className="mt-1 flex items-center gap-1">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-6 px-2 text-[11px]"
-                                        data-testid={`builder-version-view-mobile-${version.versionNumber}`}
-                                        onClick={() => handleViewVersion(version)}
-                                      >
-                                        {tBuilder("viewVersion")}
-                                      </Button>
-                                     <Button
-                                       size="sm"
-                                       variant="outline"
-                                       className="h-6 px-2 text-[11px]"
-                                       onClick={() => setConfirmRestoreVersionNumber(version.versionNumber)}
-                                       disabled={restoringVersionNumber === version.versionNumber}
-                                     >
-                                       {restoringVersionNumber === version.versionNumber ? tCommon("saving") : tBuilder("restoreToDraft")}
-                                     </Button>
-                                   </div>
-                                 </div>
-                               ))}
-                             </div>
-                            )}
-                            {versionError ? <p className="text-[11px] text-red-600">{versionError}</p> : null}
-                            {restoreNotice ? <p className="text-[11px] text-emerald-700 dark:text-emerald-400">{restoreNotice}</p> : null}
-                          </section>
-                        ) : null}
                     </div>
                   </main>
                   {surveyId ? (

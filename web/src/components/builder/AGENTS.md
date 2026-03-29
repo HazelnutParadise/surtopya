@@ -14,6 +14,7 @@
 ## Current Contracts
 - `survey-builder.tsx` is currently large (~1688 lines) and remains the primary technical debt node.
 - DnD behavior uses `@dnd-kit/core` + `@dnd-kit/sortable` with typed drag events and sortable context.
+- Mobile authoring uses stacked collapsible panels plus explicit move up/down controls; do not assume drag-and-drop is the primary mobile interaction.
 - Publish/share behavior must respect survey publish lock and dataset sharing lock helpers from `@/lib/survey-publish-locks`.
 - Builder flow includes consent gating before entering full editing UI.
 - New question types require synchronized updates across toolbox, card rendering, validation, and payload mapping.
@@ -22,6 +23,7 @@
 - Adding more unrelated concerns directly into `survey-builder.tsx`.
 - Coupling UI rendering logic with persistence/network logic when extraction is feasible.
 - Introducing question type support in only one location (toolbox or renderer) and leaving partial behavior.
+- Reintroducing mobile-only drag assumptions after click-to-add and explicit reorder controls were added.
 - Bypassing existing publish-lock helpers with local conditionals.
 
 ## Update Discipline
