@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -89,6 +90,57 @@ func isAnswerValueEmpty(value models.AnswerValue) bool {
 	return true
 }
 
+func answerSelectsRequiredSupplementalOption(question surveySnapshotQuestion, value models.AnswerValue) bool {
+	selected := make(map[string]struct{}, len(value.Values)+1)
+	if value.Value != nil {
+		selected[strings.TrimSpace(*value.Value)] = struct{}{}
+	}
+	for _, item := range value.Values {
+		selected[strings.TrimSpace(item)] = struct{}{}
+	}
+	if len(selected) == 0 {
+		return false
+	}
+
+	for _, option := range question.Options {
+		if !option.RequireOtherText {
+			continue
+		}
+		if _, ok := selected[strings.TrimSpace(option.Label)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func validateRequiredSupplementalAnswers(snapshot surveySnapshot, answers map[uuid.UUID]models.AnswerValue) error {
+	for _, question := range snapshot.Questions {
+		answer, ok := answers[question.ID]
+		if !ok {
+			continue
+		}
+		if !answerSelectsRequiredSupplementalOption(question, answer) {
+			continue
+		}
+		if answer.OtherText == nil || strings.TrimSpace(*answer.OtherText) == "" {
+			return fmt.Errorf("supplemental text is required for question %s", question.ID)
+		}
+	}
+	return nil
+}
+
+func requiredSupplementalAnswerError() gin.H {
+	return gin.H{"error": "Supplemental text is required for the selected option"}
+}
+
+func validateRequiredSupplementalAnswersOrRespond(c *gin.Context, snapshot surveySnapshot, answers map[uuid.UUID]models.AnswerValue) bool {
+	if err := validateRequiredSupplementalAnswers(snapshot, answers); err != nil {
+		c.JSON(http.StatusBadRequest, requiredSupplementalAnswerError())
+		return false
+	}
+	return true
+}
+
 func (h *ResponseHandler) ensureSurveyAcceptingResponses(surveyID uuid.UUID) (*models.Survey, *models.SurveyVersion, int, string) {
 	survey, err := h.surveyRepo.GetByID(surveyID)
 	if err != nil {
@@ -112,26 +164,26 @@ func (h *ResponseHandler) ensureSurveyAcceptingResponses(surveyID uuid.UUID) (*m
 	return survey, version, 0, ""
 }
 
-func (h *ResponseHandler) loadVersionQuestionSet(tx *sql.Tx, surveyVersionID uuid.UUID) (map[uuid.UUID]struct{}, int, error) {
+func (h *ResponseHandler) loadVersionQuestionSet(tx *sql.Tx, surveyVersionID uuid.UUID) (map[uuid.UUID]struct{}, int, surveySnapshot, error) {
 	var snapshotRaw []byte
 	var boostSpend int
 	if err := tx.QueryRow(
 		"SELECT snapshot, points_reward FROM survey_versions WHERE id = $1",
 		surveyVersionID,
 	).Scan(&snapshotRaw, &boostSpend); err != nil {
-		return nil, 0, err
+		return nil, 0, surveySnapshot{}, err
 	}
 
 	var snapshot surveySnapshot
 	if err := json.Unmarshal(snapshotRaw, &snapshot); err != nil {
-		return nil, 0, err
+		return nil, 0, surveySnapshot{}, err
 	}
 
 	validQuestions := make(map[uuid.UUID]struct{}, len(snapshot.Questions))
 	for _, question := range snapshot.Questions {
 		validQuestions[question.ID] = struct{}{}
 	}
-	return validQuestions, boostSpend, nil
+	return validQuestions, boostSpend, snapshot, nil
 }
 
 // StartDraft handles POST /api/app/surveys/:id/drafts/start
@@ -240,7 +292,7 @@ func (h *ResponseHandler) SaveDraftAnswer(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	validQuestions, _, err := h.loadVersionQuestionSet(tx, draft.SurveyVersionID)
+	validQuestions, _, _, err := h.loadVersionQuestionSet(tx, draft.SurveyVersionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
@@ -351,7 +403,7 @@ func (h *ResponseHandler) SaveDraftAnswersBulk(c *gin.Context) {
 		return
 	}
 
-	validQuestions, _, err := h.loadVersionQuestionSet(tx, surveyVersionID)
+	validQuestions, _, _, err := h.loadVersionQuestionSet(tx, surveyVersionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
@@ -469,7 +521,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		return
 	}
 
-	validQuestions, boostSpend, err := h.loadVersionQuestionSet(tx, surveyVersionID)
+	validQuestions, boostSpend, snapshot, err := h.loadVersionQuestionSet(tx, surveyVersionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
@@ -524,13 +576,23 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		valueJSON  []byte
 	}
 	var draftAnswers []draftAnswerRow
+	answerValues := make(map[uuid.UUID]models.AnswerValue)
 	for rows.Next() {
 		var row draftAnswerRow
 		if err := rows.Scan(&row.questionID, &row.valueJSON); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read draft answers"})
 			return
 		}
+		var answerValue models.AnswerValue
+		if err := json.Unmarshal(row.valueJSON, &answerValue); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode draft answers"})
+			return
+		}
+		answerValues[row.questionID] = answerValue
 		draftAnswers = append(draftAnswers, row)
+	}
+	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+		return
 	}
 
 	pointsAwarded := 0
@@ -702,7 +764,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	validQuestions, boostSpend, err := h.loadVersionQuestionSet(tx, version.ID)
+	validQuestions, boostSpend, snapshot, err := h.loadVersionQuestionSet(tx, version.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
@@ -713,6 +775,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		valueJSON  []byte
 	}
 	answerRows := make([]answerRow, 0, len(req.Answers))
+	answerValues := make(map[uuid.UUID]models.AnswerValue, len(req.Answers))
 	for _, ansReq := range req.Answers {
 		questionID, err := uuid.Parse(ansReq.QuestionID)
 		if err != nil {
@@ -729,6 +792,10 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 			return
 		}
 		answerRows = append(answerRows, answerRow{questionID: questionID, valueJSON: valueJSON})
+		answerValues[questionID] = ansReq.Value
+	}
+	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+		return
 	}
 
 	anonymousID := req.AnonymousID

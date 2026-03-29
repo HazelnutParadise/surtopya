@@ -1,3 +1,5 @@
+import type { QuestionOption } from "@/types/survey"
+
 export interface CsvAnswerValueLike {
   text?: string
   value?: string
@@ -32,6 +34,7 @@ export interface CsvSurveyVersionLike {
       id?: string
       title?: string
       type?: string
+      options?: QuestionOption[]
     }>
   } | null
 }
@@ -55,26 +58,30 @@ export interface BuildSurveyResponsesCsvRowsOptions {
 interface CsvQuestionColumn {
   id: string
   title: string
+  hasDetailsColumn: boolean
 }
 
 const normalizeTitle = (value: string) => value.trim()
 
 const isContentQuestion = (questionType?: string) => questionType !== "section"
 
+const hasOtherText = (value?: CsvAnswerValueLike) =>
+  typeof value?.otherText === "string" && value.otherText.trim().length > 0
+
 const readAnswerValue = (value?: CsvAnswerValueLike) => {
-  if (!value) return ""
+  if (!value) return { primary: "", details: "" }
   const otherText = typeof value.otherText === "string" ? value.otherText.trim() : ""
-  if (typeof value.text === "string" && value.text.length > 0) return value.text
+  if (typeof value.text === "string" && value.text.length > 0) return { primary: value.text, details: "" }
   if (typeof value.value === "string" && value.value.length > 0) {
-    return otherText ? `${value.value} | ${otherText}` : value.value
+    return { primary: value.value, details: otherText }
   }
-  if (typeof value.date === "string" && value.date.length > 0) return value.date
-  if (typeof value.rating === "number") return String(value.rating)
+  if (typeof value.date === "string" && value.date.length > 0) return { primary: value.date, details: "" }
+  if (typeof value.rating === "number") return { primary: String(value.rating), details: "" }
   if (Array.isArray(value.values) && value.values.length > 0) {
-    return otherText ? [...value.values, otherText].join(" | ") : value.values.join(" | ")
+    return { primary: value.values.join(" | "), details: otherText }
   }
-  if (otherText) return otherText
-  return ""
+  if (otherText) return { primary: "", details: otherText }
+  return { primary: "", details: "" }
 }
 
 const buildVersionQuestionColumns = (surveyVersions: CsvSurveyVersionLike[]) => {
@@ -97,6 +104,9 @@ const buildVersionQuestionColumns = (surveyVersions: CsvSurveyVersionLike[]) => 
       ordered.push({
         id: questionId,
         title: normalizeTitle(question.title || "") || questionId,
+        hasDetailsColumn: Array.isArray(question.options)
+          ? question.options.some((option) => option?.isOther === true)
+          : false,
       })
     })
   })
@@ -114,11 +124,15 @@ const ensureAnswerQuestionColumns = (
     ;(response.answers || []).forEach((answer) => {
       const questionId = answer.questionId?.trim()
       if (!questionId || seen.has(questionId)) {
+        if (questionId && hasOtherText(answer.value)) {
+          const existing = columns.find((column) => column.id === questionId)
+          if (existing) existing.hasDetailsColumn = true
+        }
         return
       }
 
       seen.add(questionId)
-      columns.push({ id: questionId, title: questionId })
+      columns.push({ id: questionId, title: questionId, hasDetailsColumn: hasOtherText(answer.value) })
     })
   })
 }
@@ -168,7 +182,9 @@ export const buildSurveyResponsesCsvRows = ({
     metadataHeaders.points,
     metadataHeaders.startedAt,
     metadataHeaders.submittedAt,
-    ...questionColumns.map((column) => column.title),
+    ...questionColumns.flatMap((column) =>
+      column.hasDetailsColumn ? [column.title, `${column.title} - Details`] : [column.title]
+    ),
   ]
 
   const rows = completedResponses.map((response) => {
@@ -183,9 +199,10 @@ export const buildSurveyResponsesCsvRows = ({
       String(response.pointsAwarded || 0),
       response.startedAt || "",
       response.completedAt || response.createdAt || "",
-      ...questionColumns.map((column) => {
+      ...questionColumns.flatMap((column) => {
         const answer = answersByQuestionId.get(column.id)
-        return readAnswerValue(answer?.value)
+        const value = readAnswerValue(answer?.value)
+        return column.hasDetailsColumn ? [value.primary, value.details] : [value.primary]
       }),
     ]
   })

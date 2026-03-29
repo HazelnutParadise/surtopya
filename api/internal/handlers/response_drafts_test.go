@@ -470,6 +470,77 @@ func TestResponseHandler_SubmitAnonymousResponse_DuplicateAnonymousRejected(t *t
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResponseHandler_SubmitAnonymousResponse_RejectsMissingRequiredSupplementalText(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	versionID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyRowsForAnonymousResponseTest(surveyID, publisherID, versionID, false, 0)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(
+			versionID,
+			surveyID,
+			1,
+			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"single","title":"Q1","required":false,"options":[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]}]}`),
+			0,
+			nil,
+			now,
+			publisherID,
+			now,
+		))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow(
+			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"single","title":"Q1","required":false,"options":[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]}]}`),
+			0,
+		))
+	mock.ExpectRollback()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/responses/submit-anonymous", h.SubmitAnonymousResponse)
+
+	body, err := json.Marshal(map[string]any{
+		"anonymousId": "anon-1",
+		"answers": []map[string]any{
+			{
+				"questionId": questionID.String(),
+				"value": map[string]any{
+					"value": "Can add details",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/responses/submit-anonymous", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Supplemental text is required")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResponseHandler_ClaimAnonymousPoints_AwardsPointsOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

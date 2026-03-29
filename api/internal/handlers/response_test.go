@@ -376,6 +376,52 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResponseHandler_SubmitAllAnswers_RejectsMissingRequiredSupplementalText(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	responseID := uuid.New()
+	surveyID := uuid.New()
+	versionID := uuid.New()
+	respondentID := uuid.New()
+	questionID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 1, respondentID, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"single","title":"Q1","required":false,"options":[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]}]}`), 0))
+	mock.ExpectRollback()
+
+	r := gin.New()
+	r.POST("/api/v1/responses/:id/submit", h.SubmitAllAnswers)
+
+	body, err := json.Marshal(map[string]any{
+		"answers": []map[string]any{
+			{
+				"questionId": questionID.String(),
+				"value": map[string]any{
+					"value": "Can add details",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/responses/"+responseID.String()+"/submit", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Supplemental text is required")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResponseHandler_GetSurveyResponses_IncludesAnswers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

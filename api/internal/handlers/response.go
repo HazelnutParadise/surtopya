@@ -177,7 +177,7 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		validQuestions[q.ID] = struct{}{}
 	}
 
-	// Save all answers (if any)
+	answerValues := make(map[uuid.UUID]models.AnswerValue, len(req.Answers))
 	for _, ansReq := range req.Answers {
 		questionID, err := uuid.Parse(ansReq.QuestionID)
 		if err != nil {
@@ -189,7 +189,15 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Question does not belong to survey"})
 			return
 		}
+		answerValues[questionID] = ansReq.Value
+	}
+	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+		return
+	}
 
+	// Save all answers (if any)
+	for _, ansReq := range req.Answers {
+		questionID, _ := uuid.Parse(ansReq.QuestionID)
 		valueJSON, err := json.Marshal(ansReq.Value)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid answer value"})
@@ -207,7 +215,6 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 			return
 		}
 	}
-
 	pointsAwarded := 0
 	boostReward := 0
 

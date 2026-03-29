@@ -199,8 +199,18 @@ describe("survey responses csv", () => {
           versionNumber: 1,
           snapshot: {
             questions: [
-              { id: "q1", title: "Favorite option", type: "single" },
-              { id: "q2", title: "Pick many", type: "multi" },
+              {
+                id: "q1",
+                title: "Favorite option",
+                type: "single",
+                options: [{ label: "Regular" }, { label: "Can add details", isOther: true }],
+              },
+              {
+                id: "q2",
+                title: "Pick many",
+                type: "multi",
+                options: [{ label: "A" }, { label: "Can add details", isOther: true }],
+              },
             ],
           },
         },
@@ -228,8 +238,23 @@ describe("survey responses csv", () => {
       "0",
       "2026-03-11T09:00:00Z",
       "2026-03-11T09:05:00Z",
-      "Other | custom single",
-      "A | Other | custom multi",
+      "Other",
+      "custom single",
+      "A | Other",
+      "custom multi",
+    ])
+
+    expect(rows[0]).toEqual([
+      "Response ID",
+      "Status",
+      "Respondent",
+      "Points",
+      "Started",
+      "Submitted",
+      "Favorite option",
+      "Favorite option - Details",
+      "Pick many",
+      "Pick many - Details",
     ])
   })
 })
