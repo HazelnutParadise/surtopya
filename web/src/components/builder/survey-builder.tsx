@@ -764,6 +764,14 @@ export function SurveyBuilder() {
         return tBuilder("logicWarningDeleted")
       case "invalid_destination_position":
         return tBuilder("logicWarningBackwards")
+      case "invalid_scalar_value":
+        return tBuilder("logicWarningScalarValue")
+      case "incomplete_scalar_range":
+        return tBuilder("logicWarningScalarRangeIncomplete")
+      case "invalid_scalar_range":
+        return tBuilder("logicWarningScalarRangeOrder")
+      case "invalid_condition_type":
+        return tBuilder("logicWarningConditionType")
       default:
         return tBuilder("logicWarningGeneric")
     }

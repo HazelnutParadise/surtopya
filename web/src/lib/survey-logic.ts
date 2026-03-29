@@ -1,4 +1,12 @@
-import type { LogicCondition, LogicConditionMatch, LogicOperator, LogicRule, Question } from "@/types/survey"
+import type {
+  ChoiceLogicCondition,
+  LogicCondition,
+  LogicConditionMatch,
+  LogicOperator,
+  LogicRule,
+  Question,
+  ScalarLogicCondition,
+} from "@/types/survey"
 import {
   ensureQuestionOptionIds,
   findQuestionOptionById,
@@ -12,6 +20,10 @@ export type LogicIssueCode =
   | "deleted_option"
   | "deleted_destination"
   | "invalid_destination_position"
+  | "invalid_scalar_value"
+  | "incomplete_scalar_range"
+  | "invalid_scalar_range"
+  | "invalid_condition_type"
 
 export type LogicIssue = {
   code: LogicIssueCode
@@ -29,15 +41,44 @@ const normalizeConditionMatch = (value: unknown): LogicConditionMatch =>
 const normalizeOperator = (value: unknown): LogicOperator =>
   value === "and" ? "and" : "or"
 
+export const isScalarLogicCondition = (value: LogicCondition | null | undefined): value is ScalarLogicCondition => {
+  return Boolean(value && value.kind === "scalar")
+}
+
+export const isChoiceLogicCondition = (value: LogicCondition | null | undefined): value is ChoiceLogicCondition => {
+  return Boolean(value && !isScalarLogicCondition(value) && typeof value.optionId === "string" && value.optionId.length > 0)
+}
+
 const normalizeLogicCondition = (value: unknown): LogicCondition | null => {
   if (!isRecord(value)) return null
+
+  if (value.kind === "scalar" || typeof value.comparator === "string") {
+    if (typeof value.comparator !== "string" || typeof value.value !== "string") return null
+    return {
+      kind: "scalar",
+      comparator:
+        value.comparator === "between" || value.comparator === "not_between" || value.comparator === "gt"
+          ? value.comparator
+          : "lt",
+      value: value.value,
+      secondaryValue: typeof value.secondaryValue === "string" ? value.secondaryValue : undefined,
+    }
+  }
+
   if (typeof value.optionId !== "string" || value.optionId.trim().length === 0) return null
 
   return {
+    kind: value.kind === "choice" ? "choice" : undefined,
     optionId: value.optionId,
     match: normalizeConditionMatch(value.match),
   }
 }
+
+const getChoiceConditions = (rule: LogicRule) =>
+  (rule.conditions || []).filter((condition): condition is ChoiceLogicCondition => isChoiceLogicCondition(condition))
+
+const getScalarConditions = (rule: LogicRule) =>
+  (rule.conditions || []).filter((condition): condition is ScalarLogicCondition => isScalarLogicCondition(condition))
 
 export const normalizeLogicRule = (question: Pick<Question, "type" | "options">, rule: LogicRule): LogicRule => {
   const normalizedConditions = Array.isArray(rule.conditions)
@@ -88,7 +129,7 @@ export const hasQuestionLogic = (question: Pick<Question, "logic">) => Boolean(q
 
 export const isContradictoryLogicRule = (rule: LogicRule) => {
   const seen = new Map<string, LogicConditionMatch>()
-  for (const condition of rule.conditions || []) {
+  for (const condition of getChoiceConditions(rule)) {
     const previous = seen.get(condition.optionId)
     if (previous && previous !== condition.match) {
       return true
@@ -96,6 +137,42 @@ export const isContradictoryLogicRule = (rule: LogicRule) => {
     seen.set(condition.optionId, condition.match)
   }
   return false
+}
+
+const isValidDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+
+const parseRatingNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
+const validateScalarCondition = (question: Question, condition: ScalarLogicCondition): LogicIssueCode | null => {
+  const isRange = condition.comparator === "between" || condition.comparator === "not_between"
+
+  if (!condition.value.trim()) return "invalid_scalar_value"
+  if (isRange && !condition.secondaryValue?.trim()) return "incomplete_scalar_range"
+
+  if (question.type === "rating") {
+    const primary = parseRatingNumber(condition.value)
+    if (primary === null) return "invalid_scalar_value"
+    if (!isRange) return null
+    const secondary = parseRatingNumber(condition.secondaryValue)
+    if (secondary === null) return "incomplete_scalar_range"
+    return primary <= secondary ? null : "invalid_scalar_range"
+  }
+
+  if (question.type === "date") {
+    if (!isValidDateOnly(condition.value)) return "invalid_scalar_value"
+    if (!isRange) return null
+    if (!condition.secondaryValue || !isValidDateOnly(condition.secondaryValue)) return "incomplete_scalar_range"
+    return condition.value <= condition.secondaryValue ? null : "invalid_scalar_range"
+  }
+
+  return "invalid_condition_type"
 }
 
 export const getQuestionLogicIssues = (question: Question, allQuestions: Question[]): LogicIssue[] => {
@@ -106,19 +183,39 @@ export const getQuestionLogicIssues = (question: Question, allQuestions: Questio
   const issues: LogicIssue[] = []
 
   normalizedQuestion.logic?.forEach((rule, ruleIndex) => {
-    if (isContradictoryLogicRule(rule)) {
-      issues.push({ code: "contradictory_conditions", ruleIndex })
-    }
+    const choiceConditions = getChoiceConditions(rule)
+    const scalarConditions = getScalarConditions(rule)
 
-    if ((rule.conditions || []).length === 0 && rule.triggerOption) {
-      issues.push({ code: "deleted_option", ruleIndex })
-    }
-
-    rule.conditions?.forEach((condition, conditionIndex) => {
-      if (!findQuestionOptionById(normalizedQuestion, condition.optionId)) {
-        issues.push({ code: "deleted_option", ruleIndex, conditionIndex })
+    if (normalizedQuestion.type === "single" || normalizedQuestion.type === "select" || normalizedQuestion.type === "multi") {
+      if (scalarConditions.length > 0) {
+        issues.push({ code: "invalid_condition_type", ruleIndex })
       }
-    })
+
+      if (isContradictoryLogicRule(rule)) {
+        issues.push({ code: "contradictory_conditions", ruleIndex })
+      }
+
+      if (choiceConditions.length === 0 && rule.triggerOption) {
+        issues.push({ code: "deleted_option", ruleIndex })
+      }
+
+      choiceConditions.forEach((condition, conditionIndex) => {
+        if (!findQuestionOptionById(normalizedQuestion, condition.optionId)) {
+          issues.push({ code: "deleted_option", ruleIndex, conditionIndex })
+        }
+      })
+    } else if (normalizedQuestion.type === "rating" || normalizedQuestion.type === "date") {
+      if (choiceConditions.length > 0 || scalarConditions.length > 1) {
+        issues.push({ code: "invalid_condition_type", ruleIndex })
+      } else if (scalarConditions.length === 0) {
+        issues.push({ code: "invalid_scalar_value", ruleIndex })
+      } else {
+        const scalarIssue = validateScalarCondition(normalizedQuestion, scalarConditions[0])
+        if (scalarIssue) {
+          issues.push({ code: scalarIssue, ruleIndex })
+        }
+      }
+    }
 
     if (rule.destinationQuestionId === "end_survey") return
 
@@ -159,25 +256,77 @@ const getSelectedOptionIds = (question: Question, rawAnswer: unknown) => {
   return []
 }
 
+const matchesScalarCondition = (question: Question, rawAnswer: unknown, condition: ScalarLogicCondition) => {
+  if (validateScalarCondition(question, condition)) return false
+
+  if (question.type === "rating") {
+    const answerValue = parseRatingNumber(rawAnswer)
+    const primary = parseRatingNumber(condition.value)
+    const secondary = parseRatingNumber(condition.secondaryValue)
+    if (answerValue === null || primary === null) return false
+
+    switch (condition.comparator) {
+      case "gt":
+        return answerValue > primary
+      case "between":
+        return secondary !== null ? answerValue >= primary && answerValue <= secondary : false
+      case "not_between":
+        return secondary !== null ? answerValue < primary || answerValue > secondary : false
+      default:
+        return answerValue < primary
+    }
+  }
+
+  if (question.type === "date") {
+    const answerValue = typeof rawAnswer === "string" ? rawAnswer : ""
+    if (!isValidDateOnly(answerValue) || !isValidDateOnly(condition.value)) return false
+
+    switch (condition.comparator) {
+      case "gt":
+        return answerValue > condition.value
+      case "between":
+        return Boolean(condition.secondaryValue && answerValue >= condition.value && answerValue <= condition.secondaryValue)
+      case "not_between":
+        return Boolean(condition.secondaryValue && (answerValue < condition.value || answerValue > condition.secondaryValue))
+      default:
+        return answerValue < condition.value
+    }
+  }
+
+  return false
+}
+
 export const logicRuleMatchesAnswer = (question: Question, rawAnswer: unknown, incomingRule: LogicRule) => {
-  const rule = normalizeLogicRule(question, incomingRule)
-  const selectedOptionIds = getSelectedOptionIds(normalizeQuestionLogic(question), rawAnswer)
-  if (selectedOptionIds.length === 0) return false
-  const conditions = rule.conditions || []
-  if (conditions.length === 0) return false
+  const normalizedQuestion = normalizeQuestionLogic(question)
+  const rule = normalizeLogicRule(normalizedQuestion, incomingRule)
   if (isContradictoryLogicRule(rule)) return false
 
-  if (rule.operator === "and") {
-    return conditions.every((condition) =>
+  if (normalizedQuestion.type === "single" || normalizedQuestion.type === "select" || normalizedQuestion.type === "multi") {
+    const selectedOptionIds = getSelectedOptionIds(normalizedQuestion, rawAnswer)
+    if (selectedOptionIds.length === 0) return false
+    const conditions = getChoiceConditions(rule)
+    if (conditions.length === 0) return false
+
+    if (rule.operator === "and") {
+      return conditions.every((condition) =>
+        condition.match === "includes"
+          ? selectedOptionIds.includes(condition.optionId)
+          : !selectedOptionIds.includes(condition.optionId)
+      )
+    }
+
+    return conditions.some((condition) =>
       condition.match === "includes"
         ? selectedOptionIds.includes(condition.optionId)
         : !selectedOptionIds.includes(condition.optionId)
     )
   }
 
-  return conditions.some((condition) =>
-    condition.match === "includes"
-      ? selectedOptionIds.includes(condition.optionId)
-      : !selectedOptionIds.includes(condition.optionId)
-  )
+  if (normalizedQuestion.type === "rating" || normalizedQuestion.type === "date") {
+    const scalarCondition = getScalarConditions(rule)[0]
+    if (!scalarCondition) return false
+    return matchesScalarCondition(normalizedQuestion, rawAnswer, scalarCondition)
+  }
+
+  return false
 }

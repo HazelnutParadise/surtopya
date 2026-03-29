@@ -88,8 +88,12 @@ type LogicRule struct {
 }
 
 type LogicCondition struct {
-	OptionID string `json:"optionId"`
-	Match    string `json:"match"`
+	Kind           string `json:"kind,omitempty"`
+	OptionID       string `json:"optionId,omitempty"`
+	Match          string `json:"match,omitempty"`
+	Comparator     string `json:"comparator,omitempty"`
+	Value          string `json:"value,omitempty"`
+	SecondaryValue string `json:"secondaryValue,omitempty"`
 }
 
 type QuestionOption struct {

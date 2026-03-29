@@ -1,13 +1,14 @@
 import React from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { LogicRule, Question } from "@/types/survey"
+import { LogicRule, Question, ScalarLogicCondition } from "@/types/survey"
 import { Plus, Trash2, ArrowRight, AlertTriangle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { findQuestionOptionById } from "@/lib/question-options"
-import { isContradictoryLogicRule, normalizeQuestionLogic } from "@/lib/survey-logic"
+import { isContradictoryLogicRule, isScalarLogicCondition, normalizeQuestionLogic } from "@/lib/survey-logic"
 
 interface LogicEditorProps {
   question: Question
@@ -16,6 +17,13 @@ interface LogicEditorProps {
   onOpenChange: (open: boolean) => void
   onSave: (logic: LogicRule[]) => void
 }
+
+const createEmptyScalarCondition = (): ScalarLogicCondition => ({
+  kind: "scalar",
+  comparator: "lt",
+  value: "",
+  secondaryValue: "",
+})
 
 export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave }: LogicEditorProps) {
   const t = useTranslations("LogicEditor")
@@ -26,11 +34,13 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     setRules(normalizedQuestion.logic || [])
   }, [normalizedQuestion, open])
 
-  const isCompatible =
+  const isChoiceQuestion =
     normalizedQuestion.type === "single" ||
     normalizedQuestion.type === "select" ||
     normalizedQuestion.type === "multi"
   const isMultiQuestion = normalizedQuestion.type === "multi"
+  const isScalarQuestion = normalizedQuestion.type === "rating" || normalizedQuestion.type === "date"
+  const isCompatible = isChoiceQuestion || isScalarQuestion
   const normalizedOptions = normalizedQuestion.options || []
 
   const currentQuestionIndex = allQuestions.findIndex((item) => item.id === normalizedQuestion.id)
@@ -44,6 +54,17 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
   const subsequentPages = allQuestions.slice(currentQuestionIndex + 1).filter((item) => item.type === "section")
 
   const addRule = () => {
+    if (isScalarQuestion) {
+      setRules((currentRules) => [
+        ...currentRules,
+        {
+          conditions: [createEmptyScalarCondition()],
+          destinationQuestionId: "",
+        },
+      ])
+      return
+    }
+
     const firstOption = normalizedOptions[0]
     const firstOptionId = firstOption?.id
     if (!firstOptionId) return
@@ -53,7 +74,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
       {
         triggerOption: firstOption.label,
         operator: "or",
-        conditions: [{ optionId: firstOptionId, match: "includes" }],
+        conditions: [{ kind: "choice", optionId: firstOptionId, match: "includes" }],
         destinationQuestionId: "",
       },
     ])
@@ -69,7 +90,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
         index === ruleIndex
           ? {
               ...rule,
-              conditions: [...(rule.conditions || []), { optionId: firstOptionId, match: "includes" }],
+              conditions: [...(rule.conditions || []), { kind: "choice", optionId: firstOptionId, match: "includes" }],
             }
           : rule
       )
@@ -86,7 +107,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     )
   }
 
-  const updateCondition = (
+  const updateChoiceCondition = (
     ruleIndex: number,
     conditionIndex: number,
     field: "optionId" | "match",
@@ -98,7 +119,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
 
         const nextConditions = [...(rule.conditions || [])]
         const nextCondition = nextConditions[conditionIndex]
-        if (!nextCondition) return rule
+        if (!nextCondition || isScalarLogicCondition(nextCondition)) return rule
 
         nextConditions[conditionIndex] = {
           ...nextCondition,
@@ -108,6 +129,27 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
         return {
           ...rule,
           conditions: nextConditions,
+        }
+      })
+    )
+  }
+
+  const updateScalarCondition = (
+    ruleIndex: number,
+    updates: Partial<ScalarLogicCondition>
+  ) => {
+    setRules((currentRules) =>
+      currentRules.map((rule, currentIndex) => {
+        if (currentIndex !== ruleIndex) return rule
+        const existingCondition = (rule.conditions || []).find(isScalarLogicCondition) || createEmptyScalarCondition()
+        return {
+          ...rule,
+          conditions: [
+            {
+              ...existingCondition,
+              ...updates,
+            },
+          ],
         }
       })
     )
@@ -197,6 +239,80 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     )
   }
 
+  const renderScalarEditor = (rule: LogicRule, ruleIndex: number) => {
+    const scalarCondition = (rule.conditions || []).find(isScalarLogicCondition) || createEmptyScalarCondition()
+    const isRange = scalarCondition.comparator === "between" || scalarCondition.comparator === "not_between"
+    const comparatorLabel = normalizedQuestion.type === "date" ? t("dateComparator") : t("ratingComparator")
+    const rangeHint =
+      normalizedQuestion.type === "date" ? t("rangeInclusiveHintDate") : t("rangeInclusiveHintRating")
+    const inputType = normalizedQuestion.type === "date" ? "date" : "number"
+
+    return (
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs text-gray-500">{comparatorLabel}</Label>
+            <Select
+              value={scalarCondition.comparator}
+              onValueChange={(value) =>
+                updateScalarCondition(ruleIndex, {
+                  comparator: value as ScalarLogicCondition["comparator"],
+                  secondaryValue:
+                    value === "between" || value === "not_between"
+                      ? scalarCondition.secondaryValue || ""
+                      : undefined,
+                })
+              }
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lt">
+                  {normalizedQuestion.type === "date" ? t("comparatorEarlierThan") : t("comparatorLessThan")}
+                </SelectItem>
+                <SelectItem value="gt">
+                  {normalizedQuestion.type === "date" ? t("comparatorLaterThan") : t("comparatorGreaterThan")}
+                </SelectItem>
+                <SelectItem value="between">{t("comparatorBetween")}</SelectItem>
+                <SelectItem value="not_between">{t("comparatorNotBetween")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className={`grid gap-2 ${isRange ? "sm:grid-cols-2" : ""}`}>
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">{isRange ? t("startValueLabel") : t("valueLabel")}</Label>
+              <Input
+                type={inputType}
+                value={scalarCondition.value}
+                onChange={(event) => updateScalarCondition(ruleIndex, { value: event.target.value })}
+              />
+            </div>
+            {isRange ? (
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-500">{t("endValueLabel")}</Label>
+                <Input
+                  type={inputType}
+                  value={scalarCondition.secondaryValue || ""}
+                  onChange={(event) => updateScalarCondition(ruleIndex, { secondaryValue: event.target.value })}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {isRange ? <p className="text-xs text-gray-500">{rangeHint}</p> : null}
+        </div>
+
+        <div className="hidden md:flex pt-6">
+          <ArrowRight className="h-4 w-4 text-gray-400" />
+        </div>
+
+        {renderDestinationSelect(rule, ruleIndex)}
+      </div>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[720px]" onInteractOutside={(event) => event.preventDefault()}>
@@ -214,7 +330,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
             ) : (
               <div className="space-y-3">
                 {rules.map((rule, ruleIndex) => {
-                  const conditions = rule.conditions || []
+                  const choiceConditions = (rule.conditions || []).filter((condition) => !isScalarLogicCondition(condition))
                   const hasContradiction = isContradictoryLogicRule(rule)
 
                   return (
@@ -222,6 +338,8 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                       key={ruleIndex}
                       className="space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900"
                     >
+                      {isScalarQuestion ? renderScalarEditor(rule, ruleIndex) : null}
+
                       {isMultiQuestion ? (
                         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
                           <div className="space-y-3">
@@ -242,7 +360,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                             </div>
 
                             <div className="space-y-2">
-                              {conditions.map((condition, conditionIndex) => {
+                              {choiceConditions.map((condition, conditionIndex) => {
                                 const selectedOption = findQuestionOptionById(normalizedQuestion, condition.optionId)
                                 const missingOptionValue = selectedOption ? null : condition.optionId || `missing-${ruleIndex}-${conditionIndex}`
                                 return (
@@ -251,7 +369,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                                       <Label className="text-xs text-gray-500">{t("conditionMatch")}</Label>
                                       <Select
                                         value={condition.match}
-                                        onValueChange={(value) => updateCondition(ruleIndex, conditionIndex, "match", value)}
+                                        onValueChange={(value) => updateChoiceCondition(ruleIndex, conditionIndex, "match", value)}
                                       >
                                         <SelectTrigger className="h-9">
                                           <SelectValue />
@@ -267,7 +385,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                                       <Label className="text-xs text-gray-500">{t("selectOption")}</Label>
                                       <Select
                                         value={selectedOption?.id || missingOptionValue || undefined}
-                                        onValueChange={(value) => updateCondition(ruleIndex, conditionIndex, "optionId", value)}
+                                        onValueChange={(value) => updateChoiceCondition(ruleIndex, conditionIndex, "optionId", value)}
                                       >
                                         <SelectTrigger className="h-9">
                                           <SelectValue placeholder={t("selectOption")} />
@@ -290,7 +408,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => removeCondition(ruleIndex, conditionIndex)}
-                                        disabled={conditions.length <= 1}
+                                        disabled={choiceConditions.length <= 1}
                                         className="h-9 w-9 text-gray-400 hover:text-red-500"
                                       >
                                         <Trash2 className="h-4 w-4" />
@@ -319,17 +437,19 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
 
                           {renderDestinationSelect(rule, ruleIndex)}
                         </div>
-                      ) : (
+                      ) : null}
+
+                      {isChoiceQuestion && !isMultiQuestion ? (
                         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-start">
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">{t("ifAnswerIs")}</Label>
                             <Select
-                              value={conditions[0]?.optionId || undefined}
+                              value={choiceConditions[0]?.optionId || undefined}
                               onValueChange={(value) =>
                                 updateRule(ruleIndex, {
                                   triggerOption: normalizedOptions.find((option) => option.id === value)?.label,
                                   operator: "or",
-                                  conditions: [{ optionId: value, match: "includes" }],
+                                  conditions: [{ kind: "choice", optionId: value, match: "includes" }],
                                 })
                               }
                             >
@@ -352,7 +472,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
 
                           {renderDestinationSelect(rule, ruleIndex)}
                         </div>
-                      )}
+                      ) : null}
 
                       <div className="flex justify-end">
                         <Button

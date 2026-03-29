@@ -8,11 +8,22 @@ export interface QuestionOption {
 }
 
 export type LogicConditionMatch = 'includes' | 'excludes';
+export type LogicScalarComparator = 'lt' | 'gt' | 'between' | 'not_between';
 
-export interface LogicCondition {
+export interface ChoiceLogicCondition {
+    kind?: 'choice';
     optionId: string;
     match: LogicConditionMatch;
 }
+
+export interface ScalarLogicCondition {
+    kind: 'scalar';
+    comparator: LogicScalarComparator;
+    value: string;
+    secondaryValue?: string;
+}
+
+export type LogicCondition = ChoiceLogicCondition | ScalarLogicCondition;
 
 export type LogicOperator = 'and' | 'or';
 

@@ -161,4 +161,77 @@ describe("SurveyRenderer logic precedence", () => {
     expect(screen.getByText("Question on page 3")).toBeInTheDocument()
     expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
   })
+
+  it("supports rating logic jumps with inclusive between rules", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          { id: "page-1", type: "section", title: "Page 1", required: false },
+          {
+            id: "q1",
+            type: "rating",
+            title: "Rate this",
+            required: true,
+            maxRating: 5,
+            logic: [
+              {
+                conditions: [
+                  {
+                    kind: "scalar",
+                    comparator: "between",
+                    value: "3",
+                    secondaryValue: "5",
+                  },
+                ],
+                destinationQuestionId: "page-2",
+              },
+            ],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "5 stars" }))
+    fireEvent.click(screen.getByRole("button", { name: /next/i }))
+
+    expect(screen.getByText("Question on page 2")).toBeInTheDocument()
+  })
+
+  it("supports date logic jumps with inclusive between rules", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          { id: "page-1", type: "section", title: "Page 1", required: false },
+          {
+            id: "q1",
+            type: "date",
+            title: "Pick a date",
+            required: true,
+            logic: [
+              {
+                conditions: [
+                  {
+                    kind: "scalar",
+                    comparator: "between",
+                    value: "2026-04-01",
+                    secondaryValue: "2026-04-10",
+                  },
+                ],
+                destinationQuestionId: "page-2",
+              },
+            ],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Pick a date"), { target: { value: "2026-04-10" } })
+    fireEvent.click(screen.getByRole("button", { name: /next/i }))
+
+    expect(screen.getByText("Question on page 2")).toBeInTheDocument()
+  })
 })

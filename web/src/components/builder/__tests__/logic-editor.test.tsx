@@ -6,10 +6,23 @@ import type { Question } from "@/types/survey"
 const messages: Record<string, Record<string, string>> = {
   LogicEditor: {
     title: 'Logic Jumps for "{title}"',
-    unsupported: "Logic jumps are only available for Single Choice and Dropdown questions.",
+    unsupported: "Logic jumps are only available for choice questions.",
     empty: 'No logic rules defined. Click "Add Rule" to start.',
     ifAnswerIs: "If answer is",
     selectOption: "Select Option",
+    ratingComparator: "Compare rating",
+    dateComparator: "Compare date",
+    comparatorLessThan: "Less than",
+    comparatorGreaterThan: "Greater than",
+    comparatorEarlierThan: "Earlier than",
+    comparatorLaterThan: "Later than",
+    comparatorBetween: "Between",
+    comparatorNotBetween: "Not between",
+    valueLabel: "Value",
+    startValueLabel: "Start",
+    endValueLabel: "End",
+    rangeInclusiveHintRating: "Between 3 and 5 includes both 3 and 5.",
+    rangeInclusiveHintDate: "Between 2026-04-01 and 2026-04-10 includes both dates.",
     jumpTo: "Jump to",
     invalidDeleted: "(Deleted)",
     invalidPosition: "(Invalid position)",
@@ -55,6 +68,21 @@ const baseQuestions: Question[] = [
     options: [{ id: "opt-a", label: "A" }, { id: "opt-b", label: "B" }],
     logic: [],
   },
+  {
+    id: "q-rating",
+    type: "rating",
+    title: "Rate us",
+    required: false,
+    maxRating: 5,
+    logic: [],
+  },
+  {
+    id: "q-date",
+    type: "date",
+    title: "Pick a date",
+    required: false,
+    logic: [],
+  },
   { id: "page-2", type: "section", title: "Page 2", required: false },
 ]
 
@@ -98,5 +126,69 @@ describe("LogicEditor", () => {
     expect(screen.getByText(messages.LogicEditor.operator)).toBeInTheDocument()
     expect(screen.getByText(messages.LogicEditor.conditionMatch)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: messages.LogicEditor.addCondition })).toBeInTheDocument()
+  })
+
+  it("shows rating comparator controls and inclusive boundary hint", () => {
+    render(
+      <LogicEditor
+        question={{
+          ...baseQuestions[2],
+          logic: [
+            {
+              conditions: [
+                {
+                  kind: "scalar",
+                  comparator: "between",
+                  value: "3",
+                  secondaryValue: "5",
+                },
+              ],
+              destinationQuestionId: "page-2",
+            },
+          ],
+        }}
+        allQuestions={baseQuestions}
+        open
+        onOpenChange={() => {}}
+        onSave={() => {}}
+      />
+    )
+
+    expect(screen.getByText(messages.LogicEditor.ratingComparator)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.rangeInclusiveHintRating)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.startValueLabel)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.endValueLabel)).toBeInTheDocument()
+  })
+
+  it("shows date comparator controls and inclusive boundary hint", () => {
+    render(
+      <LogicEditor
+        question={{
+          ...baseQuestions[3],
+          logic: [
+            {
+              conditions: [
+                {
+                  kind: "scalar",
+                  comparator: "between",
+                  value: "2026-04-01",
+                  secondaryValue: "2026-04-10",
+                },
+              ],
+              destinationQuestionId: "page-2",
+            },
+          ],
+        }}
+        allQuestions={baseQuestions}
+        open
+        onOpenChange={() => {}}
+        onSave={() => {}}
+      />
+    )
+
+    expect(screen.getByText(messages.LogicEditor.dateComparator)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.rangeInclusiveHintDate)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.startValueLabel)).toBeInTheDocument()
+    expect(screen.getByText(messages.LogicEditor.endValueLabel)).toBeInTheDocument()
   })
 })

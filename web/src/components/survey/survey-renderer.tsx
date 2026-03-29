@@ -437,7 +437,9 @@ export function SurveyRenderer({
                     return (
                     <button
                       key={star}
+                      type="button"
                       onClick={() => handleAnswer(question.id, star)}
+                      aria-label={`${star} stars`}
                       className={`p-2 rounded-full transition-all hover:scale-110 ${
                         ratingValue >= star 
                           ? "text-amber-400" 
@@ -502,6 +504,7 @@ export function SurveyRenderer({
                 <Input
                   type="date"
                   className="w-full h-12 text-base block"
+                  aria-label={question.title}
                   value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
                 />

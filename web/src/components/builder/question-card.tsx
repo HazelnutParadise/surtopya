@@ -313,7 +313,7 @@ export function QuestionCard({
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-purple-600 hover:bg-purple-50" onClick={() => onDuplicate(question.id)} title={tBuilder("duplicate")}>
             <Copy className="h-5 w-5" />
           </Button>
-          {(question.type === 'single' || question.type === 'select' || question.type === 'multi') && (
+          {(question.type === 'single' || question.type === 'select' || question.type === 'multi' || question.type === 'rating' || question.type === 'date') && (
             <Button
               variant="ghost"
               size="icon"
