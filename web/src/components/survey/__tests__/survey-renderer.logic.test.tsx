@@ -270,6 +270,51 @@ describe("SurveyRenderer logic precedence", () => {
     expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
   })
 
+  it("updates the primary action immediately when answers change the resolved destination", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "page-1",
+            type: "section",
+            title: "Page 1",
+            required: false,
+            defaultDestinationQuestionId: "page-2",
+          },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+            ],
+            logic: [
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-a", match: "includes" }],
+                destinationQuestionId: "end_survey",
+              },
+            ],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+        ])}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: /^next$/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("A"))
+    expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^next$/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("B"))
+    expect(screen.getByRole("button", { name: /^next$/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument()
+  })
+
   it("uses branch history for back navigation", () => {
     render(
       <SurveyRenderer
@@ -301,6 +346,53 @@ describe("SurveyRenderer logic precedence", () => {
     fireEvent.click(screen.getByRole("button", { name: /back/i }))
 
     expect(screen.getByText("First question")).toBeInTheDocument()
+    expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
+  })
+
+  it("rebuilds the branch when an earlier answer changes after navigating back", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          { id: "page-1", type: "section", title: "Page 1", required: false },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+            ],
+            logic: [
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-a", match: "includes" }],
+                destinationQuestionId: "page-2",
+              },
+              {
+                operator: "or",
+                conditions: [{ optionId: "opt-b", match: "includes" }],
+                destinationQuestionId: "page-3",
+              },
+            ],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+          { id: "page-3", type: "section", title: "Page 3", required: false },
+          { id: "q-page-3", type: "short", title: "Question on page 3", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.click(screen.getByText("A"))
+    fireEvent.click(screen.getByRole("button", { name: /^next$/i }))
+    expect(screen.getByText("Question on page 2")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /back/i }))
+    fireEvent.click(screen.getByText("B"))
+    fireEvent.click(screen.getByRole("button", { name: /^next$/i }))
+
+    expect(screen.getByText("Question on page 3")).toBeInTheDocument()
     expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
   })
 

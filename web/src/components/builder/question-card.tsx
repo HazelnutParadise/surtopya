@@ -427,7 +427,7 @@ export function QuestionCard({
               variant="ghost"
               size="icon"
               className={`${
-                hasCriticalLogicWarning
+                hasLogicWarning || hasCriticalLogicWarning
                   ? "text-red-500 hover:text-red-600 hover:bg-red-50"
                   : hasLogic
                     ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50"

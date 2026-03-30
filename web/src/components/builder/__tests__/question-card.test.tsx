@@ -249,7 +249,7 @@ describe("QuestionCard", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
   })
 
-  it("does not color the logic button red for non-contradictory warnings", () => {
+  it("colors the logic button red for non-contradictory publish-blocking warnings", () => {
     render(
       <QuestionCard
         question={{
@@ -276,6 +276,6 @@ describe("QuestionCard", () => {
       />
     )
 
-    expect(screen.getByRole("button", { name: "Logic Jumps" })).not.toHaveClass("text-red-500")
+    expect(screen.getByRole("button", { name: "Logic Jumps" })).toHaveClass("text-red-500")
   })
 })
