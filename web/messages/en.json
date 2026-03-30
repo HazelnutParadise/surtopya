@@ -204,6 +204,7 @@
     "pageNavigationMode": "Page navigation",
     "pageNavigationNext": "Next page",
     "pageNavigationSpecific": "Specific page",
+    "pageNavigationEndSurvey": "Submit at end of this page",
     "defaultPageJump": "Default page jump"
   },
   "QuestionTypes": {

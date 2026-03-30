@@ -201,6 +201,7 @@
     "pageNavigationMode": "ページ遷移",
     "pageNavigationNext": "次のページ",
     "pageNavigationSpecific": "特定のページ",
+    "pageNavigationEndSurvey": "\u3053\u306e\u30da\u30fc\u30b8\u306e\u7d42\u4e86\u5f8c\u306b\u9001\u4fe1",
     "defaultPageJump": "既定のページ遷移",
     "logicWarningInvalidDefaultDestination": "既定のページ遷移先は後続のページである必要があります",
     "logicWarningMultipleExclusiveOptions": "排他的な選択肢は1つだけ設定できます",

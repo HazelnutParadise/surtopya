@@ -201,6 +201,7 @@
     "pageNavigationMode": "頁面導向",
     "pageNavigationNext": "下一頁",
     "pageNavigationSpecific": "指定頁面",
+    "pageNavigationEndSurvey": "\u672c\u9801\u7d50\u675f\u5f8c\u9001\u51fa",
     "defaultPageJump": "預設頁面跳轉",
     "logicWarningInvalidDefaultDestination": "預設頁面跳轉必須指向後面的頁面",
     "logicWarningMultipleExclusiveOptions": "只能有一個互斥選項",

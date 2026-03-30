@@ -227,4 +227,26 @@ describe("survey logic helpers", () => {
       "invalid_selection_bounds",
     ])
   })
+
+  it("allows section defaults to end the survey", () => {
+    const questions: Question[] = [
+      {
+        id: "page-1",
+        type: "section",
+        title: "Page 1",
+        required: false,
+        defaultDestinationQuestionId: "end_survey",
+      },
+      {
+        id: "q1",
+        type: "single",
+        title: "Choose",
+        required: false,
+        options: [{ id: "opt-a", label: "A" }],
+      },
+      { id: "page-2", type: "section", title: "Page 2", required: false },
+    ]
+
+    expect(getQuestionLogicIssues(questions[0], questions)).toEqual([])
+  })
 })

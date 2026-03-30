@@ -261,6 +261,7 @@ const hasInvalidDefaultDestination = (question: Question, allQuestions: Question
 
   const destinationId = question.defaultDestinationQuestionId?.trim()
   if (!destinationId) return false
+  if (destinationId === "end_survey") return false
 
   const currentPageIndex = findPageIndexForQuestionId(allQuestions, question.id)
   const destinationQuestion = allQuestions.find((candidate) => candidate.id === destinationId)

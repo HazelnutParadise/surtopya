@@ -169,6 +169,9 @@ func questionHasPublishBlockingLogicIssues(question models.Question, allQuestion
 		if destinationID == "" {
 			return false
 		}
+		if destinationID == "end_survey" {
+			return false
+		}
 		destinationIndex := -1
 		for index, candidate := range allQuestions {
 			if candidate.ID.String() == destinationID {

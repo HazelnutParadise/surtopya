@@ -829,6 +829,11 @@ export function SurveyBuilder() {
     return mapLogicIssueToMessage(issues[0].code)
   }
 
+  const hasCriticalLogicWarning = (questionId: string): boolean => {
+    const issues = logicIssuesByQuestion.get(questionId) || []
+    return issues.some((issue) => issue.code === "contradictory_conditions")
+  }
+
   const buildQuestionsPayload = () => {
     return normalizedQuestions
       .filter(q => q.id !== "placeholder")
@@ -1703,6 +1708,7 @@ export function SurveyBuilder() {
                           canMoveDown={canMoveItemDown}
                           activeId={activeId}
                           getLogicWarning={getLogicWarning}
+                          hasCriticalLogicWarning={hasCriticalLogicWarning}
                         />
                       </SortableContext>
                        <div className="mt-4 flex justify-center pb-12">

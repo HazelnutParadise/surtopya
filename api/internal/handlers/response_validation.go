@@ -278,6 +278,9 @@ func resolveNextSnapshotPageIndex(pages []snapshotPage, currentPageIndex int, an
 	if page.section != nil && page.section.DefaultDestinationQuestionID != nil {
 		destinationID := strings.TrimSpace(*page.section.DefaultDestinationQuestionID)
 		if destinationID != "" {
+			if destinationID == "end_survey" {
+				return -1
+			}
 			for index, candidatePage := range pages {
 				if candidatePage.section != nil && candidatePage.section.ID.String() == destinationID {
 					return index

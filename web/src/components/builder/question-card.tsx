@@ -39,6 +39,7 @@ interface QuestionCardProps {
   isOverlay?: boolean;
   hasLogic?: boolean;
   hasLogicWarning?: boolean;
+  hasCriticalLogicWarning?: boolean;
   logicWarningMessage?: string;
 }
 
@@ -58,6 +59,7 @@ export function QuestionCard({
   isOverlay,
   hasLogic,
   hasLogicWarning,
+  hasCriticalLogicWarning = false,
   logicWarningMessage,
 }: QuestionCardProps) {
   const tBuilder = useTranslations("SurveyBuilder");
@@ -65,8 +67,9 @@ export function QuestionCard({
   const hasConfiguredLogic = hasLogic ?? Boolean(question.logic?.length);
   const hasLaterSectionOptions = laterSectionOptions.length > 0;
   const hasValidSpecificDestination = Boolean(
-    question.defaultDestinationQuestionId &&
-      laterSectionOptions.some((option) => option.id === question.defaultDestinationQuestionId)
+    question.defaultDestinationQuestionId === "end_survey" ||
+      (question.defaultDestinationQuestionId &&
+        laterSectionOptions.some((option) => option.id === question.defaultDestinationQuestionId))
   );
   const {
     attributes,
@@ -298,6 +301,9 @@ export function QuestionCard({
                       value={question.defaultDestinationQuestionId}
                       onChange={(event) => onUpdate(question.id, { defaultDestinationQuestionId: event.target.value || undefined })}
                     >
+                      <option value="end_survey" className="text-gray-900">
+                        {tBuilder("pageNavigationEndSurvey")}
+                      </option>
                       {laterSectionOptions.map((option) => (
                         <option key={option.id} value={option.id} className="text-gray-900">
                           {option.title}
@@ -421,7 +427,7 @@ export function QuestionCard({
               variant="ghost"
               size="icon"
               className={`${
-                hasLogicWarning
+                hasCriticalLogicWarning
                   ? "text-red-500 hover:text-red-600 hover:bg-red-50"
                   : hasLogic
                     ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50"

@@ -79,6 +79,20 @@ func TestSurveyHasPublishBlockingLogicIssues(t *testing.T) {
 		require.True(t, surveyHasPublishBlockingLogicIssues(questions))
 	})
 
+	t.Run("allows section defaults to end survey", func(t *testing.T) {
+		questions := []models.Question{
+			makeSection(page1ID, "Page 1", stringPtrForSurveyLogicTest("end_survey")),
+			{
+				ID:    q1ID,
+				Type:  "short",
+				Title: "Short answer",
+			},
+			makeSection(page2ID, "Page 2", nil),
+		}
+
+		require.False(t, surveyHasPublishBlockingLogicIssues(questions))
+	})
+
 	t.Run("blocks multiple exclusive options", func(t *testing.T) {
 		questions := []models.Question{
 			makeSection(page1ID, "Page 1", nil),

@@ -82,6 +82,28 @@ func TestValidateSurveyCompletion_EnforcesMultiSelectionBoundsOnVisitedPages(t *
 	require.EqualError(t, err, "Selection count is outside the allowed range")
 }
 
+func TestValidateSurveyCompletion_StopsOnSectionDefaultEndSurvey(t *testing.T) {
+	page1ID := uuid.New()
+	page2ID := uuid.New()
+	answerQuestionID := uuid.New()
+	skippedQuestionID := uuid.New()
+
+	snapshot := surveySnapshot{
+		Questions: []surveySnapshotQuestion{
+			{ID: page1ID, Type: "section", Title: "Page 1", DefaultDestinationQuestionID: stringPtrForResponseValidationTest("end_survey")},
+			{ID: answerQuestionID, Type: "short", Title: "Answer here", Required: true},
+			{ID: page2ID, Type: "section", Title: "Page 2"},
+			{ID: skippedQuestionID, Type: "short", Title: "Skipped required", Required: true},
+		},
+	}
+
+	answers := map[uuid.UUID]models.AnswerValue{
+		answerQuestionID: {Text: stringPtrForResponseValidationTest("done")},
+	}
+
+	require.NoError(t, validateSurveyCompletion(snapshot, answers))
+}
+
 func intPtrForResponseValidationTest(value int) *int {
 	return &value
 }

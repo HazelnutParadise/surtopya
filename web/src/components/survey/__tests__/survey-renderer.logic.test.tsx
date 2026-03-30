@@ -375,4 +375,32 @@ describe("SurveyRenderer logic precedence", () => {
     expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^next$/i })).not.toBeInTheDocument()
   })
+
+  it("uses submit when the section default destination is end_survey", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "page-1",
+            type: "section",
+            title: "Page 1",
+            required: false,
+            defaultDestinationQuestionId: "end_survey",
+          },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [{ id: "opt-a", label: "A" }],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+        ])}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^next$/i })).not.toBeInTheDocument()
+  })
 })

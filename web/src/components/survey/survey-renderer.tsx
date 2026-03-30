@@ -129,6 +129,9 @@ export function SurveyRenderer({
     visited.add(pageIndex)
     const defaultDestinationId = page.section?.defaultDestinationQuestionId?.trim()
     if (defaultDestinationId) {
+      if (defaultDestinationId === "end_survey") {
+        return null
+      }
       const defaultPageIndex = pages.findIndex((candidate) => candidate.section?.id === defaultDestinationId)
       if (defaultPageIndex !== -1) {
         return resolveReachablePageIndex(defaultPageIndex, visited)
@@ -161,6 +164,9 @@ export function SurveyRenderer({
 
     const defaultDestinationId = pageHeader?.defaultDestinationQuestionId?.trim()
     if (defaultDestinationId) {
+      if (defaultDestinationId === "end_survey") {
+        return null
+      }
       const defaultPageIndex = pages.findIndex((page) => page.section?.id === defaultDestinationId)
       if (defaultPageIndex !== -1) {
         return resolveReachablePageIndex(defaultPageIndex)

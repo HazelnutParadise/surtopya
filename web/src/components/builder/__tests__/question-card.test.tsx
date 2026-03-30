@@ -40,6 +40,7 @@ const messages: Record<string, Record<string, string>> = {
     pageNavigationMode: "Page navigation",
     pageNavigationNext: "Next page",
     pageNavigationSpecific: "Specific page",
+    pageNavigationEndSurvey: "Submit at end of this page",
     defaultPageJump: "Default page jump",
   },
   QuestionTypes: {
@@ -224,6 +225,7 @@ describe("QuestionCard", () => {
     expect(screen.getByRole("group", { name: "Page navigation" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Next page" })).toHaveClass("text-[var(--primary-foreground)]")
     expect(screen.getByRole("button", { name: "Specific page" })).toHaveClass("bg-white", "text-gray-900")
+    expect(screen.getByRole("option", { name: "Submit at end of this page" })).toBeInTheDocument()
   })
 
   it("disables the specific-page switcher when there are no later pages", () => {
@@ -245,5 +247,35 @@ describe("QuestionCard", () => {
 
     expect(screen.getByRole("button", { name: "Specific page" })).toBeDisabled()
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+  })
+
+  it("does not color the logic button red for non-contradictory warnings", () => {
+    render(
+      <QuestionCard
+        question={{
+          id: "q-warning",
+          type: "single",
+          title: "Has destination warning",
+          required: false,
+          options: [{ id: "opt-a", label: "A" }],
+          logic: [
+            {
+              operator: "or",
+              conditions: [{ optionId: "opt-a", match: "includes" }],
+              destinationQuestionId: "missing-page",
+            },
+          ],
+        }}
+        hasLogic
+        hasLogicWarning
+        logicWarningMessage="Destination is invalid"
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Logic Jumps" })).not.toHaveClass("text-red-500")
   })
 })
