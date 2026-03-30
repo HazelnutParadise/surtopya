@@ -41,6 +41,8 @@ interface QuestionCardProps {
   hasLogicWarning?: boolean;
   hasCriticalLogicWarning?: boolean;
   logicWarningMessage?: string;
+  hasSelectionBoundsWarning?: boolean;
+  hasExclusiveOptionWarning?: boolean;
 }
 
 export function QuestionCard({
@@ -61,6 +63,8 @@ export function QuestionCard({
   hasLogicWarning,
   hasCriticalLogicWarning = false,
   logicWarningMessage,
+  hasSelectionBoundsWarning = false,
+  hasExclusiveOptionWarning = false,
 }: QuestionCardProps) {
   const tBuilder = useTranslations("SurveyBuilder");
   const tQuestion = useTranslations("QuestionTypes");
@@ -343,7 +347,9 @@ export function QuestionCard({
                           type="button"
                           variant={option.exclusive ? "secondary" : "outline"}
                           size="sm"
-                          className="h-8 shrink-0"
+                          className={`h-8 shrink-0 ${
+                            hasExclusiveOptionWarning ? "border-red-300 text-red-600 hover:bg-red-50" : ""
+                          }`}
                           onClick={() => toggleExclusiveOption(index)}
                         >
                           {tBuilder("exclusiveOptionToggle")}
@@ -476,23 +482,23 @@ export function QuestionCard({
             {question.type === "multi" && (
               <>
                 <div className="flex items-center gap-2">
-                  <span>{tBuilder("minSelections")}</span>
+                  <span className={hasSelectionBoundsWarning ? "text-red-600" : ""}>{tBuilder("minSelections")}</span>
                   <Input
                     type="number"
                     min={0}
                     value={question.minSelections ?? ""}
                     onChange={(e) => handleSelectionBoundChange("minSelections", e.target.value)}
-                    className="w-16 h-6 text-xs"
+                    className={`w-16 h-6 text-xs ${hasSelectionBoundsWarning ? "border-red-300 text-red-600 focus-visible:ring-red-200" : ""}`}
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span>{tBuilder("maxSelections")}</span>
+                  <span className={hasSelectionBoundsWarning ? "text-red-600" : ""}>{tBuilder("maxSelections")}</span>
                   <Input
                     type="number"
                     min={1}
                     value={question.maxSelections ?? ""}
                     onChange={(e) => handleSelectionBoundChange("maxSelections", e.target.value)}
-                    className="w-16 h-6 text-xs"
+                    className={`w-16 h-6 text-xs ${hasSelectionBoundsWarning ? "border-red-300 text-red-600 focus-visible:ring-red-200" : ""}`}
                   />
                 </div>
               </>

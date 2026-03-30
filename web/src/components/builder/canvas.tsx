@@ -17,6 +17,8 @@ interface CanvasProps {
   activeId: string | null;
   getLogicWarning: (questionId: string) => string | null;
   hasCriticalLogicWarning: (questionId: string) => boolean;
+  hasSelectionBoundsWarning: (questionId: string) => boolean;
+  hasExclusiveOptionWarning: (questionId: string) => boolean;
 }
 
 export function Canvas({
@@ -32,6 +34,8 @@ export function Canvas({
   activeId,
   getLogicWarning,
   hasCriticalLogicWarning,
+  hasSelectionBoundsWarning,
+  hasExclusiveOptionWarning,
 }: CanvasProps) {
   const t = useTranslations("SurveyBuilder");
   const { setNodeRef } = useDroppable({
@@ -123,6 +127,8 @@ export function Canvas({
                         isHidden={hiddenIds.has(q.id)}
                         hasLogicWarning={!!warning}
                         hasCriticalLogicWarning={hasCriticalLogicWarning(q.id)}
+                        hasSelectionBoundsWarning={hasSelectionBoundsWarning(q.id)}
+                        hasExclusiveOptionWarning={hasExclusiveOptionWarning(q.id)}
                         logicWarningMessage={warning || undefined}
                     />
                 )})}
@@ -164,6 +170,8 @@ export function Canvas({
                                     isHidden={hiddenIds.has(q.id)}
                                     hasLogicWarning={!!warning}
                                     hasCriticalLogicWarning={hasCriticalLogicWarning(q.id)}
+                                    hasSelectionBoundsWarning={hasSelectionBoundsWarning(q.id)}
+                                    hasExclusiveOptionWarning={hasExclusiveOptionWarning(q.id)}
                                     logicWarningMessage={warning || undefined}
                                 />
                             )})}

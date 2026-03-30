@@ -825,13 +825,26 @@ export function SurveyBuilder() {
 
   const getLogicWarning = (questionId: string): string | null => {
     const issues = logicIssuesByQuestion.get(questionId) || []
-    if (issues.length === 0) return null
-    return mapLogicIssueToMessage(issues[0].code)
+    const logicIssue = issues.find((issue) =>
+      issue.code !== "multiple_exclusive_options" && issue.code !== "invalid_selection_bounds"
+    )
+    if (!logicIssue) return null
+    return mapLogicIssueToMessage(logicIssue.code)
   }
 
   const hasCriticalLogicWarning = (questionId: string): boolean => {
     const issues = logicIssuesByQuestion.get(questionId) || []
     return issues.some((issue) => issue.code === "contradictory_conditions")
+  }
+
+  const hasSelectionBoundsWarning = (questionId: string): boolean => {
+    const issues = logicIssuesByQuestion.get(questionId) || []
+    return issues.some((issue) => issue.code === "invalid_selection_bounds")
+  }
+
+  const hasExclusiveOptionWarning = (questionId: string): boolean => {
+    const issues = logicIssuesByQuestion.get(questionId) || []
+    return issues.some((issue) => issue.code === "multiple_exclusive_options")
   }
 
   const buildQuestionsPayload = () => {
@@ -1709,6 +1722,8 @@ export function SurveyBuilder() {
                           activeId={activeId}
                           getLogicWarning={getLogicWarning}
                           hasCriticalLogicWarning={hasCriticalLogicWarning}
+                          hasSelectionBoundsWarning={hasSelectionBoundsWarning}
+                          hasExclusiveOptionWarning={hasExclusiveOptionWarning}
                         />
                       </SortableContext>
                        <div className="mt-4 flex justify-center pb-12">

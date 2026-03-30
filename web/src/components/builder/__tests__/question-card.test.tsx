@@ -278,4 +278,29 @@ describe("QuestionCard", () => {
 
     expect(screen.getByRole("button", { name: "Logic Jumps" })).toHaveClass("text-red-500")
   })
+
+  it("does not color the logic button red for selection-bound warnings and highlights the bounds inputs instead", () => {
+    render(
+      <QuestionCard
+        question={{
+          id: "q-selection-warning",
+          type: "multi",
+          title: "Choose many",
+          required: false,
+          minSelections: 3,
+          maxSelections: 1,
+          options: [{ label: "A" }, { label: "B" }],
+        }}
+        hasSelectionBoundsWarning
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Logic Jumps" })).not.toHaveClass("text-red-500")
+    expect(screen.getByDisplayValue("3")).toHaveClass("border-red-300", "text-red-600")
+    expect(screen.getByDisplayValue("1")).toHaveClass("border-red-300", "text-red-600")
+  })
 })
