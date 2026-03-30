@@ -291,6 +291,8 @@ describe("QuestionCard", () => {
           maxSelections: 1,
           options: [{ label: "A" }, { label: "B" }],
         }}
+        hasIssueWarning
+        issueWarningMessage="Selection bounds are invalid"
         hasSelectionBoundsWarning
         onUpdate={() => {}}
         onDelete={() => {}}
@@ -300,6 +302,7 @@ describe("QuestionCard", () => {
     )
 
     expect(screen.getByRole("button", { name: "Logic Jumps" })).not.toHaveClass("text-red-500")
+    expect(screen.getByTestId("question-warning-indicator")).toBeInTheDocument()
     expect(screen.getByDisplayValue("3")).toHaveClass("border-red-300", "text-red-600")
     expect(screen.getByDisplayValue("1")).toHaveClass("border-red-300", "text-red-600")
   })

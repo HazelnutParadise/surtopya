@@ -832,6 +832,12 @@ export function SurveyBuilder() {
     return mapLogicIssueToMessage(logicIssue.code)
   }
 
+  const getQuestionWarning = (questionId: string): string | null => {
+    const issues = logicIssuesByQuestion.get(questionId) || []
+    if (issues.length === 0) return null
+    return mapLogicIssueToMessage(issues[0].code)
+  }
+
   const hasCriticalLogicWarning = (questionId: string): boolean => {
     const issues = logicIssuesByQuestion.get(questionId) || []
     return issues.some((issue) => issue.code === "contradictory_conditions")
@@ -1720,6 +1726,7 @@ export function SurveyBuilder() {
                           canMoveUp={canMoveItemUp}
                           canMoveDown={canMoveItemDown}
                           activeId={activeId}
+                          getQuestionWarning={getQuestionWarning}
                           getLogicWarning={getLogicWarning}
                           hasCriticalLogicWarning={hasCriticalLogicWarning}
                           hasSelectionBoundsWarning={hasSelectionBoundsWarning}

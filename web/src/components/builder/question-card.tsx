@@ -41,6 +41,8 @@ interface QuestionCardProps {
   hasLogicWarning?: boolean;
   hasCriticalLogicWarning?: boolean;
   logicWarningMessage?: string;
+  hasIssueWarning?: boolean;
+  issueWarningMessage?: string;
   hasSelectionBoundsWarning?: boolean;
   hasExclusiveOptionWarning?: boolean;
 }
@@ -63,6 +65,8 @@ export function QuestionCard({
   hasLogicWarning,
   hasCriticalLogicWarning = false,
   logicWarningMessage,
+  hasIssueWarning = false,
+  issueWarningMessage,
   hasSelectionBoundsWarning = false,
   hasExclusiveOptionWarning = false,
 }: QuestionCardProps) {
@@ -229,16 +233,16 @@ export function QuestionCard({
                 {tBuilder("logicJumps")}
               </Badge>
             ) : null}
-            {hasLogicWarning && (
+            {hasIssueWarning && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1 text-red-500">
+                    <div className="flex items-center gap-1 text-red-500" data-testid="question-warning-indicator">
                       <AlertTriangle className="h-5 w-5" />
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p className="text-sm">{logicWarningMessage || tBuilder("logicWarningGeneric")}</p>
+                    <p className="text-sm">{issueWarningMessage || logicWarningMessage || tBuilder("logicWarningGeneric")}</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

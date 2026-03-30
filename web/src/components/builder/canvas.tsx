@@ -15,6 +15,7 @@ interface CanvasProps {
   canMoveUp: (id: string) => boolean;
   canMoveDown: (id: string) => boolean;
   activeId: string | null;
+  getQuestionWarning: (questionId: string) => string | null;
   getLogicWarning: (questionId: string) => string | null;
   hasCriticalLogicWarning: (questionId: string) => boolean;
   hasSelectionBoundsWarning: (questionId: string) => boolean;
@@ -32,6 +33,7 @@ export function Canvas({
   canMoveUp,
   canMoveDown,
   activeId,
+  getQuestionWarning,
   getLogicWarning,
   hasCriticalLogicWarning,
   hasSelectionBoundsWarning,
@@ -109,6 +111,7 @@ export function Canvas({
         return (
             <>
                 {orphanedQuestions.map((q) => {
+                    const issueWarning = getQuestionWarning(q.id);
                     const warning = getLogicWarning(q.id);
                     return (
                     <QuestionCard 
@@ -125,8 +128,10 @@ export function Canvas({
                         canMoveDown={canMoveDown(q.id)}
                         hasLogic={Boolean(q.logic && q.logic.length > 0)}
                         isHidden={hiddenIds.has(q.id)}
+                        hasIssueWarning={!!issueWarning}
                         hasLogicWarning={!!warning}
                         hasCriticalLogicWarning={hasCriticalLogicWarning(q.id)}
+                        issueWarningMessage={issueWarning || undefined}
                         hasSelectionBoundsWarning={hasSelectionBoundsWarning(q.id)}
                         hasExclusiveOptionWarning={hasExclusiveOptionWarning(q.id)}
                         logicWarningMessage={warning || undefined}
@@ -149,9 +154,12 @@ export function Canvas({
                             canMoveDown={canMoveDown(section.header.id)}
                             hasLogic={Boolean(section.header.logic && section.header.logic.length > 0)}
                             isHidden={hiddenIds.has(section.header.id)}
+                            hasIssueWarning={!!getQuestionWarning(section.header.id)}
+                            issueWarningMessage={getQuestionWarning(section.header.id) || undefined}
                         />
                         <div className="pl-4 mt-4 space-y-4 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
                             {section.children.map((q) => {
+                                const issueWarning = getQuestionWarning(q.id);
                                 const warning = getLogicWarning(q.id);
                                 return (
                                 <QuestionCard 
@@ -168,8 +176,10 @@ export function Canvas({
                                     canMoveDown={canMoveDown(q.id)}
                                     hasLogic={Boolean(q.logic && q.logic.length > 0)}
                                     isHidden={hiddenIds.has(q.id)}
+                                    hasIssueWarning={!!issueWarning}
                                     hasLogicWarning={!!warning}
                                     hasCriticalLogicWarning={hasCriticalLogicWarning(q.id)}
+                                    issueWarningMessage={issueWarning || undefined}
                                     hasSelectionBoundsWarning={hasSelectionBoundsWarning(q.id)}
                                     hasExclusiveOptionWarning={hasExclusiveOptionWarning(q.id)}
                                     logicWarningMessage={warning || undefined}
