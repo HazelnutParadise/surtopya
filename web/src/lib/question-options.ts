@@ -22,6 +22,7 @@ export const normalizeQuestionOption = (option: unknown): QuestionOption | null 
     label: option.label,
     isOther: option.isOther === true,
     requireOtherText: option.requireOtherText === true,
+    exclusive: option.exclusive === true,
   }
 }
 

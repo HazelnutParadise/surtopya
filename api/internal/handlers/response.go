@@ -191,7 +191,8 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		}
 		answerValues[questionID] = ansReq.Value
 	}
-	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+	if err := validateSurveyCompletion(snapshot, answerValues); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

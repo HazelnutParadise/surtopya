@@ -26,6 +26,7 @@ import {
 interface QuestionCardProps {
   question: Question;
   isFirstSection?: boolean;
+  laterSectionOptions?: Pick<Question, "id" | "title">[];
   onUpdate: (id: string, updates: Partial<Question>) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -44,6 +45,7 @@ interface QuestionCardProps {
 export function QuestionCard({
   question,
   isFirstSection,
+  laterSectionOptions = [],
   onUpdate,
   onDelete,
   onDuplicate,
@@ -61,6 +63,11 @@ export function QuestionCard({
   const tBuilder = useTranslations("SurveyBuilder");
   const tQuestion = useTranslations("QuestionTypes");
   const hasConfiguredLogic = hasLogic ?? Boolean(question.logic?.length);
+  const hasLaterSectionOptions = laterSectionOptions.length > 0;
+  const hasValidSpecificDestination = Boolean(
+    question.defaultDestinationQuestionId &&
+      laterSectionOptions.some((option) => option.id === question.defaultDestinationQuestionId)
+  );
   const {
     attributes,
     listeners,
@@ -121,6 +128,28 @@ export function QuestionCard({
       };
     });
     onUpdate(question.id, { options: newOptions });
+  };
+
+  const toggleExclusiveOption = (index: number) => {
+    if (!question.options || question.type !== "multi") return;
+    const currentOptions = normalizeQuestionOptions(question.options) || [];
+    const nextExclusive = !currentOptions[index]?.exclusive;
+    const newOptions = currentOptions.map((option, optionIndex) => ({
+      ...option,
+      exclusive: optionIndex === index ? nextExclusive : false,
+    }));
+    onUpdate(question.id, { options: newOptions });
+  };
+
+  const handleSelectionBoundChange = (field: "minSelections" | "maxSelections", value: string) => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      onUpdate(question.id, { [field]: undefined });
+      return;
+    }
+
+    const parsed = Number.parseInt(trimmed, 10);
+    onUpdate(question.id, { [field]: Number.isFinite(parsed) ? parsed : undefined });
   };
 
   const renderChoiceMarker = (type: Question["type"]) => {
@@ -210,12 +239,75 @@ export function QuestionCard({
           </div>
           
           {question.type === 'section' && (
-            <Input 
-                value={question.description || ''} 
-                onChange={(e) => onUpdate(question.id, { description: e.target.value })}
-                className="text-[var(--primary-foreground)] border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 text-sm w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-40"
-                placeholder={tBuilder("pageDescriptionPlaceholder")}
-            />
+            <div className="space-y-3">
+              <Input 
+                  value={question.description || ''} 
+                  onChange={(e) => onUpdate(question.id, { description: e.target.value })}
+                  className="text-[var(--primary-foreground)] border-transparent focus:border-white/50 bg-transparent px-2 h-auto py-1 text-sm w-full text-center placeholder:text-[var(--primary-foreground)] placeholder:opacity-40"
+                  placeholder={tBuilder("pageDescriptionPlaceholder")}
+              />
+              <div className="rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-left">
+                <div className="text-xs font-medium text-[var(--primary-foreground)] opacity-90">
+                  {tBuilder("defaultPageJump")}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-[var(--primary-foreground)] opacity-80">
+                    {tBuilder("pageNavigationMode")}
+                  </span>
+                  <div
+                    role="group"
+                    aria-label={tBuilder("pageNavigationMode")}
+                    className="inline-flex rounded-lg border border-white/20 bg-white/10 p-1"
+                  >
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={`h-8 rounded-md border-0 ${
+                        !hasValidSpecificDestination
+                          ? "bg-white text-gray-900 hover:bg-white/90"
+                          : "text-[var(--primary-foreground)] hover:bg-white/10 hover:text-[var(--primary-foreground)]"
+                      }`}
+                      onClick={() => onUpdate(question.id, { defaultDestinationQuestionId: undefined })}
+                    >
+                      {tBuilder("pageNavigationNext")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={!hasLaterSectionOptions}
+                      className={`h-8 rounded-md border-0 ${
+                        hasValidSpecificDestination
+                          ? "bg-white text-gray-900 hover:bg-white/90"
+                          : "text-[var(--primary-foreground)] hover:bg-white/10 hover:text-[var(--primary-foreground)]"
+                      }`}
+                      onClick={() => {
+                        const fallbackId = laterSectionOptions[0]?.id;
+                        if (fallbackId) {
+                          onUpdate(question.id, { defaultDestinationQuestionId: fallbackId });
+                        }
+                      }}
+                    >
+                      {tBuilder("pageNavigationSpecific")}
+                    </Button>
+                  </div>
+                  {hasValidSpecificDestination ? (
+                    <select
+                      className="h-8 rounded-md border border-white/20 bg-white/10 px-2 text-xs text-[var(--primary-foreground)]"
+                      value={question.defaultDestinationQuestionId}
+                      onChange={(event) => onUpdate(question.id, { defaultDestinationQuestionId: event.target.value || undefined })}
+                    >
+                      {laterSectionOptions.map((option) => (
+                        <option key={option.id} value={option.id} className="text-gray-900">
+                          {option.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Question Body based on Type */}
@@ -240,6 +332,17 @@ export function QuestionCard({
                       >
                         {tBuilder("otherOptionToggle")}
                       </Button>
+                      {question.type === "multi" ? (
+                        <Button
+                          type="button"
+                          variant={option.exclusive ? "secondary" : "outline"}
+                          size="sm"
+                          className="h-8 shrink-0"
+                          onClick={() => toggleExclusiveOption(index)}
+                        >
+                          {tBuilder("exclusiveOptionToggle")}
+                        </Button>
+                      ) : null}
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => removeOption(index)}>
                         <X className="h-4 w-4" />
                       </Button>
@@ -363,6 +466,30 @@ export function QuestionCard({
                     className="w-16 h-6 text-xs"
                 />
                </div>
+            )}
+            {question.type === "multi" && (
+              <>
+                <div className="flex items-center gap-2">
+                  <span>{tBuilder("minSelections")}</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={question.minSelections ?? ""}
+                    onChange={(e) => handleSelectionBoundChange("minSelections", e.target.value)}
+                    className="w-16 h-6 text-xs"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>{tBuilder("maxSelections")}</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={question.maxSelections ?? ""}
+                    onChange={(e) => handleSelectionBoundChange("maxSelections", e.target.value)}
+                    className="w-16 h-6 text-xs"
+                  />
+                </div>
+              </>
             )}
             <div className="flex items-center gap-2">
             <span>{tBuilder("required")}</span>

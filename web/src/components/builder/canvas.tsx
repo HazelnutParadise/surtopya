@@ -70,6 +70,14 @@ export function Canvas({
   return (
     <div ref={setNodeRef} data-testid="survey-canvas" className="pb-20 min-h-[500px]">
       {(() => {
+        const laterSectionsFor = (questionId: string) => {
+          const currentIndex = questions.findIndex((question) => question.id === questionId)
+          return questions
+            .slice(Math.max(0, currentIndex + 1))
+            .filter((question) => question.type === "section")
+            .map((question) => ({ id: question.id, title: question.title }))
+        }
+
         const sections: { header: Question; children: Question[] }[] = [];
         let currentSection: { header: Question; children: Question[] } | null = null;
         const orphanedQuestions: Question[] = [];
@@ -121,6 +129,7 @@ export function Canvas({
                             key={section.header.id} 
                             question={section.header} 
                             isFirstSection={sectionIndex === 0}
+                            laterSectionOptions={laterSectionsFor(section.header.id)}
                             onUpdate={onUpdate} 
                             onDelete={onDelete} 
                             onDuplicate={onDuplicate}

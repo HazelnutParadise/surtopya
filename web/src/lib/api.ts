@@ -237,6 +237,9 @@ export interface Question {
   options?: QuestionOption[];
   required: boolean;
   maxRating?: number;
+   minSelections?: number;
+   maxSelections?: number;
+   defaultDestinationQuestionId?: string;
   logic?: LogicRule[];
   sortOrder?: number;
 }

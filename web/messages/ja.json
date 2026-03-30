@@ -194,7 +194,17 @@
     "requireLoginToRespondDescription": "有効にすると、ゲストはログインしないと回答を開始できません。",
     "publishErrorMissingSurveyId": "アンケート ID が見つかりません。先に下書きを保存してから公開してください。",
     "otherOptionToggle": "補足説明可",
-    "otherTextRequiredToggle": "補足必須"
+    "otherTextRequiredToggle": "補足必須",
+    "exclusiveOptionToggle": "排他的な選択肢",
+    "minSelections": "最小選択数",
+    "maxSelections": "最大選択数",
+    "pageNavigationMode": "ページ遷移",
+    "pageNavigationNext": "次のページ",
+    "pageNavigationSpecific": "特定のページ",
+    "defaultPageJump": "既定のページ遷移",
+    "logicWarningInvalidDefaultDestination": "既定のページ遷移先は後続のページである必要があります",
+    "logicWarningMultipleExclusiveOptions": "排他的な選択肢は1つだけ設定できます",
+    "logicWarningSelectionBounds": "この設問の選択数制限が無効です"
   },
   "QuestionTypes": {
     "single": "単一選択",
@@ -231,7 +241,9 @@
     "next": "次へ",
     "otherTextPlaceholder": "内容を入力してください",
     "otherTextRequiredAlert": "「{question}」の補足説明を入力してください。",
-    "otherTextRequiredHint": "続行する前に補足説明を入力してください。"
+    "otherTextRequiredHint": "続行する前に補足説明を入力してください。",
+    "minSelectionsAlert": "「{question}」は少なくとも {count} 個選択してください。",
+    "maxSelectionsAlert": "「{question}」は {count} 個まで選択できます。"
   },
   "Datasets": {
     "searchPlaceholder": "データセットを検索...",
@@ -500,8 +512,8 @@
     "comparatorGreaterThan": "より大きい",
     "comparatorEarlierThan": "より前",
     "comparatorLaterThan": "より後",
-    "comparatorBetween": "介於",
-    "comparatorNotBetween": "不介於",
+    "comparatorBetween": "の間",
+    "comparatorNotBetween": "の範囲外",
     "valueLabel": "比較値",
     "startValueLabel": "開始値",
     "endValueLabel": "終了値",
@@ -513,7 +525,6 @@
     "untitledQuestion": "無題の質問",
     "deletedQuestion": "削除された質問",
     "endSurvey": "アンケートを送信（終了）",
-    "currentPage": "現在のページ",
     "goToPage": "ページへ移動",
     "untitledPage": "無題のページ",
     "invalidTitle": "ロジックジャンプが無効: {reason}",
@@ -569,10 +580,6 @@
     "changePasswordTitle": "パスワード変更",
     "changePasswordDescription": "安全のため定期的に更新してください。",
     "manageInAccountCenter": "HazelnutParadiseアカウントセンターで管理",
-    "reset": "リセット",
-    "twoFactorTitle": "二要素認証",
-    "twoFactorDescription": "現在無効です。追加の安全性のため有効にできます。",
-    "enable": "有効化",
     "saveError": "変更の保存に失敗しました。もう一度お試しください。",
     "publicProfileTitle": "作者ページの公開設定",
     "publicProfileDescription": "公開作者ページに表示するプロフィール項目を選択します。",
@@ -983,12 +990,11 @@
     "tryItBlockedLookupFailed": "データセットの access type を確認できないため、安全側でダウンロードをブロックしました。"
   },
   "AuthorPage": {
-    "title": "作者",
+    "title": "作成者",
     "subtitle": "公開プロフィールと公開済みアンケート",
     "surveysTitle": "公開済みアンケート",
     "emptySurveys": "公開済みの公開アンケートはまだありません。",
     "memberSince": "登録日",
-    "anonymousAuthor": "匿名の作者",
-    "loadError": "作者ページの読み込みに失敗しました。"
+    "anonymousAuthor": "匿名の作者"
   }
 }

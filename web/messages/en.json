@@ -140,6 +140,9 @@
     "logicWarningScalarRangeIncomplete": "Logic jump range needs both a start and end value",
     "logicWarningScalarRangeOrder": "Logic jump range start must be before or equal to the end value",
     "logicWarningConditionType": "Logic jump condition does not match this question type",
+    "logicWarningInvalidDefaultDestination": "Default page jump must target a later page",
+    "logicWarningMultipleExclusiveOptions": "Only one exclusive option is allowed",
+    "logicWarningSelectionBounds": "Selection limits are invalid for this question",
     "questionCount": "{count} Questions",
     "minutesShort": "{minutes}m",
     "surveySettingsTitle": "Survey Settings",
@@ -194,7 +197,14 @@
     "requireLoginToRespondDescription": "Guests must sign in before they can start this survey.",
     "publishErrorMissingSurveyId": "Missing survey id. Save draft before publishing.",
     "otherOptionToggle": "Can add details",
-    "otherTextRequiredToggle": "Require details"
+    "otherTextRequiredToggle": "Require details",
+    "exclusiveOptionToggle": "Exclusive option",
+    "minSelections": "Min selections",
+    "maxSelections": "Max selections",
+    "pageNavigationMode": "Page navigation",
+    "pageNavigationNext": "Next page",
+    "pageNavigationSpecific": "Specific page",
+    "defaultPageJump": "Default page jump"
   },
   "QuestionTypes": {
     "single": "Single Choice",
@@ -231,7 +241,9 @@
     "back": "Back",
     "submit": "Submit",
     "next": "Next",
-    "otherTextPlaceholder": "Please specify"
+    "otherTextPlaceholder": "Please specify",
+    "minSelectionsAlert": "Select at least {count} options for \"{question}\".",
+    "maxSelectionsAlert": "Select no more than {count} options for \"{question}\"."
   },
   "Datasets": {
     "searchPlaceholder": "Search datasets...",
@@ -513,7 +525,6 @@
     "untitledQuestion": "Untitled Question",
     "deletedQuestion": "Deleted Question",
     "endSurvey": "Submit Survey (End)",
-    "currentPage": "Current Page",
     "goToPage": "Go to Page",
     "untitledPage": "Untitled Page",
     "invalidTitle": "Logic jump is invalid: {reason}",
@@ -577,10 +588,6 @@
     "changePasswordTitle": "Change Password",
     "changePasswordDescription": "Update your account password regularly to keep it secure.",
     "manageInAccountCenter": "Manage in HazelnutParadise Account Center",
-    "reset": "Reset",
-    "twoFactorTitle": "Two-Factor Authentication",
-    "twoFactorDescription": "Currently disabled. Enable for an extra layer of security.",
-    "enable": "Enable",
     "saveError": "Failed to save"
   },
   "SurveyManagement": {
@@ -944,8 +951,7 @@
     "surveysTitle": "Published Surveys",
     "emptySurveys": "No published public surveys yet.",
     "memberSince": "Member since",
-    "anonymousAuthor": "Anonymous author",
-    "loadError": "Failed to load author page."
+    "anonymousAuthor": "Anonymous author"
   },
   "LegalTerms": {
     "title": "Terms of Service Summary",

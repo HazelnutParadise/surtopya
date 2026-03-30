@@ -260,6 +260,9 @@ export function SurveyBuilder() {
           options: normalizeQuestionOptions(question.options) || [],
           required: question.required,
           maxRating: question.maxRating,
+          minSelections: question.minSelections,
+          maxSelections: question.maxSelections,
+          defaultDestinationQuestionId: question.defaultDestinationQuestionId,
           logic: question.logic,
           sortOrder: index,
         })),
@@ -778,6 +781,8 @@ export function SurveyBuilder() {
         return tBuilder("logicWarningDeleted")
       case "invalid_destination_position":
         return tBuilder("logicWarningBackwards")
+      case "invalid_default_destination":
+        return tBuilder("logicWarningInvalidDefaultDestination")
       case "invalid_scalar_value":
         return tBuilder("logicWarningScalarValue")
       case "incomplete_scalar_range":
@@ -786,6 +791,10 @@ export function SurveyBuilder() {
         return tBuilder("logicWarningScalarRangeOrder")
       case "invalid_condition_type":
         return tBuilder("logicWarningConditionType")
+      case "multiple_exclusive_options":
+        return tBuilder("logicWarningMultipleExclusiveOptions")
+      case "invalid_selection_bounds":
+        return tBuilder("logicWarningSelectionBounds")
       default:
         return tBuilder("logicWarningGeneric")
     }
@@ -831,6 +840,9 @@ export function SurveyBuilder() {
         options: normalizeQuestionOptions(q.options) || [],
         required: q.required,
         maxRating: q.maxRating || 0,
+        minSelections: q.minSelections,
+        maxSelections: q.maxSelections,
+        defaultDestinationQuestionId: q.defaultDestinationQuestionId,
         logic: q.logic || [],
       }));
   };

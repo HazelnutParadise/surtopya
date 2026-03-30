@@ -8,7 +8,7 @@ import { LogicRule, Question, ScalarLogicCondition } from "@/types/survey"
 import { Plus, Trash2, ArrowRight, AlertTriangle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { findQuestionOptionById } from "@/lib/question-options"
-import { isContradictoryLogicRule, isScalarLogicCondition, normalizeQuestionLogic } from "@/lib/survey-logic"
+import { getLaterSectionQuestions, isContradictoryLogicRule, isScalarLogicCondition, normalizeQuestionLogic } from "@/lib/survey-logic"
 
 interface LogicEditorProps {
   question: Question
@@ -43,15 +43,7 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
   const isCompatible = isChoiceQuestion || isScalarQuestion
   const normalizedOptions = normalizedQuestion.options || []
 
-  const currentQuestionIndex = allQuestions.findIndex((item) => item.id === normalizedQuestion.id)
-
-  const samePageQuestions: Question[] = []
-  for (let index = currentQuestionIndex + 1; index < allQuestions.length; index += 1) {
-    if (allQuestions[index].type === "section") break
-    samePageQuestions.push(allQuestions[index])
-  }
-
-  const subsequentPages = allQuestions.slice(currentQuestionIndex + 1).filter((item) => item.type === "section")
+  const subsequentPages = getLaterSectionQuestions(allQuestions, normalizedQuestion.id)
 
   const addRule = () => {
     if (isScalarQuestion) {
@@ -177,11 +169,10 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
     const destinationId = rule.destinationQuestionId
     const isEndSurvey = destinationId === "end_survey"
     const destinationQuestion = allQuestions.find((item) => item.id === destinationId)
-    const destinationIndex = allQuestions.findIndex((item) => item.id === destinationId)
-    const isInvalid = !isEndSurvey && destinationId && (!destinationQuestion || destinationIndex <= currentQuestionIndex)
+    const isInvalid = !isEndSurvey && destinationId && (!destinationQuestion || destinationQuestion.type !== "section" || !subsequentPages.some((item) => item.id === destinationId))
     const invalidReason = !destinationQuestion
       ? t("invalidDeleted")
-      : destinationIndex <= currentQuestionIndex
+      : destinationQuestion.type !== "section" || !subsequentPages.some((item) => item.id === destinationId)
         ? t("invalidPosition")
         : ""
 
@@ -205,17 +196,6 @@ export function LogicEditor({ question, allQuestions, open, onOpenChange, onSave
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="end_survey">{t("endSurvey")}</SelectItem>
-
-              {samePageQuestions.length > 0 ? (
-                <SelectGroup>
-                  <SelectLabel>{t("currentPage")}</SelectLabel>
-                  {samePageQuestions.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.title || t("untitledQuestion")}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ) : null}
 
               {subsequentPages.length > 0 ? (
                 <SelectGroup>

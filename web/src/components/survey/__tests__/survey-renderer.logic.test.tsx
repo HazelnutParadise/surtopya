@@ -8,6 +8,8 @@ const messages: Record<string, Record<string, string>> = {
     requiredAlert: "Please complete required questions.",
     otherTextRequiredAlert: 'Please add details for "{question}".',
     otherTextRequiredHint: "Please fill in the details before continuing.",
+    minSelectionsAlert: 'Select at least {count} options for "{question}".',
+    maxSelectionsAlert: 'Select no more than {count} options for "{question}".',
     previewBanner: "Preview mode",
     pageProgress: "Page {current} / {total}",
     percentComplete: "{percent}%",
@@ -233,5 +235,144 @@ describe("SurveyRenderer logic precedence", () => {
     fireEvent.click(screen.getByRole("button", { name: /next/i }))
 
     expect(screen.getByText("Question on page 2")).toBeInTheDocument()
+  })
+
+  it("falls back to the section default destination when no logic rule matches", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "page-1",
+            type: "section",
+            title: "Page 1",
+            required: false,
+            defaultDestinationQuestionId: "page-3",
+          },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [{ id: "opt-a", label: "A" }],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+          { id: "page-3", type: "section", title: "Page 3", required: false },
+          { id: "q-page-3", type: "short", title: "Question on page 3", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.click(screen.getByText("A"))
+    fireEvent.click(screen.getByRole("button", { name: /next/i }))
+
+    expect(screen.getByText("Question on page 3")).toBeInTheDocument()
+    expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
+  })
+
+  it("uses branch history for back navigation", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "page-1",
+            type: "section",
+            title: "Page 1",
+            required: false,
+            defaultDestinationQuestionId: "page-3",
+          },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [{ id: "opt-a", label: "A" }],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+          { id: "page-3", type: "section", title: "Page 3", required: false },
+          { id: "q-page-3", type: "short", title: "Question on page 3", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.click(screen.getByText("A"))
+    fireEvent.click(screen.getByRole("button", { name: /next/i }))
+    fireEvent.click(screen.getByRole("button", { name: /back/i }))
+
+    expect(screen.getByText("First question")).toBeInTheDocument()
+    expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
+  })
+
+  it("enforces exclusive options and selection bounds for multi questions", () => {
+    const onComplete = vi.fn()
+
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          { id: "page-1", type: "section", title: "Page 1", required: false },
+          {
+            id: "q1",
+            type: "multi",
+            title: "Choose options",
+            required: true,
+            minSelections: 2,
+            maxSelections: 2,
+            options: [
+              { id: "opt-exclusive", label: "None of the above", exclusive: true },
+              { id: "opt-a", label: "A" },
+              { id: "opt-b", label: "B" },
+              { id: "opt-c", label: "C" },
+            ],
+          },
+        ])}
+        onComplete={onComplete}
+      />
+    )
+
+    fireEvent.click(screen.getByText("None of the above"))
+    fireEvent.click(screen.getByText("A"))
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+
+    expect(screen.getByText('Select at least 2 options for "Choose options".')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("B"))
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+
+    expect(onComplete).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByText("C"))
+    fireEvent.click(screen.getByRole("button", { name: /submit/i }))
+
+    expect(screen.getByText('Select no more than 2 options for "Choose options".')).toBeInTheDocument()
+  })
+
+  it("shows submit when the resolved next step ends the flow before the last physical page", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          {
+            id: "page-1",
+            type: "section",
+            title: "Page 1",
+            required: false,
+            defaultDestinationQuestionId: "page-3",
+          },
+          {
+            id: "q1",
+            type: "single",
+            title: "First question",
+            required: true,
+            options: [{ id: "opt-a", label: "A" }],
+          },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+          { id: "page-3", type: "section", title: "Page 3", required: false },
+        ])}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^next$/i })).not.toBeInTheDocument()
   })
 })

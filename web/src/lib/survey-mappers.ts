@@ -29,6 +29,9 @@ const mapQuestion = (question: ApiQuestion): UiQuestion =>
     required: question.required,
     logic: question.logic,
     maxRating: question.maxRating,
+    minSelections: question.minSelections,
+    maxSelections: question.maxSelections,
+    defaultDestinationQuestionId: question.defaultDestinationQuestionId,
   })
 
 export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {

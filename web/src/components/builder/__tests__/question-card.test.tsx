@@ -32,8 +32,15 @@ const messages: Record<string, Record<string, string>> = {
     moveUp: "Move up",
     moveDown: "Move down",
     otherOptionToggle: "Other",
+    exclusiveOptionToggle: "Exclusive option",
     otherTextRequiredToggle: "Require details",
     cannotDeleteFirstPage: "Cannot delete first page",
+    minSelections: "Min selections",
+    maxSelections: "Max selections",
+    pageNavigationMode: "Page navigation",
+    pageNavigationNext: "Next page",
+    pageNavigationSpecific: "Specific page",
+    defaultPageJump: "Default page jump",
   },
   QuestionTypes: {
     single: "Single choice",
@@ -168,5 +175,75 @@ describe("QuestionCard", () => {
     })
 
     expect(screen.getByTestId("question-logic-indicator")).toBeInTheDocument()
+  })
+
+  it("shows multi-select constraint controls", () => {
+    render(
+      <QuestionCard
+        question={{
+          id: "q-multi-controls",
+          type: "multi",
+          title: "Choose many",
+          required: false,
+          minSelections: 1,
+          maxSelections: 2,
+          options: [{ label: "A", exclusive: true }, { label: "B" }],
+        }}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getAllByRole("button", { name: "Exclusive option" })).toHaveLength(2)
+    expect(screen.getByDisplayValue("1")).toBeInTheDocument()
+    expect(screen.getByDisplayValue("2")).toBeInTheDocument()
+  })
+
+  it("shows page default navigation controls for sections", () => {
+    render(
+      <QuestionCard
+        question={{
+          id: "page-1",
+          type: "section",
+          title: "Page 1",
+          required: false,
+          defaultDestinationQuestionId: "page-3",
+        }}
+        laterSectionOptions={[{ id: "page-3", title: "Page 3" }]}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Default page jump")).toBeInTheDocument()
+    expect(screen.getByText("Page navigation")).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Page navigation" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Next page" })).toHaveClass("text-[var(--primary-foreground)]")
+    expect(screen.getByRole("button", { name: "Specific page" })).toHaveClass("bg-white", "text-gray-900")
+  })
+
+  it("disables the specific-page switcher when there are no later pages", () => {
+    render(
+      <QuestionCard
+        question={{
+          id: "page-last",
+          type: "section",
+          title: "Last page",
+          required: false,
+        }}
+        laterSectionOptions={[]}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByRole("button", { name: "Specific page" })).toBeDisabled()
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
   })
 })

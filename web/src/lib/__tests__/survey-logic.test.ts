@@ -167,4 +167,64 @@ describe("survey logic helpers", () => {
 
     expect(issues.map((issue) => issue.code)).toEqual(["invalid_scalar_range"])
   })
+
+  it("flags same-page logic destinations as blocking issues", () => {
+    const question: Question = {
+      id: "q1",
+      type: "single",
+      title: "Choose",
+      required: false,
+      options: [{ id: "opt-a", label: "A" }],
+      logic: [
+        {
+          operator: "or",
+          conditions: [{ optionId: "opt-a", match: "includes" }],
+          destinationQuestionId: "q2",
+        },
+      ],
+    }
+
+    const issues = getQuestionLogicIssues(question, [
+      { id: "page-1", type: "section", title: "Page 1", required: false },
+      question,
+      { id: "q2", type: "short", title: "Question 2", required: false },
+      { id: "page-2", type: "section", title: "Page 2", required: false },
+    ])
+
+    expect(issues.map((issue) => issue.code)).toEqual(["invalid_destination_position"])
+  })
+
+  it("flags invalid section defaults and invalid multi selection bounds", () => {
+    const questions: Question[] = [
+      {
+        id: "page-1",
+        type: "section",
+        title: "Page 1",
+        required: false,
+        defaultDestinationQuestionId: "q1",
+      },
+      {
+        id: "q1",
+        type: "multi",
+        title: "Choose",
+        required: false,
+        minSelections: 3,
+        maxSelections: 2,
+        options: [
+          { id: "opt-a", label: "A", exclusive: true },
+          { id: "opt-b", label: "B", exclusive: true },
+        ],
+      },
+      { id: "page-2", type: "section", title: "Page 2", required: false },
+    ]
+
+    const pageIssues = getQuestionLogicIssues(questions[0], questions)
+    const multiIssues = getQuestionLogicIssues(questions[1], questions)
+
+    expect(pageIssues.map((issue) => issue.code)).toEqual(["invalid_default_destination"])
+    expect(multiIssues.map((issue) => issue.code)).toEqual([
+      "multiple_exclusive_options",
+      "invalid_selection_bounds",
+    ])
+  })
 })

@@ -194,7 +194,17 @@
     "requireLoginToRespondDescription": "開啟後，訪客必須先登入才能開始填答。",
     "publishErrorMissingSurveyId": "找不到問卷 ID，請先儲存草稿後再發布。",
     "otherOptionToggle": "可補充說明",
-    "otherTextRequiredToggle": "一定要補充"
+    "otherTextRequiredToggle": "一定要補充",
+    "exclusiveOptionToggle": "互斥選項",
+    "minSelections": "最少選擇數",
+    "maxSelections": "最多選擇數",
+    "pageNavigationMode": "頁面導向",
+    "pageNavigationNext": "下一頁",
+    "pageNavigationSpecific": "指定頁面",
+    "defaultPageJump": "預設頁面跳轉",
+    "logicWarningInvalidDefaultDestination": "預設頁面跳轉必須指向後面的頁面",
+    "logicWarningMultipleExclusiveOptions": "只能有一個互斥選項",
+    "logicWarningSelectionBounds": "此題的選擇數限制無效"
   },
   "QuestionTypes": {
     "single": "單選題",
@@ -231,7 +241,9 @@
     "next": "下一頁",
     "otherTextPlaceholder": "請補充說明",
     "otherTextRequiredAlert": "請補充「{question}」的說明。",
-    "otherTextRequiredHint": "請先填寫補充說明再繼續。"
+    "otherTextRequiredHint": "請先填寫補充說明再繼續。",
+    "minSelectionsAlert": "「{question}」至少需選擇 {count} 個選項。",
+    "maxSelectionsAlert": "「{question}」最多只能選擇 {count} 個選項。"
   },
   "Datasets": {
     "searchPlaceholder": "搜尋資料集...",
@@ -513,7 +525,6 @@
     "untitledQuestion": "未命名題目",
     "deletedQuestion": "已刪除題目",
     "endSurvey": "送出問卷（結束）",
-    "currentPage": "目前頁面",
     "goToPage": "前往頁面",
     "untitledPage": "未命名頁面",
     "invalidTitle": "邏輯跳轉無效：{reason}",
@@ -569,10 +580,6 @@
     "changePasswordTitle": "變更密碼",
     "changePasswordDescription": "定期更新密碼以保護帳戶安全。",
     "manageInAccountCenter": "在 HazelnutParadise 帳號中心 管理",
-    "reset": "重設",
-    "twoFactorTitle": "雙重驗證",
-    "twoFactorDescription": "目前已停用。啟用以增加安全性。",
-    "enable": "啟用",
     "saveError": "Failed to save changes. Please try again.",
     "publicProfileTitle": "作者頁公開資訊",
     "publicProfileDescription": "選擇哪些個人資料欄位可顯示在公開作者頁。",
@@ -988,7 +995,6 @@
     "surveysTitle": "已發布問卷",
     "emptySurveys": "目前沒有已發布的公開問卷。",
     "memberSince": "加入時間",
-    "anonymousAuthor": "匿名作者",
-    "loadError": "載入作者頁失敗。"
+    "anonymousAuthor": "匿名作者"
   }
 }

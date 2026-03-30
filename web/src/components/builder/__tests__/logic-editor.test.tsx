@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { LogicEditor } from "@/components/builder/logic-editor"
 import type { Question } from "@/types/survey"
@@ -84,6 +84,7 @@ const baseQuestions: Question[] = [
     logic: [],
   },
   { id: "page-2", type: "section", title: "Page 2", required: false },
+  { id: "page-3", type: "section", title: "Page 3", required: false },
 ]
 
 describe("LogicEditor", () => {
@@ -190,5 +191,33 @@ describe("LogicEditor", () => {
     expect(screen.getByText(messages.LogicEditor.rangeInclusiveHintDate)).toBeInTheDocument()
     expect(screen.getByText(messages.LogicEditor.startValueLabel)).toBeInTheDocument()
     expect(screen.getByText(messages.LogicEditor.endValueLabel)).toBeInTheDocument()
+  })
+
+  it("only offers later pages and end survey as destinations", () => {
+    render(
+      <LogicEditor
+        question={{
+          ...baseQuestions[1],
+          logic: [
+            {
+              operator: "or",
+              conditions: [{ optionId: "opt-a", match: "includes" }],
+              destinationQuestionId: "page-2",
+            },
+          ],
+        }}
+        allQuestions={baseQuestions}
+        open
+        onOpenChange={() => {}}
+        onSave={() => {}}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole("combobox").at(-1) as HTMLElement)
+
+    expect(screen.getByText(messages.LogicEditor.endSurvey)).toBeInTheDocument()
+    expect(screen.getAllByText("Page 2").length).toBeGreaterThan(0)
+    expect(screen.getByText("Page 3")).toBeInTheDocument()
+    expect(screen.queryByText(messages.LogicEditor.currentPage)).not.toBeInTheDocument()
   })
 })

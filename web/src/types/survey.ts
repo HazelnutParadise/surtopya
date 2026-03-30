@@ -5,6 +5,7 @@ export interface QuestionOption {
     label: string;
     isOther?: boolean;
     requireOtherText?: boolean;
+    exclusive?: boolean;
 }
 
 export type LogicConditionMatch = 'includes' | 'excludes';
@@ -43,6 +44,9 @@ export interface Question {
     required: boolean;
     logic?: LogicRule[];
     maxRating?: number; // Task 10
+    minSelections?: number;
+    maxSelections?: number;
+    defaultDestinationQuestionId?: string;
 }
 
 export interface SurveyTheme {

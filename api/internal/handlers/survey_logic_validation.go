@@ -14,11 +14,8 @@ func surveyHasPublishBlockingLogicIssues(questions []models.Question) bool {
 		normalizedQuestions[index] = normalizeQuestionForLogicValidation(question)
 	}
 
-	for index, question := range normalizedQuestions {
-		if question.Type == "section" {
-			continue
-		}
-		if questionHasPublishBlockingLogicIssues(question, normalizedQuestions, index) {
+	for _, question := range normalizedQuestions {
+		if questionHasPublishBlockingLogicIssues(question, normalizedQuestions) {
 			return true
 		}
 	}
@@ -163,7 +160,48 @@ func isContradictoryLogicRuleForValidation(rule models.LogicRule) bool {
 	return false
 }
 
-func questionHasPublishBlockingLogicIssues(question models.Question, allQuestions []models.Question, questionIndex int) bool {
+func questionHasPublishBlockingLogicIssues(question models.Question, allQuestions []models.Question) bool {
+	if question.Type == "section" {
+		destinationID := ""
+		if question.DefaultDestinationQuestionID != nil {
+			destinationID = strings.TrimSpace(*question.DefaultDestinationQuestionID)
+		}
+		if destinationID == "" {
+			return false
+		}
+		destinationIndex := -1
+		for index, candidate := range allQuestions {
+			if candidate.ID.String() == destinationID {
+				destinationIndex = index
+				break
+			}
+		}
+		return destinationIndex == -1 || allQuestions[destinationIndex].Type != "section" || findQuestionPageIndexForValidation(allQuestions, destinationID) <= findQuestionPageIndexForValidation(allQuestions, question.ID.String())
+	}
+
+	if question.Type == "multi" {
+		exclusiveCount := 0
+		optionCount := len(question.Options)
+		for _, option := range question.Options {
+			if option.Exclusive {
+				exclusiveCount++
+			}
+		}
+		if exclusiveCount > 1 {
+			return true
+		}
+		if question.MinSelections != nil && (*question.MinSelections < 0 || *question.MinSelections > optionCount) {
+			return true
+		}
+		if question.MaxSelections != nil && (*question.MaxSelections < 1 || *question.MaxSelections > optionCount) {
+			return true
+		}
+		if question.MinSelections != nil && question.MaxSelections != nil && *question.MinSelections > *question.MaxSelections {
+			return true
+		}
+	}
+
+	questionPageIndex := findQuestionPageIndexForValidation(allQuestions, question.ID.String())
 	for _, rule := range question.Logic {
 		choiceConditions := getChoiceConditionsForValidation(rule)
 		scalarConditions := getScalarConditionsForValidation(rule)
@@ -198,19 +236,40 @@ func questionHasPublishBlockingLogicIssues(question models.Question, allQuestion
 			continue
 		}
 
-		destinationIndex := -1
-		for index, candidate := range allQuestions {
-			if candidate.ID.String() == destinationID {
-				destinationIndex = index
-				break
-			}
-		}
-		if destinationIndex == -1 || destinationIndex <= questionIndex {
+		destinationPageIndex := findQuestionPageIndexForValidation(allQuestions, destinationID)
+		destinationQuestion := findQuestionByIDForValidation(allQuestions, destinationID)
+		if destinationQuestion == nil || destinationQuestion.Type != "section" || destinationPageIndex <= questionPageIndex {
 			return true
 		}
 	}
 
 	return false
+}
+
+func findQuestionByIDForValidation(allQuestions []models.Question, questionID string) *models.Question {
+	for _, question := range allQuestions {
+		if question.ID.String() == strings.TrimSpace(questionID) {
+			cloned := question
+			return &cloned
+		}
+	}
+	return nil
+}
+
+func findQuestionPageIndexForValidation(allQuestions []models.Question, questionID string) int {
+	pageIndex := -1
+	for _, question := range allQuestions {
+		if question.Type == "section" {
+			pageIndex++
+		}
+		if question.ID.String() == strings.TrimSpace(questionID) {
+			if pageIndex == -1 {
+				return 0
+			}
+			return pageIndex
+		}
+	}
+	return -1
 }
 
 func validateScalarConditionForValidation(question models.Question, condition models.LogicCondition) bool {

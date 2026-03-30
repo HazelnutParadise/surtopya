@@ -101,6 +101,7 @@ type QuestionOption struct {
 	Label            string `json:"label"`
 	IsOther          bool   `json:"isOther,omitempty"`
 	RequireOtherText bool   `json:"requireOtherText,omitempty"`
+	Exclusive        bool   `json:"exclusive,omitempty"`
 }
 
 type QuestionOptions []QuestionOption
@@ -155,6 +156,7 @@ func (options QuestionOptions) MarshalJSON() ([]byte, error) {
 			Label:            label,
 			IsOther:          option.IsOther,
 			RequireOtherText: option.RequireOtherText,
+			Exclusive:        option.Exclusive,
 		})
 	}
 	return json.Marshal(normalized)
@@ -176,6 +178,7 @@ func (options QuestionOptions) Clone() QuestionOptions {
 			Label:            label,
 			IsOther:          option.IsOther,
 			RequireOtherText: option.RequireOtherText,
+			Exclusive:        option.Exclusive,
 		})
 	}
 	if len(cloned) == 0 {
@@ -225,6 +228,9 @@ type Question struct {
 	Options     QuestionOptions `json:"options,omitempty" db:"options"`
 	Required    bool            `json:"required" db:"required"`
 	MaxRating   int             `json:"maxRating,omitempty" db:"max_rating"`
+	MinSelections *int          `json:"minSelections,omitempty" db:"-"`
+	MaxSelections *int          `json:"maxSelections,omitempty" db:"-"`
+	DefaultDestinationQuestionID *string `json:"defaultDestinationQuestionId,omitempty" db:"-"`
 	Logic       []LogicRule     `json:"logic,omitempty" db:"logic"`
 	SortOrder   int             `json:"sortOrder" db:"sort_order"`
 	CreatedAt   time.Time       `json:"createdAt" db:"created_at"`

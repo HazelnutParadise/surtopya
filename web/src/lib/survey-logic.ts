@@ -20,10 +20,13 @@ export type LogicIssueCode =
   | "deleted_option"
   | "deleted_destination"
   | "invalid_destination_position"
+  | "invalid_default_destination"
   | "invalid_scalar_value"
   | "incomplete_scalar_range"
   | "invalid_scalar_range"
   | "invalid_condition_type"
+  | "multiple_exclusive_options"
+  | "invalid_selection_bounds"
 
 export type LogicIssue = {
   code: LogicIssueCode
@@ -79,6 +82,50 @@ const getChoiceConditions = (rule: LogicRule) =>
 
 const getScalarConditions = (rule: LogicRule) =>
   (rule.conditions || []).filter((condition): condition is ScalarLogicCondition => isScalarLogicCondition(condition))
+
+export type SurveyPage = {
+  section: Question | null
+  questions: Question[]
+}
+
+export const buildSurveyPages = (questions: Question[]): SurveyPage[] => {
+  const pages = questions.reduce<SurveyPage[]>((acc, question) => {
+    if (question.type === "section") {
+      acc.push({ section: question, questions: [] })
+      return acc
+    }
+
+    if (acc.length === 0) {
+      acc.push({ section: null, questions: [] })
+    }
+
+    acc[acc.length - 1].questions.push(question)
+    return acc
+  }, [])
+
+  if (pages.length === 0 && questions.length > 0) {
+    return [{ section: null, questions: questions.filter((question) => question.type !== "section") }]
+  }
+
+  return pages
+}
+
+const findPageIndexForQuestionId = (questions: Question[], questionId: string) => {
+  const pages = buildSurveyPages(questions)
+  return pages.findIndex((page) =>
+    page.section?.id === questionId || page.questions.some((question) => question.id === questionId)
+  )
+}
+
+export const getLaterSectionQuestions = (allQuestions: Question[], questionId: string) => {
+  const currentPageIndex = findPageIndexForQuestionId(allQuestions, questionId)
+  if (currentPageIndex === -1) return []
+
+  return buildSurveyPages(allQuestions)
+    .slice(currentPageIndex + 1)
+    .map((page) => page.section)
+    .filter((section): section is Question => section?.type === "section")
+}
 
 export const normalizeLogicRule = (question: Pick<Question, "type" | "options">, rule: LogicRule): LogicRule => {
   const normalizedConditions = Array.isArray(rule.conditions)
@@ -175,12 +222,81 @@ const validateScalarCondition = (question: Question, condition: ScalarLogicCondi
   return "invalid_condition_type"
 }
 
-export const getQuestionLogicIssues = (question: Question, allQuestions: Question[]): LogicIssue[] => {
-  if (!hasQuestionLogic(question)) return []
+const getExclusiveOptions = (question: Question) => {
+  return (question.options || []).filter((option) => option.exclusive === true)
+}
 
+const hasInvalidSelectionBounds = (question: Question) => {
+  if (question.type !== "multi") return false
+
+  const optionCount = (question.options || []).length
+  const minSelections = question.minSelections
+  const maxSelections = question.maxSelections
+
+  if (minSelections != null && (!Number.isInteger(minSelections) || minSelections < 0)) {
+    return true
+  }
+
+  if (maxSelections != null && (!Number.isInteger(maxSelections) || maxSelections < 1)) {
+    return true
+  }
+
+  if (minSelections != null && maxSelections != null && minSelections > maxSelections) {
+    return true
+  }
+
+  if (minSelections != null && minSelections > optionCount) {
+    return true
+  }
+
+  if (maxSelections != null && maxSelections > optionCount) {
+    return true
+  }
+
+  return false
+}
+
+const hasInvalidDefaultDestination = (question: Question, allQuestions: Question[]) => {
+  if (question.type !== "section") return false
+
+  const destinationId = question.defaultDestinationQuestionId?.trim()
+  if (!destinationId) return false
+
+  const currentPageIndex = findPageIndexForQuestionId(allQuestions, question.id)
+  const destinationQuestion = allQuestions.find((candidate) => candidate.id === destinationId)
+  const destinationPageIndex = findPageIndexForQuestionId(allQuestions, destinationId)
+
+  return (
+    !destinationQuestion ||
+    destinationQuestion.type !== "section" ||
+    currentPageIndex === -1 ||
+    destinationPageIndex === -1 ||
+    destinationPageIndex <= currentPageIndex
+  )
+}
+
+export const getQuestionLogicIssues = (question: Question, allQuestions: Question[]): LogicIssue[] => {
   const normalizedQuestion = normalizeQuestionLogic(question)
-  const questionIndex = allQuestions.findIndex((item) => item.id === question.id)
   const issues: LogicIssue[] = []
+  const currentPageIndex = findPageIndexForQuestionId(allQuestions, normalizedQuestion.id)
+
+  if (normalizedQuestion.type === "section") {
+    if (hasInvalidDefaultDestination(normalizedQuestion, allQuestions)) {
+      issues.push({ code: "invalid_default_destination", ruleIndex: -1 })
+    }
+    return issues
+  }
+
+  if (normalizedQuestion.type === "multi") {
+    if (getExclusiveOptions(normalizedQuestion).length > 1) {
+      issues.push({ code: "multiple_exclusive_options", ruleIndex: -1 })
+    }
+    if (hasInvalidSelectionBounds(normalizedQuestion)) {
+      issues.push({ code: "invalid_selection_bounds", ruleIndex: -1 })
+    }
+  }
+
+  if (!hasQuestionLogic(normalizedQuestion)) return issues
 
   normalizedQuestion.logic?.forEach((rule, ruleIndex) => {
     const choiceConditions = getChoiceConditions(rule)
@@ -219,18 +335,41 @@ export const getQuestionLogicIssues = (question: Question, allQuestions: Questio
 
     if (rule.destinationQuestionId === "end_survey") return
 
-    const destinationIndex = allQuestions.findIndex((item) => item.id === rule.destinationQuestionId)
-    if (destinationIndex === -1) {
+    const destinationQuestion = allQuestions.find((item) => item.id === rule.destinationQuestionId)
+    if (!destinationQuestion) {
       issues.push({ code: "deleted_destination", ruleIndex })
       return
     }
 
-    if (destinationIndex <= questionIndex) {
+    const destinationPageIndex = findPageIndexForQuestionId(allQuestions, rule.destinationQuestionId)
+    if (
+      destinationQuestion.type !== "section" ||
+      currentPageIndex === -1 ||
+      destinationPageIndex === -1 ||
+      destinationPageIndex <= currentPageIndex
+    ) {
       issues.push({ code: "invalid_destination_position", ruleIndex })
     }
   })
 
   return issues
+}
+
+export const getMultiSelectionValidationIssue = (question: Question, rawAnswer: unknown) => {
+  if (question.type !== "multi") return null
+
+  const selectedCount = getMultiAnswerValues(rawAnswer).length
+  if (selectedCount === 0) return null
+
+  if (question.minSelections != null && selectedCount < question.minSelections) {
+    return "min"
+  }
+
+  if (question.maxSelections != null && selectedCount > question.maxSelections) {
+    return "max"
+  }
+
+  return null
 }
 
 const resolveSelectedOptionId = (question: Pick<Question, "type" | "options">, value: string) => {

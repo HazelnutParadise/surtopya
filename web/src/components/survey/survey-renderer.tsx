@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useState } from "react"
+import { ReactNode, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -41,7 +41,7 @@ import {
   isOtherQuestionOption,
   normalizeChoiceQuestionOptions,
 } from "@/lib/question-options";
-import { logicRuleMatchesAnswer, normalizeQuestionLogic } from "@/lib/survey-logic";
+import { buildSurveyPages, getMultiSelectionValidationIssue, logicRuleMatchesAnswer, normalizeQuestionLogic } from "@/lib/survey-logic";
 
 interface SurveyRendererProps {
   survey: Survey
@@ -69,12 +69,13 @@ export function SurveyRenderer({
   const t = useTranslations("SurveyRenderer")
   const tQuestion = useTranslations("QuestionTypes")
   const [currentStep, setCurrentStep] = useState(0)
+  const [pageHistory, setPageHistory] = useState<number[]>([0])
   const [answers, setAnswers] = useState<Record<string, unknown>>(() =>
     normalizeSurveyAnswerMap(survey, initialAnswers || {})
   )
   const [validationError, setValidationError] = useState<string | null>(null)
   const [validationQuestionId, setValidationQuestionId] = useState<string | null>(null)
-  const [validationKind, setValidationKind] = useState<"required" | "otherText" | null>(null)
+  const [validationKind, setValidationKind] = useState<"required" | "otherText" | "minSelections" | "maxSelections" | null>(null)
 
   // Default theme
   const activeTheme = theme || {
@@ -87,31 +88,14 @@ export function SurveyRenderer({
   const mutedTextColorClass = getContrastColor(activeTheme.backgroundColor) === 'white' ? 'text-gray-300' : 'text-gray-500';
   const primaryTextColorClass = getContrastColor(activeTheme.primaryColor) === 'white' ? 'text-white' : 'text-gray-900';
 
-  // Group questions into pages
-  const pages = survey.questions.reduce((acc, question) => {
-    if (question.type === 'section') {
-      acc.push([question]);
-    } else {
-      if (acc.length === 0) acc.push([]);
-      acc[acc.length - 1].push(question);
-    }
-    return acc;
-  }, [] as Question[][]);
-
-  // Ensure we have at least one page if questions exist
-  if (pages.length === 0 && survey.questions.length > 0) {
-    pages.push(survey.questions);
-  }
+  const pages = useMemo(() => buildSurveyPages(survey.questions), [survey.questions])
+  const currentHistoryIndex = pageHistory.lastIndexOf(currentStep)
 
   const totalSteps = pages.length;
   const progress = totalSteps > 0 ? ((currentStep + 1) / totalSteps) * 100 : 0;
-  const currentQuestions = pages[currentStep] || [];
-  
-  const pageHeader = currentQuestions.length > 0 && currentQuestions[0].type === 'section' 
-    ? currentQuestions[0] 
-    : null;
-     
-  const renderableQuestions = currentQuestions.filter(q => q.type !== 'section');
+  const currentPage = pages[currentStep] || { section: null, questions: [] }
+  const pageHeader = currentPage.section
+  const renderableQuestions = currentPage.questions
 
   const getLastMatchedLogicRule = (question: Question, rawAnswer: unknown): LogicRule | null => {
     if (!question.logic || question.logic.length === 0) return null
@@ -127,6 +111,66 @@ export function SurveyRenderer({
 
     return matchedRule
   }
+
+  const resolveReachablePageIndex = (pageIndex: number | null, visited = new Set<number>()): number | null => {
+    if (pageIndex == null || pageIndex < 0 || pageIndex >= pages.length) {
+      return null
+    }
+
+    if (visited.has(pageIndex)) {
+      return null
+    }
+
+    const page = pages[pageIndex]
+    if (page.questions.length > 0) {
+      return pageIndex
+    }
+
+    visited.add(pageIndex)
+    const defaultDestinationId = page.section?.defaultDestinationQuestionId?.trim()
+    if (defaultDestinationId) {
+      const defaultPageIndex = pages.findIndex((candidate) => candidate.section?.id === defaultDestinationId)
+      if (defaultPageIndex !== -1) {
+        return resolveReachablePageIndex(defaultPageIndex, visited)
+      }
+    }
+
+    return resolveReachablePageIndex(pageIndex + 1 < pages.length ? pageIndex + 1 : null, visited)
+  }
+
+  const resolvePageDestination = () => {
+    let matchedRule: LogicRule | null = null
+
+    for (const q of renderableQuestions) {
+      const nextMatchedRule = getLastMatchedLogicRule(q, answers[q.id])
+      if (nextMatchedRule) {
+        matchedRule = nextMatchedRule
+      }
+    }
+
+    if (matchedRule) {
+      if (matchedRule.destinationQuestionId === "end_survey") {
+        return null
+      }
+
+      const matchedPageIndex = pages.findIndex((page) => page.section?.id === matchedRule?.destinationQuestionId)
+      if (matchedPageIndex !== -1) {
+        return resolveReachablePageIndex(matchedPageIndex)
+      }
+    }
+
+    const defaultDestinationId = pageHeader?.defaultDestinationQuestionId?.trim()
+    if (defaultDestinationId) {
+      const defaultPageIndex = pages.findIndex((page) => page.section?.id === defaultDestinationId)
+      if (defaultPageIndex !== -1) {
+        return resolveReachablePageIndex(defaultPageIndex)
+      }
+    }
+
+    return resolveReachablePageIndex(currentStep < totalSteps - 1 ? currentStep + 1 : null)
+  }
+
+  const resolvedNextStep = resolvePageDestination()
 
   const handleNext = () => {
     const missingOtherTextQuestion = renderableQuestions.find((question) =>
@@ -148,49 +192,43 @@ export function SurveyRenderer({
       setValidationError(t("requiredAlert"))
       return
     }
+
+    const invalidSelectionQuestion = renderableQuestions.find((question) => getMultiSelectionValidationIssue(question, answers[question.id]))
+    if (invalidSelectionQuestion) {
+      const issue = getMultiSelectionValidationIssue(invalidSelectionQuestion, answers[invalidSelectionQuestion.id])
+      setValidationQuestionId(invalidSelectionQuestion.id)
+      setValidationKind(issue === "min" ? "minSelections" : "maxSelections")
+      setValidationError(
+        issue === "min"
+          ? t("minSelectionsAlert", { question: invalidSelectionQuestion.title, count: invalidSelectionQuestion.minSelections ?? 0 })
+          : t("maxSelectionsAlert", { question: invalidSelectionQuestion.title, count: invalidSelectionQuestion.maxSelections ?? 0 })
+      )
+      return
+    }
+
     setValidationError(null)
     setValidationQuestionId(null)
     setValidationKind(null)
 
-    // Evaluate page logic with "last matched rule wins" precedence.
-    let matchedRule: LogicRule | null = null
-
-    for (const q of renderableQuestions) {
-      const nextMatchedRule = getLastMatchedLogicRule(q, answers[q.id])
-      if (nextMatchedRule) matchedRule = nextMatchedRule
-    }
-
-    if (matchedRule) {
-      if (matchedRule.destinationQuestionId === 'end_survey') {
-        if (onComplete) {
-          onComplete(answers);
-        } else {
-          router.push(withLocalePath("/survey/thank-you"));
-        }
-        return;
-      }
-
-      const jumpToPage = pages.findIndex(page => page.some(pq => pq.id === matchedRule?.destinationQuestionId));
-      if (jumpToPage !== -1) {
-        setCurrentStep(jumpToPage);
-        return;
-      }
-    }
-
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
+    if (resolvedNextStep == null) {
       if (onComplete) {
-        onComplete(answers);
+        onComplete(answers)
       } else {
-        router.push(withLocalePath("/survey/thank-you"));
+        router.push(withLocalePath("/survey/thank-you"))
       }
+      return
     }
+
+    setCurrentStep(resolvedNextStep)
+    setPageHistory((prev) => {
+      const nextBase = currentHistoryIndex >= 0 ? prev.slice(0, currentHistoryIndex + 1) : [currentStep]
+      return [...nextBase, resolvedNextStep]
+    })
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    if (currentHistoryIndex > 0) {
+      setCurrentStep(pageHistory[currentHistoryIndex - 1])
     }
   };
 
@@ -198,6 +236,9 @@ export function SurveyRenderer({
     setValidationError(null)
     setValidationQuestionId(null)
     setValidationKind(null)
+    if (currentHistoryIndex >= 0 && currentHistoryIndex < pageHistory.length - 1) {
+      setPageHistory((prev) => prev.slice(0, currentHistoryIndex + 1))
+    }
     setAnswers(prev => {
       const nextAnswers = { ...prev, [questionId]: value }
       onAnswerChange?.(questionId, value, nextAnswers)
@@ -207,6 +248,25 @@ export function SurveyRenderer({
 
   const showOtherTextError = (questionId: string) =>
     validationKind === "otherText" && validationQuestionId === questionId
+
+  const getNextMultiValue = (question: Question, optionLabel: string) => {
+    const currentAnswers = getMultiAnswerValues(answers[question.id])
+    const isChecked = currentAnswers.includes(optionLabel)
+    const selectedOption = normalizeChoiceQuestionOptions(question).find((option) => getQuestionOptionLabel(option) === optionLabel)
+    const exclusiveLabels = normalizeChoiceQuestionOptions(question)
+      .filter((option) => option.exclusive)
+      .map((option) => getQuestionOptionLabel(option))
+
+    if (isChecked) {
+      return currentAnswers.filter((value) => value !== optionLabel)
+    }
+
+    if (selectedOption?.exclusive) {
+      return [optionLabel]
+    }
+
+    return [...currentAnswers.filter((value) => !exclusiveLabels.includes(value)), optionLabel]
+  }
 
   return (
     <div 
@@ -366,9 +426,7 @@ export function SurveyRenderer({
                             : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/50"
                         }`}
                         onClick={() => {
-                          const newAnswers = isChecked 
-                            ? currentAnswers.filter(a => a !== optionLabel)
-                            : [...currentAnswers, optionLabel];
+                          const newAnswers = getNextMultiValue(question, optionLabel)
                           handleAnswer(question.id, setMultiAnswerValues(question, answers[question.id], newAnswers));
                         }}
                       >
@@ -529,7 +587,7 @@ export function SurveyRenderer({
             style={{ backgroundColor: activeTheme.primaryColor }}
             className={`min-w-[120px] hover:opacity-90 ${primaryTextColorClass}`}
           >
-            {currentStep === totalSteps - 1 ? t("submit") : t("next")} <ArrowRight className="ml-2 h-4 w-4" />
+            {resolvedNextStep == null ? t("submit") : t("next")} <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>

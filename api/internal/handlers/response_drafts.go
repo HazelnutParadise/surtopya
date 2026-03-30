@@ -597,7 +597,8 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		answerValues[row.questionID] = answerValue
 		draftAnswers = append(draftAnswers, row)
 	}
-	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+	if err := validateSurveyCompletion(snapshot, answerValues); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -800,7 +801,8 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		answerRows = append(answerRows, answerRow{questionID: questionID, valueJSON: valueJSON})
 		answerValues[questionID] = ansReq.Value
 	}
-	if !validateRequiredSupplementalAnswersOrRespond(c, snapshot, answerValues) {
+	if err := validateSurveyCompletion(snapshot, answerValues); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 

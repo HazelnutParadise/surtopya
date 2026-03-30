@@ -102,6 +102,9 @@ type QuestionRequest struct {
 	Options     models.QuestionOptions `json:"options"`
 	Required    bool                   `json:"required"`
 	MaxRating   int                    `json:"maxRating"`
+	MinSelections *int                 `json:"minSelections"`
+	MaxSelections *int                 `json:"maxSelections"`
+	DefaultDestinationQuestionID *string `json:"defaultDestinationQuestionId"`
 	Logic       []models.LogicRule     `json:"logic"`
 }
 
@@ -110,6 +113,20 @@ func normalizeQuestionDescription(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func nullableIntEqual(left *int, right *int) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func nullableStringEqual(left *string, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func normalizeQuestionOptionsForType(questionType string, options models.QuestionOptions) (models.QuestionOptions, error) {
@@ -137,6 +154,9 @@ func buildSnapshotQuestionsFromModels(questions []models.Question) []surveySnaps
 			Options:     options,
 			Required:    q.Required,
 			MaxRating:   q.MaxRating,
+			MinSelections: q.MinSelections,
+			MaxSelections: q.MaxSelections,
+			DefaultDestinationQuestionID: q.DefaultDestinationQuestionID,
 			Logic:       q.Logic,
 			SortOrder:   i,
 		}
@@ -164,6 +184,9 @@ func buildSnapshotQuestionsFromRequests(questions []QuestionRequest) ([]surveySn
 			Options:     options,
 			Required:    q.Required,
 			MaxRating:   q.MaxRating,
+			MinSelections: q.MinSelections,
+			MaxSelections: q.MaxSelections,
+			DefaultDestinationQuestionID: q.DefaultDestinationQuestionID,
 			Logic:       q.Logic,
 			SortOrder:   i,
 		}
@@ -192,6 +215,9 @@ func buildQuestionsFromRequests(surveyID uuid.UUID, requests []QuestionRequest) 
 			Options:     options,
 			Required:    qReq.Required,
 			MaxRating:   qReq.MaxRating,
+			MinSelections: qReq.MinSelections,
+			MaxSelections: qReq.MaxSelections,
+			DefaultDestinationQuestionID: qReq.DefaultDestinationQuestionID,
 			Logic:       qReq.Logic,
 			SortOrder:   i,
 		}
@@ -214,6 +240,12 @@ func areQuestionSnapshotsEqual(left []surveySnapshotQuestion, right []surveySnap
 			return false
 		}
 		if left[i].Required != right[i].Required || left[i].MaxRating != right[i].MaxRating {
+			return false
+		}
+		if !nullableIntEqual(left[i].MinSelections, right[i].MinSelections) || !nullableIntEqual(left[i].MaxSelections, right[i].MaxSelections) {
+			return false
+		}
+		if !nullableStringEqual(left[i].DefaultDestinationQuestionID, right[i].DefaultDestinationQuestionID) {
 			return false
 		}
 		if left[i].SortOrder != right[i].SortOrder {
@@ -672,6 +704,9 @@ type surveySnapshotQuestion struct {
 	Options     models.QuestionOptions `json:"options,omitempty"`
 	Required    bool                   `json:"required"`
 	MaxRating   int                    `json:"maxRating,omitempty"`
+	MinSelections *int                 `json:"minSelections,omitempty"`
+	MaxSelections *int                 `json:"maxSelections,omitempty"`
+	DefaultDestinationQuestionID *string `json:"defaultDestinationQuestionId,omitempty"`
 	Logic       []models.LogicRule     `json:"logic,omitempty"`
 	SortOrder   int                    `json:"sortOrder"`
 }
@@ -1213,6 +1248,9 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 			Options:     q.Options,
 			Required:    q.Required,
 			MaxRating:   q.MaxRating,
+			MinSelections: q.MinSelections,
+			MaxSelections: q.MaxSelections,
+			DefaultDestinationQuestionID: q.DefaultDestinationQuestionID,
 			Logic:       q.Logic,
 			SortOrder:   i,
 		}
