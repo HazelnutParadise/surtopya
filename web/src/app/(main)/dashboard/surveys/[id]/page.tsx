@@ -769,12 +769,12 @@ export default function SurveyManagementPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-4">
               <Button variant="ghost" size="icon" onClick={() => router.push(withLocalePath("/dashboard"))}>
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div>
+              <div className="min-w-0">
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{survey.title}</h1>
                 <p className="text-sm text-gray-500">
                   {t("createdOn", {
@@ -783,8 +783,11 @@ export default function SurveyManagementPage() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
+            <div className="flex w-full flex-col gap-2 lg:w-auto lg:items-end">
+              <div
+                className="flex flex-wrap items-center gap-2 lg:justify-end"
+                data-testid="survey-management-header-actions"
+              >
                 <Badge
                   className={
                     hasPublishedVersion
@@ -820,7 +823,7 @@ export default function SurveyManagementPage() {
               </div>
               {hasPublishBlockingIssues ? (
                 <div
-                  className="max-w-md space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-left text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                  className="w-full space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-left text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 lg:max-w-md"
                   data-testid="survey-management-publish-logic-block"
                 >
                   <div>

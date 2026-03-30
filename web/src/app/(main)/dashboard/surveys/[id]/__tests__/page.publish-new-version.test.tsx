@@ -373,4 +373,64 @@ describe("SurveyManagementPage publish new version", () => {
     )
     expect(publishCalls).toHaveLength(0)
   })
+
+  it("uses wrapped mobile-friendly header actions when publish is blocked", async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          questions: [
+            {
+              id: "q-logic",
+              type: "single",
+              title: "Logic question",
+              required: false,
+              options: [{ id: "opt-1", label: "Option 1" }],
+              logic: [
+                {
+                  operator: "or",
+                  conditions: [{ optionId: "opt-1", match: "includes" }],
+                  destinationQuestionId: "missing-question",
+                },
+              ],
+            },
+          ],
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ responses: [] }))
+      }
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildVersionsPayload([3])))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 0,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(<SurveyManagementPage />)
+
+    expect(await screen.findByTestId("survey-management-header-actions")).toHaveClass("flex-wrap")
+    expect(screen.getByTestId("survey-management-publish-logic-block")).toHaveClass("w-full")
+  })
 })
