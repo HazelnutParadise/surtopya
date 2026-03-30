@@ -22,8 +22,10 @@ import { mapApiSurveyToUi } from "@/lib/survey-mappers";
 import { createDefaultQuestionOptions, normalizeQuestionOptions } from "@/lib/question-options";
 import { CAP_SURVEY_PUBLIC_DATASET_OPT_OUT, getSurveyDatasetSharingEffectiveValue, isSurveyDatasetSharingLocked, isSurveyPublishLocked } from "@/lib/survey-publish-locks";
 import { getQuestionLogicIssues, normalizeLogicRule, normalizeQuestionLogic } from "@/lib/survey-logic";
+import { getPublishBlockingLogicEntries } from "@/lib/survey-publish-logic";
 import type { SurveyVersion } from "@/lib/api";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
+import { getDragOverlayState } from "@/components/builder/survey-builder-drag";
 import {
   Tooltip,
   TooltipContent,
@@ -109,6 +111,7 @@ export function SurveyBuilder() {
   ]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<DragData | null>(null); // Track active item data
+  const [dragOverlayWidth, setDragOverlayWidth] = useState<number | null>(null);
   const [title, setTitle] = useState(tBuilder("untitledSurvey"));
   const [isDirty, setIsDirty] = useState(false);
   const [activeSidebar, setActiveSidebar] = useState<'toolbox' | 'theme'>('toolbox');
@@ -170,6 +173,7 @@ export function SurveyBuilder() {
     if (rawError === "Unpublish and publish again to increase boost points") return tBuilder("publishErrorUnpublishBeforeIncrease")
     if (rawError === "Boost points cannot be negative") return tBuilder("publishErrorBoostNonNegative")
     if (rawError === "Published version expired") return tBuilder("publishedVersionExpired")
+    if (rawError === "Survey contains invalid logic") return tBuilder("publishBlockedByLogicTitle")
     return tBuilder("publishErrorGeneric")
   }
 
@@ -328,10 +332,23 @@ export function SurveyBuilder() {
     })
   );
 
+  const clearDragState = React.useCallback(() => {
+    setActiveId(null)
+    setActiveItem(null)
+    setDragOverlayWidth(null)
+  }, [])
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
     setActiveItem((event.active.data.current as DragData | null) ?? null);
+    const initialWidth = event.active.rect.current.initial?.width
+    setDragOverlayWidth(typeof initialWidth === "number" ? initialWidth : null)
   };
+
+  const handleDragCancel = React.useCallback(() => {
+    setQuestions((items) => items.filter((question) => question.id !== "placeholder"))
+    clearDragState()
+  }, [clearDragState])
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
@@ -402,18 +419,16 @@ export function SurveyBuilder() {
     const cleanQuestions = questions.filter(q => q.id !== 'placeholder');
 
     if (!over) {
-      setActiveId(null);
-      setActiveItem(null);
       setQuestions(cleanQuestions);
+      clearDragState();
       return;
     }
 
     // Check if dropped on a valid target (canvas or existing question)
     const isOverCanvas = over.id === 'canvas-droppable' || questions.some(q => q.id === over.id);
     if (!isOverCanvas) {
-        setActiveId(null);
-        setActiveItem(null);
         setQuestions(cleanQuestions);
+        clearDragState();
         return;
     }
 
@@ -534,8 +549,7 @@ export function SurveyBuilder() {
         setQuestions(cleanQuestions);
     }
 
-    setActiveId(null);
-    setActiveItem(null);
+    clearDragState();
   };
 
   const updateQuestion = (id: string, updates: Partial<Question>) => {
@@ -786,21 +800,19 @@ export function SurveyBuilder() {
   }, [normalizedQuestions])
 
   const publishBlockingLogicEntries = React.useMemo(
-    () =>
-      normalizedQuestions
-        .filter((question) => question.type !== "section")
-        .map((question) => {
-          const issues = logicIssuesByQuestion.get(question.id) || []
-          return {
-            question,
-            issues,
-          }
-        })
-        .filter((entry) => entry.issues.length > 0),
-    [logicIssuesByQuestion, normalizedQuestions]
+    () => getPublishBlockingLogicEntries(questions),
+    [questions]
   )
 
   const hasPublishBlockingLogicIssues = publishBlockingLogicEntries.length > 0
+  const activeQuestion = React.useMemo(
+    () => (activeId ? questions.find((question) => question.id === activeId) || null : null),
+    [activeId, questions]
+  )
+  const dragOverlayState = React.useMemo(
+    () => getDragOverlayState({ activeId, activeItem, questions, dragOverlayWidth }),
+    [activeId, activeItem, dragOverlayWidth, questions]
+  )
 
   const getLogicWarning = (questionId: string): string | null => {
     const issues = logicIssuesByQuestion.get(questionId) || []
@@ -1506,6 +1518,7 @@ export function SurveyBuilder() {
                 sensors={sensors} 
                 collisionDetection={closestCenter} 
                 onDragStart={handleDragStart} 
+                onDragCancel={handleDragCancel}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
               >
@@ -1653,9 +1666,9 @@ export function SurveyBuilder() {
                       </div>
                       <SortableContext 
                         items={questions.map(q => q.id).filter(id => {
-                            if (!activeItem) return true;
+                            if (!activeQuestion) return true;
                             // If dragging a section, only sections are sortable targets
-                            if (typeof activeItem.type === "string" && activeItem.type === 'section') {
+                            if (activeQuestion.type === 'section') {
                                 const q = questions.find(i => i.id === id);
                                 return q?.type === 'section';
                             }
@@ -1775,9 +1788,9 @@ export function SurveyBuilder() {
                 </Dialog>
                 
                 <DragOverlay dropAnimation={null}>
-                  {activeId ? (
-                     activeItem?.isToolboxItem === true ? (
-                        <div className="w-[600px] opacity-60"> {/* Translucent preview */}
+                  {dragOverlayState ? (
+                     dragOverlayState.mode === "toolbox" ? (
+                        <div className="opacity-60" style={{ width: dragOverlayState.width ?? 600 }}> {/* Translucent preview */}
                             {/* Preview of what it looks like */}
                              <div className="bg-white border border-purple-500 shadow-xl rounded-lg p-4">
                                 <div className="h-4 w-1/3 bg-gray-200 rounded mb-4"></div>
@@ -1788,11 +1801,11 @@ export function SurveyBuilder() {
                              </div>
                         </div>
                      ) : (
-                         <div className="w-[800px]"> {/* Fixed width for drag overlay to match canvas */}
-                            {typeof activeItem?.type === "string" && activeItem.type === 'section' ? (
+                         <div style={{ width: dragOverlayState.width ?? undefined }}>
+                            {dragOverlayState.mode === "existing-section" ? (
                                 <div className="flex flex-col mb-8 rounded-xl border border-gray-200 bg-white/50 p-4 shadow-2xl dark:border-gray-800 dark:bg-gray-900/50 rotate-2 opacity-90 cursor-grabbing ring-2 ring-purple-500">
                                     <QuestionCard 
-                                        question={activeItem as unknown as Question} 
+                                        question={dragOverlayState.question} 
                                         onUpdate={() => {}} 
                                         onDelete={() => {}} 
                                         onDuplicate={() => {}} 
@@ -1802,32 +1815,22 @@ export function SurveyBuilder() {
                                     />
                                     {/* Render questions belonging to this section */}
                                     <div className="pl-4 mt-4 space-y-4 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
-                                        {(() => {
-                                            const activeItemId = typeof activeItem?.id === "string" ? activeItem.id : null
-                                            const index = activeItemId ? questions.findIndex(q => q.id === activeItemId) : -1
-                                            if (index === -1) return null;
-                                            const sectionQuestions = [];
-                                            for (let i = index + 1; i < questions.length; i++) {
-                                                if (questions[i].type === 'section') break;
-                                                sectionQuestions.push(questions[i]);
-                                            }
-                                            return sectionQuestions.map((q) => (
-                                                <QuestionCard 
-                                                    key={q.id}
-                                                    question={q} 
-                                                    onUpdate={() => {}} 
-                                                    onDelete={() => {}} 
-                                                    onDuplicate={() => {}} 
-                                                    onOpenLogic={() => {}}
-                                                    isOverlay
-                                                />
-                                            ));
-                                        })()}
+                                        {dragOverlayState.childQuestions.map((q) => (
+                                            <QuestionCard 
+                                                key={q.id}
+                                                question={q} 
+                                                onUpdate={() => {}} 
+                                                onDelete={() => {}} 
+                                                onDuplicate={() => {}} 
+                                                onOpenLogic={() => {}}
+                                                isOverlay
+                                            />
+                                        ))}
                                     </div>
                                 </div>
                             ) : (
                                 <QuestionCard 
-                                    question={activeItem as unknown as Question} 
+                                    question={dragOverlayState.question} 
                                     onUpdate={() => {}} 
                                     onDelete={() => {}} 
                                     onDuplicate={() => {}} 

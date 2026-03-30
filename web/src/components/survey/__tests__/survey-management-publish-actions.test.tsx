@@ -25,6 +25,7 @@ const renderActions = (props: Partial<ComponentProps<typeof SurveyManagementPubl
       <SurveyManagementPublishActions
         hasPublishedVersion={false}
         hasUnpublishedChanges={false}
+        hasPublishBlockingIssues={false}
         isResponseOpen={false}
         publishing={false}
         isDirty={false}
@@ -78,6 +79,16 @@ describe("SurveyManagementPublishActions", () => {
       hasPublishedVersion: true,
       hasUnpublishedChanges: true,
       isDirty: true,
+    })
+
+    expect(screen.getByRole("button", { name: "Publish new version" })).toBeDisabled()
+  })
+
+  it("disables publish actions when logic issues block publishing", () => {
+    renderActions({
+      hasPublishedVersion: true,
+      hasUnpublishedChanges: true,
+      hasPublishBlockingIssues: true,
     })
 
     expect(screen.getByRole("button", { name: "Publish new version" })).toBeDisabled()

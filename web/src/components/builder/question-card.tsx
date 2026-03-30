@@ -73,7 +73,7 @@ export function QuestionCard({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0 : 1,
+    opacity: isDragging && !isOverlay ? 0 : 1,
   };
 
   const handleOptionChange = (index: number, value: string) => {

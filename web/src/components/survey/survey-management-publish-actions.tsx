@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 interface SurveyManagementPublishActionsProps {
   hasPublishedVersion: boolean
   hasUnpublishedChanges: boolean
+  hasPublishBlockingIssues: boolean
   isResponseOpen: boolean
   publishing: boolean
   isDirty: boolean
@@ -18,6 +19,7 @@ interface SurveyManagementPublishActionsProps {
 export function SurveyManagementPublishActions({
   hasPublishedVersion,
   hasUnpublishedChanges,
+  hasPublishBlockingIssues,
   isResponseOpen,
   publishing,
   isDirty,
@@ -28,7 +30,7 @@ export function SurveyManagementPublishActions({
   const t = useTranslations("SurveyManagement")
   const tCommon = useTranslations("Common")
 
-  const publishDisabled = publishing || isDirty
+  const publishDisabled = publishing || isDirty || hasPublishBlockingIssues
 
   if (!hasPublishedVersion) {
     return (

@@ -36,6 +36,7 @@ const activeSurveyLimitReachedError = "Active survey limit reached"
 const noChangesToPublishError = "No changes to publish"
 const publishedVersionExpiredError = "Published version expired"
 const expirationDatePastError = "Expiration date cannot be in the past"
+const surveyContainsInvalidLogicError = "Survey contains invalid logic"
 
 func queueDeidForSurvey(ctx context.Context, db *sql.DB, surveyID uuid.UUID, triggerSource string, triggeredBy *uuid.UUID) (string, *uuid.UUID, int, error) {
 	service := deid.NewService(db)
@@ -733,6 +734,10 @@ func (h *SurveyHandler) PublishSurvey(c *gin.Context) {
 	desiredPointsReward := req.PointsReward
 	if desiredPointsReward < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Boost points cannot be negative"})
+		return
+	}
+	if surveyHasPublishBlockingLogicIssues(survey.Questions) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": surveyContainsInvalidLogicError})
 		return
 	}
 	publishedPointsReward := survey.PointsReward

@@ -33,6 +33,10 @@ const surveyBuilderMessages: Record<string, string> = {
   restoreDraftConfirmTitle: "Restore version?",
   restoreDraftConfirmDescription: "This will overwrite your draft.",
   restoreDraftConfirmAction: "Restore",
+  publishBlockedByLogicTitle: "Fix logic issues before publishing",
+  publishBlockedByLogicDescription: "Drafts can keep invalid logic, but publishing is blocked until every broken logic rule is fixed.",
+  logicWarningDeleted: "Logic jump points to a deleted question",
+  untitledQuestion: "Untitled Question",
 }
 
 const commonTranslator = (key: string) => commonMessages[key] ?? key
@@ -295,5 +299,78 @@ describe("SurveyManagementPage publish new version", () => {
     fireEvent.click(screen.getByTestId("survey-version-view-3"))
 
     expect(await screen.findByTestId("version-document-preview")).toBeInTheDocument()
+  })
+
+  it("blocks publish from survey management when the draft has invalid logic", async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          questions: [
+            {
+              id: "q-logic",
+              type: "single",
+              title: "Logic question",
+              required: false,
+              options: [{ id: "opt-1", label: "Option 1" }],
+              logic: [
+                {
+                  operator: "or",
+                  conditions: [{ optionId: "opt-1", match: "includes" }],
+                  destinationQuestionId: "missing-question",
+                },
+              ],
+            },
+          ],
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ responses: [] }))
+      }
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildVersionsPayload([3])))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 0,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/publish" && init?.method === "POST") {
+        return Promise.resolve(buildJsonResponse({ error: "should not publish" }, false))
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(<SurveyManagementPage />)
+
+    const publishButton = await screen.findByRole("button", { name: "Publish new version" })
+    expect(publishButton).toBeDisabled()
+    expect(await screen.findByText("Fix logic issues before publishing")).toBeInTheDocument()
+    expect(screen.getByText("Logic jump points to a deleted question")).toBeInTheDocument()
+
+    const publishCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/app/surveys/survey-1/publish" &&
+        (init as RequestInit | undefined)?.method === "POST"
+    )
+    expect(publishCalls).toHaveLength(0)
   })
 })

@@ -46,6 +46,7 @@ import { buildSurveyResponsesCsvRows } from "@/lib/survey-responses-csv"
 import { normalizeQuestionOptions } from "@/lib/question-options";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
+import { getPublishBlockingLogicEntries } from "@/lib/survey-publish-logic";
 import {
   readUiPayloadError,
   readUiPayloadMessage,
@@ -94,6 +95,28 @@ export default function SurveyManagementPage() {
     resolveUiError(payload, fallbackMessage)
   const getUiErrorMessage = (error: unknown, fallbackMessage: string) =>
     toUiErrorMessage(error, fallbackMessage)
+  const mapLogicIssueToMessage = useCallback((code: string) => {
+    switch (code) {
+      case "contradictory_conditions":
+        return tBuilder("logicWarningContradictory")
+      case "deleted_option":
+        return tBuilder("logicWarningDeletedOption")
+      case "deleted_destination":
+        return tBuilder("logicWarningDeleted")
+      case "invalid_destination_position":
+        return tBuilder("logicWarningBackwards")
+      case "invalid_scalar_value":
+        return tBuilder("logicWarningScalarValue")
+      case "incomplete_scalar_range":
+        return tBuilder("logicWarningScalarRangeIncomplete")
+      case "invalid_scalar_range":
+        return tBuilder("logicWarningScalarRangeOrder")
+      case "invalid_condition_type":
+        return tBuilder("logicWarningConditionType")
+      default:
+        return tBuilder("logicWarningGeneric")
+    }
+  }, [tBuilder])
 
   const [survey, setSurvey] = useState<SurveyDisplay | null>(null);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
@@ -322,6 +345,11 @@ export default function SurveyManagementPage() {
       surveyVersions,
     })
   }, [survey, surveyVersions])
+  const publishBlockingLogicEntries = useMemo(
+    () => (survey ? getPublishBlockingLogicEntries(survey.questions) : []),
+    [survey]
+  )
+  const hasPublishBlockingIssues = publishBlockingLogicEntries.length > 0
 
   const handleExportCsv = (scope: SurveyResponsesExportScope, encoding: SurveyResponsesExportEncoding) => {
     const rows = buildSurveyResponsesCsvRows({
@@ -400,6 +428,7 @@ export default function SurveyManagementPage() {
     if (rawError === "No changes to publish") return tBuilder("noChangesToPublish");
     if (rawError === "Survey responses are closed") return tBuilder("responsesClosed");
     if (rawError === "Published version expired") return tBuilder("publishedVersionExpired");
+    if (rawError === "Survey contains invalid logic") return tBuilder("publishBlockedByLogicTitle");
     return tCommon("error");
   };
 
@@ -459,10 +488,12 @@ export default function SurveyManagementPage() {
   };
 
   const handleInitialPublish = async () => {
+    if (hasPublishBlockingIssues) return
     setPendingPublishAction("initial_publish")
   }
 
   const handlePublishNewVersion = async () => {
+    if (hasPublishBlockingIssues) return
     setPendingPublishAction("publish_new_version")
   }
 
@@ -774,6 +805,7 @@ export default function SurveyManagementPage() {
                 <SurveyManagementPublishActions
                   hasPublishedVersion={hasPublishedVersion}
                   hasUnpublishedChanges={hasUnpublishedChanges}
+                  hasPublishBlockingIssues={hasPublishBlockingIssues}
                   isResponseOpen={survey.settings.isResponseOpen}
                   publishing={publishing}
                   isDirty={isDirty}
@@ -786,6 +818,32 @@ export default function SurveyManagementPage() {
                   {tCommon("edit")}
                 </Button>
               </div>
+              {hasPublishBlockingIssues ? (
+                <div
+                  className="max-w-md space-y-3 rounded-lg border border-red-200 bg-red-50 p-4 text-left text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
+                  data-testid="survey-management-publish-logic-block"
+                >
+                  <div>
+                    <p className="font-medium">{tBuilder("publishBlockedByLogicTitle")}</p>
+                    <p className="text-xs text-red-600 dark:text-red-300/90">
+                      {tBuilder("publishBlockedByLogicDescription")}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {publishBlockingLogicEntries.map(({ question, issues }) => (
+                      <div
+                        key={question.id}
+                        className="rounded-md border border-red-200/80 bg-white/70 px-3 py-2 dark:border-red-900/40 dark:bg-black/10"
+                      >
+                        <p className="font-medium">{question.title || tBuilder("untitledQuestion")}</p>
+                        <p className="mt-1 text-xs">
+                          {issues.map((issue) => mapLogicIssueToMessage(issue.code)).join(" / ")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {publishError ? <p className="text-sm text-red-600">{publishError}</p> : null}
             </div>
           </div>

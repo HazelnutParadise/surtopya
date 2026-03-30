@@ -413,6 +413,64 @@ func TestSurveyHandler_PublishSurvey_NegativeBoostRejected(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestSurveyHandler_PublishSurvey_InvalidLogicRejectedBeforeSideEffects(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
+	questionRows.AddRow(
+		uuid.New(),
+		surveyID,
+		"single",
+		"Logic question",
+		nil,
+		[]byte(`[{"id":"opt-1","label":"Option 1"}]`),
+		false,
+		0,
+		[]byte(`[{"operator":"or","conditions":[{"optionId":"opt-1","match":"includes"}],"destinationQuestionId":"missing-question"}]`),
+		0,
+		time.Now().UTC(),
+		time.Now().UTC(),
+	)
+
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.PublishSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      0,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	require.Contains(t, w.Body.String(), "Survey contains invalid logic")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSurveyHandler_PublishSurvey_MetadataOnly_DoesNotCreateVersion(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
