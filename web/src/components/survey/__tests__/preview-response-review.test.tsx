@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { getDefaultNormalizer, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { PreviewResponseReview } from "@/components/survey/preview-response-review"
 import type { Survey } from "@/types/survey"
@@ -72,8 +72,8 @@ const survey: Survey = {
     },
     {
       id: "q-short",
-      type: "short",
-      title: "Name",
+      type: "long",
+      title: "Notes",
       required: false,
     },
   ],
@@ -94,7 +94,7 @@ describe("PreviewResponseReview", () => {
           "q-multi": { values: ["Alpha", "Other"], otherText: "Side note" },
           "q-rating": 5,
           "q-date": "2026-03-31",
-          "q-short": "Alice",
+          "q-short": "First line\nSecond line",
         }}
         displayMode="full-screen"
       />
@@ -106,7 +106,13 @@ describe("PreviewResponseReview", () => {
     expect(screen.getByText("Alpha")).toBeInTheDocument()
     expect(screen.getByText("Side note")).toBeInTheDocument()
     expect(screen.getByText("5 / 7")).toBeInTheDocument()
-    expect(screen.getByText("Alice")).toBeInTheDocument()
+    expect(screen.getAllByRole("listitem")).toHaveLength(2)
+    expect(
+      screen.getByText("First line\nSecond line", {
+        exact: true,
+        normalizer: getDefaultNormalizer({ collapseWhitespace: false, trim: false }),
+      })
+    ).toBeInTheDocument()
     expect(screen.getByText(formattedDate)).toBeInTheDocument()
   })
 
@@ -121,7 +127,7 @@ describe("PreviewResponseReview", () => {
       />
     )
 
-    expect(screen.getByText("Name")).toBeInTheDocument()
+    expect(screen.getByText("Notes")).toBeInTheDocument()
     expect(screen.queryByText("Favorite choice")).not.toBeInTheDocument()
     expect(screen.queryByText("Select tags")).not.toBeInTheDocument()
   })
