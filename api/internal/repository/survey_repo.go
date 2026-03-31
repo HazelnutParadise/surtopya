@@ -936,6 +936,19 @@ func (r *SurveyRepository) GetCurrentPublishedVersion(surveyID uuid.UUID) (*mode
 	return version, nil
 }
 
+func (r *SurveyRepository) GetOwnerUserIDTx(tx *sql.Tx, surveyID uuid.UUID) (uuid.UUID, error) {
+	if tx == nil {
+		return uuid.Nil, fmt.Errorf("transaction is required")
+	}
+
+	var ownerID uuid.UUID
+	if err := tx.QueryRow("SELECT user_id FROM surveys WHERE id = $1", surveyID).Scan(&ownerID); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get survey owner: %w", err)
+	}
+
+	return ownerID, nil
+}
+
 // GetVersionByNumber retrieves a specific published version by its version number.
 func (r *SurveyRepository) GetVersionByNumber(surveyID uuid.UUID, versionNumber int) (*models.SurveyVersion, error) {
 	query := `

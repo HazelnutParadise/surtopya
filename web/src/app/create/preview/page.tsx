@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Survey, SurveyTheme } from "@/types/survey";
+import { PreviewResponseReview } from "@/components/survey/preview-response-review";
 import { SurveyRenderer } from "@/components/survey/survey-renderer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
@@ -12,7 +13,6 @@ import { useTranslations } from "next-intl";
 export default function PreviewPage() {
   const tPreview = useTranslations("PreviewPage");
   const tSurveyPage = useTranslations("SurveyPage");
-  const tCommon = useTranslations("Common")
   const router = useRouter();
   const pathname = usePathname();
   const locale = getLocaleFromPath(pathname);
@@ -36,17 +36,16 @@ export default function PreviewPage() {
 
   const [survey] = useState<Survey | null>(previewData.survey)
   const [theme] = useState<SurveyTheme | null>(previewData.theme)
-  const [completePayload, setCompletePayload] = useState<string | null>(null)
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown> | null>(null)
+  const [resultView, setResultView] = useState<"hidden" | "modal" | "full-screen">("hidden")
 
   const handleClose = () => {
     window.close();
   };
 
   const handleComplete = (answers: Record<string, unknown>) => {
-    setCompletePayload(
-      `${tSurveyPage("previewCompleteTitle")}\n\n${tSurveyPage("previewCompleteDescription")}\n\n${tSurveyPage("previewCompleteResponses")}\n` +
-        JSON.stringify(answers, null, 2)
-    )
+    setPreviewAnswers(answers)
+    setResultView("modal")
   };
 
   if (!survey) {
@@ -86,19 +85,42 @@ export default function PreviewPage() {
         onComplete={handleComplete}
       />
 
-      {completePayload ? (
+      {previewAnswers && resultView === "modal" ? (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-gray-950 shadow-2xl p-4 space-y-3">
+          <div className="w-full max-w-4xl rounded-xl bg-white dark:bg-gray-950 shadow-2xl p-4 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{tSurveyPage("previewCompleteTitle")}</h2>
-              <Button variant="ghost" size="sm" onClick={() => setCompletePayload(null)}>
-                {tCommon("cancel")}
+              <h2 className="text-sm font-semibold">{tSurveyPage("previewResultModalTitle")}</h2>
+              <Button variant="ghost" size="sm" onClick={() => setResultView("hidden")}>
+                {tSurveyPage("previewResultBackToEdit")}
               </Button>
             </div>
-            <pre className="max-h-[60vh] overflow-auto text-xs bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-              {completePayload}
-            </pre>
+            <div className="max-h-[60vh] overflow-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+              <PreviewResponseReview
+                survey={survey}
+                answers={previewAnswers}
+                displayMode="modal"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setResultView("full-screen")}>
+                {tSurveyPage("previewResultOpenFullPage")}
+              </Button>
+            </div>
           </div>
+        </div>
+      ) : null}
+
+      {previewAnswers && resultView === "full-screen" ? (
+        <div className="fixed inset-0 z-[75] overflow-auto bg-white dark:bg-gray-950">
+          <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+            <div className="mx-auto flex max-w-5xl items-center justify-between">
+              <h2 className="text-sm font-semibold">{tSurveyPage("previewResultModalTitle")}</h2>
+              <Button variant="outline" onClick={() => setResultView("modal")}>
+                {tSurveyPage("previewResultBackToModal")}
+              </Button>
+            </div>
+          </div>
+          <PreviewResponseReview survey={survey} answers={previewAnswers} displayMode="full-screen" />
         </div>
       ) : null}
     </div>

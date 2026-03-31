@@ -107,6 +107,7 @@ vi.mock("next/navigation", () => ({
 }))
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en-US",
   useTimeZone: () => "Asia/Taipei",
   useTranslations: (namespace: string) => (key: string, values?: Record<string, string | number>) =>
     formatMessage(messages[namespace]?.[key] ?? key, values),

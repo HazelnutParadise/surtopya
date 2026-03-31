@@ -459,9 +459,10 @@
     "startSurvey": "開始",
     "exitPreview": "プレビューを終了",
     "exitSurvey": "アンケートを終了",
-    "previewCompleteTitle": "プレビュー完了！",
-    "previewCompleteDescription": "実際のアンケートでは回答が保存されます。",
-    "previewCompleteResponses": "回答:",
+    "previewResultModalTitle": "プレビュー回答",
+    "previewResultBackToEdit": "編集に戻る",
+    "previewResultOpenFullPage": "全画面で開く",
+    "previewResultBackToModal": "ダイアログに戻る",
     "typeDescriptionSingle": "単一選択の質問",
     "typeDescriptionMulti": "複数選択の質問",
     "typeDescriptionText": "自由記述の質問",
@@ -665,6 +666,12 @@
     "noPreviewDataDescription": "ビルダーからプレビューを開いてください。",
     "backToBuilder": "ビルダーに戻る",
     "exitPreview": "プレビューを終了"
+  },
+  "PreviewResponseReview": {
+    "title": "プレビュー回答",
+    "empty": "まだ回答がありません。",
+    "otherTextLabel": "補足",
+    "ratingValue": "評価: {value} / {max}"
   },
   "Admin": {
     "title": "管理画面",

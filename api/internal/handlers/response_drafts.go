@@ -603,16 +603,23 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 	}
 
 	pointsAwarded := 0
-	if basePoints, err := loadSurveyBasePoints(tx); err == nil {
-		pointsAwarded = basePoints
-		if boostSpend > 0 {
-			if boostReward := boostSpend / 3; boostReward > 0 {
-				pointsAwarded += boostReward
-			}
-		}
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+	ownerUserID, err := h.surveyRepo.GetOwnerUserIDTx(tx, surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey owner"})
 		return
+	}
+	if ownerUserID != userID.(uuid.UUID) {
+		if basePoints, err := loadSurveyBasePoints(tx); err == nil {
+			pointsAwarded = basePoints
+			if boostSpend > 0 {
+				if boostReward := boostSpend / 3; boostReward > 0 {
+					pointsAwarded += boostReward
+				}
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+			return
+		}
 	}
 
 	responseID := uuid.New()
@@ -1013,9 +1020,20 @@ func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 		return
 	}
 
-	if err := h.pointsRepo.AwardSurveyPointsTx(tx, uid, surveyID, pointsAwarded, "Anonymous survey completion reward"); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
+	ownerUserID, err := h.surveyRepo.GetOwnerUserIDTx(tx, surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey owner"})
 		return
+	}
+
+	claimedPoints := pointsAwarded
+	if ownerUserID == uid {
+		claimedPoints = 0
+	} else {
+		if err := h.pointsRepo.AwardSurveyPointsTx(tx, uid, surveyID, pointsAwarded, "Anonymous survey completion reward"); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to award points"})
+			return
+		}
 	}
 
 	if _, err := tx.Exec(
@@ -1039,7 +1057,7 @@ func (h *ResponseHandler) ClaimAnonymousPoints(c *gin.Context) {
 		"message":       "Anonymous points claimed successfully",
 		"responseId":    responseID,
 		"surveyId":      surveyID,
-		"pointsAwarded": pointsAwarded,
+		"pointsAwarded": claimedPoints,
 		"status":        "claimed",
 	})
 }

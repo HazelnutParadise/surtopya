@@ -459,9 +459,10 @@
     "startSurvey": "開始問卷",
     "exitPreview": "離開預覽",
     "exitSurvey": "離開問卷",
-    "previewCompleteTitle": "預覽完成！",
-    "previewCompleteDescription": "在真實問卷中，回應會被儲存。",
-    "previewCompleteResponses": "回應：",
+    "previewResultModalTitle": "預覽填答結果",
+    "previewResultBackToEdit": "返回編輯",
+    "previewResultOpenFullPage": "展開完整頁面",
+    "previewResultBackToModal": "返回對話框",
     "typeDescriptionSingle": "單選題",
     "typeDescriptionMulti": "多選題",
     "typeDescriptionText": "文字問答題",
@@ -665,6 +666,12 @@
     "noPreviewDataDescription": "請從問卷編輯器開啟預覽。",
     "backToBuilder": "返回編輯器",
     "exitPreview": "離開預覽"
+  },
+  "PreviewResponseReview": {
+    "title": "預覽填答結果",
+    "empty": "目前還沒有可顯示的答案。",
+    "otherTextLabel": "補充內容",
+    "ratingValue": "{value} / {max}"
   },
   "Admin": {
     "title": "管理後台",

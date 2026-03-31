@@ -464,9 +464,10 @@
     "alreadySubmittedActionDisabled": "Already Submitted",
     "exitPreview": "Exit Preview",
     "exitSurvey": "Exit Survey",
-    "previewCompleteTitle": "Preview Complete!",
-    "previewCompleteDescription": "In a real survey, responses would be saved.",
-    "previewCompleteResponses": "Responses:",
+    "previewResultModalTitle": "Preview answers",
+    "previewResultBackToEdit": "Back to editing",
+    "previewResultOpenFullPage": "Open full page",
+    "previewResultBackToModal": "Back to dialog",
     "typeDescriptionSingle": "Single choice question",
     "typeDescriptionMulti": "Multiple choice question",
     "typeDescriptionText": "Open-ended question",
@@ -665,6 +666,12 @@
     "noPreviewDataDescription": "Please open preview from the survey builder.",
     "backToBuilder": "Back to Builder",
     "exitPreview": "Exit Preview"
+  },
+  "PreviewResponseReview": {
+    "title": "Preview answers",
+    "empty": "No answers yet.",
+    "otherTextLabel": "Details",
+    "ratingValue": "Rating: {value} / {max}"
   },
   "Admin": {
     "title": "Admin Console",

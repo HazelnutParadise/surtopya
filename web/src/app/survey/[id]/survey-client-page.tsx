@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Navbar } from "@/components/navbar"
+import { PreviewResponseReview } from "@/components/survey/preview-response-review"
 import { SurveyRenderer } from "@/components/survey/survey-renderer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -213,6 +214,8 @@ export function SurveyClientPage({
   const [mergeConflictState, setMergeConflictState] = useState<MergeConflictState | null>(null)
   const [mergeApplyingSource, setMergeApplyingSource] = useState<MergeSource | null>(null)
   const [mergeSaveError, setMergeSaveError] = useState<string | null>(null)
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown> | null>(null)
+  const [previewResultView, setPreviewResultView] = useState<"hidden" | "modal" | "full-screen">("hidden")
 
   const saveDebounceRef = useRef<number | null>(null)
   const rendererAnswersRef = useRef<Record<string, unknown>>({})
@@ -629,10 +632,8 @@ export function SurveyClientPage({
       if (!survey) return
 
       if (isPreview) {
-        console.info(
-          `${t("previewCompleteTitle")}\n\n${t("previewCompleteDescription")}\n\n${t("previewCompleteResponses")}\n` +
-            JSON.stringify(answers, null, 2)
-        )
+        setPreviewAnswers(answers)
+        setPreviewResultView("modal")
         return
       }
 
@@ -1198,6 +1199,41 @@ export function SurveyClientPage({
         {flowError ? (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] w-[min(720px,calc(100vw-2rem))] rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
             {flowError}
+          </div>
+        ) : null}
+
+        {isPreview && previewAnswers && previewResultView === "modal" ? (
+          <div className="fixed inset-0 z-[72] flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-4xl rounded-xl bg-white p-4 shadow-2xl dark:bg-gray-950">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">{t("previewResultModalTitle")}</h2>
+                <Button variant="ghost" size="sm" onClick={() => setPreviewResultView("hidden")}>
+                  {t("previewResultBackToEdit")}
+                </Button>
+              </div>
+              <div className="mt-4 max-h-[60vh] overflow-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                <PreviewResponseReview survey={survey} answers={previewAnswers} displayMode="modal" />
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={() => setPreviewResultView("full-screen")}>
+                  {t("previewResultOpenFullPage")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isPreview && previewAnswers && previewResultView === "full-screen" ? (
+          <div className="fixed inset-0 z-[73] overflow-auto bg-white dark:bg-gray-950">
+            <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95">
+              <div className="mx-auto flex max-w-5xl items-center justify-between">
+                <h2 className="text-sm font-semibold">{t("previewResultModalTitle")}</h2>
+                <Button variant="outline" onClick={() => setPreviewResultView("modal")}>
+                  {t("previewResultBackToModal")}
+                </Button>
+              </div>
+            </div>
+            <PreviewResponseReview survey={survey} answers={previewAnswers} displayMode="full-screen" />
           </div>
         ) : null}
 

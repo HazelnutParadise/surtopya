@@ -221,18 +221,26 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 
 	// Only authenticated users earn points.
 	if userID.Valid {
-		basePoints, err := loadSurveyBasePoints(tx)
+		ownerUserID, err := h.surveyRepo.GetOwnerUserIDTx(tx, surveyID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get survey owner"})
 			return
 		}
-		pointsAwarded = basePoints
 
-		// Survey boost spend is charged at publish time; each respondent earns 1/3 of configured spend.
-		if boostSpend > 0 {
-			boostReward = boostSpend / 3
-			if boostReward > 0 {
-				pointsAwarded += boostReward
+		if ownerUserID != userID.UUID {
+			basePoints, err := loadSurveyBasePoints(tx)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load system settings"})
+				return
+			}
+			pointsAwarded = basePoints
+
+			// Survey boost spend is charged at publish time; each respondent earns 1/3 of configured spend.
+			if boostSpend > 0 {
+				boostReward = boostSpend / 3
+				if boostReward > 0 {
+					pointsAwarded += boostReward
+				}
 			}
 		}
 	}

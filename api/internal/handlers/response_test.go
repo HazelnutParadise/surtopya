@@ -280,6 +280,9 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
@@ -325,6 +328,61 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"pointsAwarded":6`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_SubmitAllAnswers_OwnerGetsZeroPoints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	responseID := uuid.New()
+	surveyID := uuid.New()
+	versionID := uuid.New()
+	ownerID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 1, ownerID, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(ownerID))
+	mock.ExpectExec("UPDATE responses SET status = 'completed'").
+		WithArgs(responseID, sqlmock.AnyArg(), 0).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET response_count = response_count \\+ 1 WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery("FROM responses WHERE id = \\$1").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 1, ownerID, nil, "completed", 0, time.Now(), time.Now(), time.Now()))
+	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
+
+	r := gin.New()
+	r.POST("/api/v1/responses/:id/submit", h.SubmitAllAnswers)
+
+	body, err := json.Marshal(map[string]any{"answers": []any{}})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/responses/"+responseID.String()+"/submit", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"pointsAwarded":0`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -400,6 +458,9 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 9))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
