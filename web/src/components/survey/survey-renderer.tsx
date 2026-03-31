@@ -20,7 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Eye } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation";
 import { Survey, Question, SurveyTheme, LogicRule } from "@/types/survey"
-import { getContrastColor } from "@/lib/utils"
+import { cn, getContrastColor } from "@/lib/utils"
 import { getLocaleFromPath, withLocale } from "@/lib/locale"
 import { useTranslations } from "next-intl"
 import { MarkdownContent } from "@/components/ui/markdown-content";
@@ -53,6 +53,13 @@ interface SurveyRendererProps {
   noticeBar?: ReactNode
 }
 
+type QuestionValidationKind = "required" | "otherText" | "minSelections" | "maxSelections"
+
+type QuestionValidation = {
+  kind: QuestionValidationKind
+  message: string
+}
+
 export function SurveyRenderer({
   survey,
   theme,
@@ -74,8 +81,9 @@ export function SurveyRenderer({
     normalizeSurveyAnswerMap(survey, initialAnswers || {})
   )
   const [validationError, setValidationError] = useState<string | null>(null)
-  const [validationQuestionId, setValidationQuestionId] = useState<string | null>(null)
-  const [validationKind, setValidationKind] = useState<"required" | "otherText" | "minSelections" | "maxSelections" | null>(null)
+  const [questionErrors, setQuestionErrors] = useState<Record<string, QuestionValidation>>({})
+  const [touchedQuestions, setTouchedQuestions] = useState<Record<string, true>>({})
+  const [showValidationSummary, setShowValidationSummary] = useState(false)
 
   // Default theme
   const activeTheme = theme || {
@@ -96,6 +104,71 @@ export function SurveyRenderer({
   const currentPage = pages[currentStep] || { section: null, questions: [] }
   const pageHeader = currentPage.section
   const renderableQuestions = currentPage.questions
+  const questionLookup = useMemo(() => {
+    const lookup = new Map<string, Question>()
+    for (const question of survey.questions) {
+      if (question.type === "section") continue
+      lookup.set(question.id, question)
+    }
+    return lookup
+  }, [survey.questions])
+
+  const getQuestionValidation = (question: Question, rawAnswer: unknown): QuestionValidation | null => {
+    if (hasMissingRequiredOtherText(question, rawAnswer)) {
+      return {
+        kind: "otherText",
+        message: t("otherTextRequiredAlert", { question: question.title }),
+      }
+    }
+
+    if (question.required && !isQuestionAnswered(question, rawAnswer)) {
+      return {
+        kind: "required",
+        message: t("requiredAlert"),
+      }
+    }
+
+    const selectionIssue = getMultiSelectionValidationIssue(question, rawAnswer)
+    if (selectionIssue === "min") {
+      return {
+        kind: "minSelections",
+        message: t("minSelectionsAlert", { question: question.title, count: question.minSelections ?? 0 }),
+      }
+    }
+
+    if (selectionIssue === "max") {
+      return {
+        kind: "maxSelections",
+        message: t("maxSelectionsAlert", { question: question.title, count: question.maxSelections ?? 0 }),
+      }
+    }
+
+    return null
+  }
+
+  const collectQuestionErrors = (questions: Question[], nextAnswers: Record<string, unknown>) => {
+    const nextErrors: Record<string, QuestionValidation> = {}
+
+    for (const question of questions) {
+      const validation = getQuestionValidation(question, nextAnswers[question.id])
+      if (validation) {
+        nextErrors[question.id] = validation
+      }
+    }
+
+    return nextErrors
+  }
+
+  const getFirstValidationMessage = (questions: Question[], nextErrors: Record<string, QuestionValidation>) => {
+    for (const question of questions) {
+      const validation = nextErrors[question.id]
+      if (validation) {
+        return validation.message
+      }
+    }
+
+    return null
+  }
 
   const getLastMatchedLogicRule = (question: Question, rawAnswer: unknown): LogicRule | null => {
     if (!question.logic || question.logic.length === 0) return null
@@ -179,42 +252,32 @@ export function SurveyRenderer({
   const resolvedNextStep = resolvePageDestination()
 
   const handleNext = () => {
-    const missingOtherTextQuestion = renderableQuestions.find((question) =>
-      hasMissingRequiredOtherText(question, answers[question.id])
-    )
-    if (missingOtherTextQuestion) {
-      setValidationKind("otherText")
-      setValidationQuestionId(missingOtherTextQuestion.id)
-      setValidationError(t("otherTextRequiredAlert", { question: missingOtherTextQuestion.title }))
-      return
-    }
+    const nextPageErrors = collectQuestionErrors(renderableQuestions, answers)
+    const firstValidationMessage = getFirstValidationMessage(renderableQuestions, nextPageErrors)
 
-    const missingRequired = renderableQuestions.find((question) => {
-      return question.required && !isQuestionAnswered(question, answers[question.id])
+    setTouchedQuestions((prev) => {
+      const nextTouched = { ...prev }
+      for (const question of renderableQuestions) {
+        nextTouched[question.id] = true
+      }
+      return nextTouched
     })
-    if (missingRequired) {
-      setValidationKind("required")
-      setValidationQuestionId(missingRequired.id)
-      setValidationError(t("requiredAlert"))
-      return
-    }
+    setQuestionErrors((prev) => {
+      const nextErrors = { ...prev }
+      for (const question of renderableQuestions) {
+        delete nextErrors[question.id]
+      }
+      return { ...nextErrors, ...nextPageErrors }
+    })
 
-    const invalidSelectionQuestion = renderableQuestions.find((question) => getMultiSelectionValidationIssue(question, answers[question.id]))
-    if (invalidSelectionQuestion) {
-      const issue = getMultiSelectionValidationIssue(invalidSelectionQuestion, answers[invalidSelectionQuestion.id])
-      setValidationQuestionId(invalidSelectionQuestion.id)
-      setValidationKind(issue === "min" ? "minSelections" : "maxSelections")
-      setValidationError(
-        issue === "min"
-          ? t("minSelectionsAlert", { question: invalidSelectionQuestion.title, count: invalidSelectionQuestion.minSelections ?? 0 })
-          : t("maxSelectionsAlert", { question: invalidSelectionQuestion.title, count: invalidSelectionQuestion.maxSelections ?? 0 })
-      )
+    if (firstValidationMessage) {
+      setShowValidationSummary(true)
+      setValidationError(firstValidationMessage)
       return
     }
 
     setValidationError(null)
-    setValidationQuestionId(null)
-    setValidationKind(null)
+    setShowValidationSummary(false)
 
     if (resolvedNextStep == null) {
       if (onComplete) {
@@ -239,21 +302,54 @@ export function SurveyRenderer({
   };
 
   const handleAnswer = (questionId: string, value: unknown) => {
-    setValidationError(null)
-    setValidationQuestionId(null)
-    setValidationKind(null)
+    if (!touchedQuestions[questionId]) {
+      setTouchedQuestions((prev) => ({ ...prev, [questionId]: true }))
+    }
     if (currentHistoryIndex >= 0 && currentHistoryIndex < pageHistory.length - 1) {
       setPageHistory((prev) => prev.slice(0, currentHistoryIndex + 1))
     }
     setAnswers(prev => {
       const nextAnswers = { ...prev, [questionId]: value }
+      const question = questionLookup.get(questionId)
+      const nextValidation = question ? getQuestionValidation(question, nextAnswers[questionId]) : null
+      const nextPageErrors = showValidationSummary ? collectQuestionErrors(renderableQuestions, nextAnswers) : null
+
+      setQuestionErrors((prevErrors) => {
+        const updatedErrors = { ...prevErrors }
+
+        if (nextPageErrors) {
+          for (const pageQuestion of renderableQuestions) {
+            delete updatedErrors[pageQuestion.id]
+          }
+          return { ...updatedErrors, ...nextPageErrors }
+        }
+
+        if (nextValidation) {
+          updatedErrors[questionId] = nextValidation
+        } else {
+          delete updatedErrors[questionId]
+        }
+
+        return updatedErrors
+      })
+
+      if (nextPageErrors) {
+        const nextValidationError = getFirstValidationMessage(renderableQuestions, nextPageErrors)
+        setValidationError(nextValidationError)
+        if (!nextValidationError) {
+          setShowValidationSummary(false)
+        }
+      }
+
       onAnswerChange?.(questionId, value, nextAnswers)
       return nextAnswers
     })
   };
 
+  const getQuestionError = (questionId: string) => questionErrors[questionId] ?? null
+
   const showOtherTextError = (questionId: string) =>
-    validationKind === "otherText" && validationQuestionId === questionId
+    getQuestionError(questionId)?.kind === "otherText"
 
   const getNextMultiValue = (question: Question, optionLabel: string) => {
     const currentAnswers = getMultiAnswerValues(answers[question.id])
@@ -337,8 +433,20 @@ export function SurveyRenderer({
           </div>
         )}
 
-        {renderableQuestions.map((question) => (
-          <Card key={question.id} className="border-0 shadow-xl ring-1 ring-gray-200 dark:ring-gray-800 bg-white dark:bg-gray-900 mb-6">
+        {renderableQuestions.map((question) => {
+          const questionError = getQuestionError(question.id)
+          const questionHasError = Boolean(questionError)
+
+          return (
+          <Card
+            key={question.id}
+            data-testid={`survey-question-${question.id}`}
+            data-invalid={questionHasError ? "true" : undefined}
+            className={cn(
+              "border-0 shadow-xl ring-1 ring-gray-200 dark:ring-gray-800 bg-white dark:bg-gray-900 mb-6",
+              questionHasError && "border border-red-200 ring-red-200 dark:border-red-900/60 dark:ring-red-900/60"
+            )}
+          >
             <CardHeader className="space-y-1 pb-6">
               <div className="flex flex-wrap items-start gap-2">
                 <h3 className="flex-1 text-xl font-bold tracking-tight text-gray-900 dark:text-white">
@@ -361,7 +469,7 @@ export function SurveyRenderer({
               ) : null}
             </CardHeader>
             
-            <CardContent>
+            <CardContent className="space-y-4">
               {(question.type === "single") && (
                 (() => {
                   const value = getSingleAnswerValue(answers[question.id])
@@ -401,7 +509,7 @@ export function SurveyRenderer({
                             value={otherText}
                             onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
                             onClick={(e) => e.stopPropagation()}
-                            aria-invalid={showInlineOtherTextError}
+                            aria-invalid={showInlineOtherTextError || undefined}
                           />
                           {showInlineOtherTextError ? (
                             <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
@@ -450,7 +558,7 @@ export function SurveyRenderer({
                               value={getAnswerOtherText(answers[question.id])}
                               onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
                               onClick={(e) => e.stopPropagation()}
-                              aria-invalid={showInlineOtherTextError}
+                              aria-invalid={showInlineOtherTextError || undefined}
                             />
                             {showInlineOtherTextError ? (
                               <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
@@ -472,6 +580,7 @@ export function SurveyRenderer({
                   className="min-h-[150px] text-base resize-none bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
                   value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
+                  aria-invalid={questionHasError || undefined}
                 />
                   )
                 })()
@@ -486,6 +595,7 @@ export function SurveyRenderer({
                   className="h-12 text-base bg-gray-50 border-gray-200 focus:border-purple-500 focus:ring-purple-500/20 dark:bg-gray-800 dark:border-gray-700"
                   value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
+                  aria-invalid={questionHasError || undefined}
                 />
                   )
                 })()
@@ -528,7 +638,7 @@ export function SurveyRenderer({
                     value={value}
                     onValueChange={(nextValue) => handleAnswer(question.id, setSingleAnswerValue(question, answers[question.id], nextValue))}
                   >
-                    <SelectTrigger className="w-full h-12 text-base">
+                    <SelectTrigger className="w-full h-12 text-base" aria-invalid={questionHasError || undefined}>
                       <SelectValue placeholder={t("selectPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -549,7 +659,7 @@ export function SurveyRenderer({
                         value={getAnswerOtherText(answers[question.id])}
                         onChange={(e) => handleAnswer(question.id, setAnswerOtherText(question, answers[question.id], e.target.value))}
                         className={showInlineOtherTextError ? "border-red-300 focus-visible:ring-red-200" : ""}
-                        aria-invalid={showInlineOtherTextError}
+                        aria-invalid={showInlineOtherTextError || undefined}
                       />
                       {showInlineOtherTextError ? (
                         <p className="text-sm text-red-600">{t("otherTextRequiredHint")}</p>
@@ -571,13 +681,22 @@ export function SurveyRenderer({
                   aria-label={question.title}
                   value={value}
                   onChange={(e) => handleAnswer(question.id, e.target.value)}
+                  aria-invalid={questionHasError || undefined}
                 />
                   )
                 })()
               )}
+              {questionError && questionError.kind !== "otherText" ? (
+                <p
+                  data-testid={`survey-question-error-${question.id}`}
+                  className="text-sm text-red-600"
+                >
+                  {questionError.message}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
-        ))}
+        )})}
 
         <div className="flex justify-between pt-6">
           <Button 

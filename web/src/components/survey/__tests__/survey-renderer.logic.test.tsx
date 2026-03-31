@@ -426,7 +426,7 @@ describe("SurveyRenderer logic precedence", () => {
     fireEvent.click(screen.getByText("A"))
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
 
-    expect(screen.getByText('Select at least 2 options for "Choose options".')).toBeInTheDocument()
+    expect(screen.getAllByText('Select at least 2 options for "Choose options".')).toHaveLength(2)
 
     fireEvent.click(screen.getByText("B"))
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
@@ -436,7 +436,34 @@ describe("SurveyRenderer logic precedence", () => {
     fireEvent.click(screen.getByText("C"))
     fireEvent.click(screen.getByRole("button", { name: /submit/i }))
 
-    expect(screen.getByText('Select no more than 2 options for "Choose options".')).toBeInTheDocument()
+    expect(screen.getAllByText('Select no more than 2 options for "Choose options".')).toHaveLength(2)
+  })
+
+  it("keeps the current page and marks each invalid question when next validation fails", () => {
+    render(
+      <SurveyRenderer
+        survey={createSurvey([
+          { id: "page-1", type: "section", title: "Page 1", required: false },
+          { id: "q1", type: "short", title: "Question 1", required: true },
+          { id: "q2", type: "rating", title: "Question 2", required: true, maxRating: 5 },
+          { id: "page-2", type: "section", title: "Page 2", required: false },
+          { id: "q-page-2", type: "short", title: "Question on page 2", required: false },
+        ])}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /^next$/i }))
+
+    expect(screen.getByText("Question 1")).toBeInTheDocument()
+    expect(screen.queryByText("Question on page 2")).not.toBeInTheDocument()
+    expect(screen.getByTestId("survey-question-q1")).toHaveAttribute("data-invalid", "true")
+    expect(screen.getByTestId("survey-question-q2")).toHaveAttribute("data-invalid", "true")
+    expect(screen.getByTestId("survey-question-error-q1")).toHaveTextContent(
+      "Please complete required questions."
+    )
+    expect(screen.getByTestId("survey-question-error-q2")).toHaveTextContent(
+      "Please complete required questions."
+    )
   })
 
   it("shows submit when the resolved next step ends the flow before the last physical page", () => {
