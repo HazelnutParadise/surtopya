@@ -51,7 +51,8 @@ func surveyRowsForGetSurveyViewerTest(
 
 	questionCols := []string{
 		"id", "survey_id", "type", "title", "description", "options", "required",
-		"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+		"logic", "sort_order", "created_at", "updated_at",
 	}
 	questionRows := sqlmock.NewRows(questionCols)
 	return surveyRows, questionRows

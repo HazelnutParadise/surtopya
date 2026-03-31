@@ -76,7 +76,8 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 
 	questionCols := []string{
 		"id", "survey_id", "type", "title", "description", "options", "required",
-		"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+		"logic", "sort_order", "created_at", "updated_at",
 	}
 	questionRows := sqlmock.NewRows(questionCols)
 	return surveyRows, questionRows
@@ -432,6 +433,9 @@ func TestSurveyHandler_PublishSurvey_InvalidLogicRejectedBeforeSideEffects(t *te
 		[]byte(`[{"id":"opt-1","label":"Option 1"}]`),
 		false,
 		0,
+		nil,
+		nil,
+		nil,
 		[]byte(`[{"operator":"or","conditions":[{"optionId":"opt-1","match":"includes"}],"destinationQuestionId":"missing-question"}]`),
 		0,
 		time.Now().UTC(),

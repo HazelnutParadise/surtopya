@@ -308,42 +308,40 @@ export function SurveyRenderer({
     if (currentHistoryIndex >= 0 && currentHistoryIndex < pageHistory.length - 1) {
       setPageHistory((prev) => prev.slice(0, currentHistoryIndex + 1))
     }
-    setAnswers(prev => {
-      const nextAnswers = { ...prev, [questionId]: value }
-      const question = questionLookup.get(questionId)
-      const nextValidation = question ? getQuestionValidation(question, nextAnswers[questionId]) : null
-      const nextPageErrors = showValidationSummary ? collectQuestionErrors(renderableQuestions, nextAnswers) : null
+    const nextAnswers = { ...answers, [questionId]: value }
+    const question = questionLookup.get(questionId)
+    const nextValidation = question ? getQuestionValidation(question, nextAnswers[questionId]) : null
+    const nextPageErrors = showValidationSummary ? collectQuestionErrors(renderableQuestions, nextAnswers) : null
 
-      setQuestionErrors((prevErrors) => {
-        const updatedErrors = { ...prevErrors }
-
-        if (nextPageErrors) {
-          for (const pageQuestion of renderableQuestions) {
-            delete updatedErrors[pageQuestion.id]
-          }
-          return { ...updatedErrors, ...nextPageErrors }
-        }
-
-        if (nextValidation) {
-          updatedErrors[questionId] = nextValidation
-        } else {
-          delete updatedErrors[questionId]
-        }
-
-        return updatedErrors
-      })
+    setAnswers(nextAnswers)
+    setQuestionErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors }
 
       if (nextPageErrors) {
-        const nextValidationError = getFirstValidationMessage(renderableQuestions, nextPageErrors)
-        setValidationError(nextValidationError)
-        if (!nextValidationError) {
-          setShowValidationSummary(false)
+        for (const pageQuestion of renderableQuestions) {
+          delete updatedErrors[pageQuestion.id]
         }
+        return { ...updatedErrors, ...nextPageErrors }
       }
 
-      onAnswerChange?.(questionId, value, nextAnswers)
-      return nextAnswers
+      if (nextValidation) {
+        updatedErrors[questionId] = nextValidation
+      } else {
+        delete updatedErrors[questionId]
+      }
+
+      return updatedErrors
     })
+
+    if (nextPageErrors) {
+      const nextValidationError = getFirstValidationMessage(renderableQuestions, nextPageErrors)
+      setValidationError(nextValidationError)
+      if (!nextValidationError) {
+        setShowValidationSummary(false)
+      }
+    }
+
+    onAnswerChange?.(questionId, value, nextAnswers)
   };
 
   const getQuestionError = (questionId: string) => questionErrors[questionId] ?? null

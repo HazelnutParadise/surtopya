@@ -72,7 +72,8 @@ func singleQuestionRowsForUpdateVersioningTest(surveyID uuid.UUID, questionID uu
 	now := time.Now().UTC()
 	questionCols := []string{
 		"id", "survey_id", "type", "title", "description", "options", "required",
-		"max_rating", "logic", "sort_order", "created_at", "updated_at",
+		"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+		"logic", "sort_order", "created_at", "updated_at",
 	}
 	return sqlmock.NewRows(questionCols).AddRow(
 		questionID,
@@ -83,6 +84,9 @@ func singleQuestionRowsForUpdateVersioningTest(surveyID uuid.UUID, questionID uu
 		[]byte(`["Old option"]`),
 		true,
 		0,
+		nil,
+		nil,
+		nil,
 		[]byte(`[]`),
 		0,
 		now,
@@ -119,7 +123,8 @@ func TestSurveyHandler_UpdateSurvey_MetadataOnly_DoesNotMarkUnpublished(t *testi
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}))
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
@@ -233,6 +238,9 @@ func TestSurveyHandler_UpdateSurvey_QuestionChanged_MarksUnpublished(t *testing.
 			sqlmock.AnyArg(),
 			true,
 			0,
+			nil,
+			nil,
+			nil,
 			sqlmock.AnyArg(),
 			0,
 		).
@@ -337,6 +345,9 @@ func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(
 			sqlmock.AnyArg(),
 			true,
 			0,
+			nil,
+			nil,
+			nil,
 			sqlmock.AnyArg(),
 			0,
 		).

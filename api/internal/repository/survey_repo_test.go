@@ -172,7 +172,8 @@ func TestSurveyRepository_GetByIDForViewer_UsesUserContextForHasResponded(t *tes
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}))
 
 	survey, err := repo.GetByIDForViewer(surveyID, &userID, nil)
@@ -209,7 +210,8 @@ func TestSurveyRepository_GetByIDForViewer_UsesAnonymousContextForHasResponded(t
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}))
 
 	survey, err := repo.GetByIDForViewer(surveyID, nil, &anonymousID)
@@ -245,7 +247,8 @@ func TestSurveyRepository_GetByIDForViewer_NoViewerDefaultsHasRespondedFalse(t *
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}))
 
 	survey, err := repo.GetByIDForViewer(surveyID, nil, nil)
@@ -348,7 +351,8 @@ func TestSurveyRepository_GetQuestions_NormalizesStructuredOptions(t *testing.T)
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}).AddRow(
 			questionID,
 			surveyID,
@@ -358,6 +362,9 @@ func TestSurveyRepository_GetQuestions_NormalizesStructuredOptions(t *testing.T)
 			[]byte(`[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]`),
 			true,
 			0,
+			nil,
+			nil,
+			nil,
 			[]byte(`[]`),
 			0,
 			now,
@@ -386,7 +393,8 @@ func TestSurveyRepository_GetQuestions_NormalizesLegacyStringOptions(t *testing.
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "survey_id", "type", "title", "description", "options", "required",
-			"max_rating", "logic", "sort_order", "created_at", "updated_at",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
 		}).AddRow(
 			questionID,
 			surveyID,
@@ -396,6 +404,9 @@ func TestSurveyRepository_GetQuestions_NormalizesLegacyStringOptions(t *testing.
 			[]byte(`["Red","Blue"]`),
 			true,
 			0,
+			nil,
+			nil,
+			nil,
 			[]byte(`[]`),
 			0,
 			now,
@@ -433,6 +444,9 @@ func TestSurveyRepository_SaveQuestions_WritesStructuredOptions(t *testing.T) {
 			jsonArgumentMatcher{expected: `[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]`},
 			true,
 			0,
+			nil,
+			nil,
+			nil,
 			jsonArgumentMatcher{expected: `[]`},
 			0,
 		).
@@ -454,6 +468,107 @@ func TestSurveyRepository_SaveQuestions_WritesStructuredOptions(t *testing.T) {
 			MaxRating: 0,
 			Logic:     []models.LogicRule{},
 			SortOrder: 0,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_GetQuestions_LoadsSelectionBoundsAndDefaultDestination(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+	minSelections := 2
+	maxSelections := 4
+	defaultDestination := "page-2"
+
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
+		}).AddRow(
+			questionID,
+			surveyID,
+			"multi",
+			"Pick options",
+			"Desc",
+			[]byte(`["A","B","C"]`),
+			true,
+			0,
+			minSelections,
+			maxSelections,
+			defaultDestination,
+			[]byte(`[]`),
+			0,
+			now,
+			now,
+		))
+
+	questions, err := repo.GetQuestions(surveyID)
+	require.NoError(t, err)
+	require.Len(t, questions, 1)
+	require.NotNil(t, questions[0].MinSelections)
+	require.Equal(t, minSelections, *questions[0].MinSelections)
+	require.NotNil(t, questions[0].MaxSelections)
+	require.Equal(t, maxSelections, *questions[0].MaxSelections)
+	require.NotNil(t, questions[0].DefaultDestinationQuestionID)
+	require.Equal(t, defaultDestination, *questions[0].DefaultDestinationQuestionID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyRepository_SaveQuestions_WritesSelectionBoundsAndDefaultDestination(t *testing.T) {
+	repo, mock, cleanup := newSurveyRepoForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	questionID := uuid.New()
+	minSelections := 2
+	maxSelections := 4
+	defaultDestination := "page-2"
+
+	mock.ExpectBegin()
+	mock.ExpectExec("DELETE FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO questions").
+		WithArgs(
+			questionID,
+			surveyID,
+			"multi",
+			"Pick options",
+			sqlmock.AnyArg(),
+			jsonArgumentMatcher{expected: `[{"label":"A"},{"label":"B"},{"label":"C"}]`},
+			true,
+			0,
+			minSelections,
+			maxSelections,
+			defaultDestination,
+			jsonArgumentMatcher{expected: `[]`},
+			0,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	err := repo.SaveQuestions(surveyID, []models.Question{
+		{
+			ID:                           questionID,
+			SurveyID:                     surveyID,
+			Type:                         "multi",
+			Title:                        "Pick options",
+			Description:                  ptrString("Desc"),
+			Options:                      models.QuestionOptions{{Label: "A"}, {Label: "B"}, {Label: "C"}},
+			Required:                     true,
+			MaxRating:                    0,
+			MinSelections:                &minSelections,
+			MaxSelections:                &maxSelections,
+			DefaultDestinationQuestionID: &defaultDestination,
+			Logic:                        []models.LogicRule{},
+			SortOrder:                    0,
 		},
 	})
 	require.NoError(t, err)
