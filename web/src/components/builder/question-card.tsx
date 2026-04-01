@@ -1,7 +1,8 @@
 import React from "react";
-import { useSortable } from "@dnd-kit/sortable";
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Question } from "@/types/survey";
+import { Question, QuestionOption } from "@/types/survey";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,163 @@ import {
   isOtherTextRequiredQuestionOption,
   normalizeQuestionOptions,
 } from "@/lib/question-options";
+import { builderCollisionDetection } from "@/components/builder/survey-builder-drag";
+
+type ChoiceQuestionType = Extract<Question["type"], "single" | "multi" | "select">
+
+const renderChoiceMarker = (type: Question["type"]) => {
+  if (type === "multi") {
+    return (
+      <div
+        className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-emerald-500 bg-emerald-50 text-emerald-600 shadow-sm"
+        data-testid="question-choice-marker-multi"
+      >
+        <Check className="h-3.5 w-3.5" />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-sky-500 bg-sky-50 text-sky-600 shadow-sm"
+      data-testid="question-choice-marker-single"
+    >
+      <Circle className="h-2.5 w-2.5 fill-current stroke-none" />
+    </div>
+  )
+}
+
+interface SortableOptionRowProps {
+  option: QuestionOption & { id: string }
+  questionType: ChoiceQuestionType
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: (optionId: string) => void
+  onMoveDown: (optionId: string) => void
+  onOptionChange: (optionId: string, value: string) => void
+  onToggleOtherOption: (optionId: string) => void
+  onToggleRequireOtherText: (optionId: string, checked: boolean) => void
+  onToggleExclusiveOption: (optionId: string) => void
+  onRemoveOption: (optionId: string) => void
+  hasExclusiveOptionWarning: boolean
+  tBuilder: ReturnType<typeof useTranslations>
+}
+
+function SortableOptionRow({
+  option,
+  questionType,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onOptionChange,
+  onToggleOtherOption,
+  onToggleRequireOtherText,
+  onToggleExclusiveOption,
+  onRemoveOption,
+  hasExclusiveOptionWarning,
+  tBuilder,
+}: SortableOptionRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: option.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className={`space-y-2 ${isDragging ? "z-10" : ""}`}>
+      <div className={`flex items-center gap-2 rounded-lg ${isDragging ? "bg-purple-50" : ""}`}>
+        <div
+          {...attributes}
+          {...listeners}
+          aria-label={tBuilder("reorderOption")}
+          className="hidden cursor-grab items-center self-stretch px-1 text-gray-400 hover:text-purple-600 active:cursor-grabbing md:flex"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+        <div className="flex flex-col gap-2 md:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+            onClick={() => onMoveUp(option.id)}
+            disabled={!canMoveUp}
+            aria-label={tBuilder("moveOptionUp")}
+            data-testid={`option-move-up-${option.id}`}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+            onClick={() => onMoveDown(option.id)}
+            disabled={!canMoveDown}
+            aria-label={tBuilder("moveOptionDown")}
+            data-testid={`option-move-down-${option.id}`}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </div>
+        {renderChoiceMarker(questionType)}
+        <Input
+          value={getQuestionOptionLabel(option)}
+          onChange={(e) => onOptionChange(option.id, e.target.value)}
+          className="h-8 text-sm"
+        />
+        <Button
+          type="button"
+          variant={isOtherQuestionOption(option) ? "secondary" : "outline"}
+          size="sm"
+          className="h-8 shrink-0"
+          onClick={() => onToggleOtherOption(option.id)}
+        >
+          {tBuilder("otherOptionToggle")}
+        </Button>
+        {questionType === "multi" ? (
+          <Button
+            type="button"
+            variant={option.exclusive ? "secondary" : "outline"}
+            size="sm"
+            className={`h-8 shrink-0 ${
+              hasExclusiveOptionWarning ? "border-red-300 text-red-600 hover:bg-red-50" : ""
+            }`}
+            onClick={() => onToggleExclusiveOption(option.id)}
+          >
+            {tBuilder("exclusiveOptionToggle")}
+          </Button>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-gray-400 hover:text-red-500"
+          onClick={() => onRemoveOption(option.id)}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      {isOtherQuestionOption(option) ? (
+        <div className="ml-6 flex items-center justify-between rounded-md border border-dashed border-gray-200 px-3 py-2">
+          <span className="text-xs text-gray-600">{tBuilder("otherTextRequiredToggle")}</span>
+          <Switch
+            checked={isOtherTextRequiredQuestionOption(option)}
+            onCheckedChange={(checked) => onToggleRequireOtherText(option.id, checked)}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 interface QuestionCardProps {
   question: Question;
@@ -94,63 +252,118 @@ export function QuestionCard({
     opacity: isDragging && !isOverlay ? 0 : 1,
   };
 
-  const handleOptionChange = (index: number, value: string) => {
-    if (!question.options) return;
-    const newOptions = normalizeQuestionOptions(question.options) || [];
-    newOptions[index] = { ...newOptions[index], label: value };
-    onUpdate(question.id, { options: newOptions });
-  };
+  const isChoiceQuestion =
+    question.type === "single" || question.type === "multi" || question.type === "select"
+  const choiceQuestionType = isChoiceQuestion ? (question.type as ChoiceQuestionType) : null
+  const questionOptions = React.useMemo(
+    () =>
+      (normalizeQuestionOptions(question.options) || []).map((option, index) => ({
+        ...option,
+        id: option.id ?? `${question.id}-option-${index}`,
+      })),
+    [question.id, question.options]
+  )
+
+  const optionSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 4,
+      },
+    })
+  )
+
+  const updateOptions = React.useCallback(
+    (updater: (options: Array<QuestionOption & { id: string }>) => Array<QuestionOption & { id: string }>) => {
+      onUpdate(question.id, { options: updater(questionOptions) })
+    },
+    [onUpdate, question.id, questionOptions]
+  )
+
+  const handleOptionChange = (optionId: string, value: string) => {
+    if (!isChoiceQuestion) return
+    updateOptions((options) =>
+      options.map((option) => (option.id === optionId ? { ...option, label: value } : option))
+    )
+  }
 
   const addOption = () => {
-    if (!question.options) return;
+    if (!isChoiceQuestion) return;
     onUpdate(question.id, {
       options: [
-        ...(normalizeQuestionOptions(question.options) || []),
-        ...createDefaultQuestionOptions([tBuilder("optionLabel", { index: question.options.length + 1 })]),
+        ...questionOptions,
+        ...createDefaultQuestionOptions([tBuilder("optionLabel", { index: questionOptions.length + 1 })]),
       ],
     });
   };
 
-  const removeOption = (index: number) => {
-    if (!question.options) return;
-    const newOptions = (normalizeQuestionOptions(question.options) || []).filter((_, i) => i !== index);
-    onUpdate(question.id, { options: newOptions });
-  };
+  const removeOption = (optionId: string) => {
+    if (!isChoiceQuestion) return
+    updateOptions((options) => options.filter((option) => option.id !== optionId))
+  }
 
-  const toggleOtherOption = (index: number) => {
-    if (!question.options) return;
-    const currentOptions = normalizeQuestionOptions(question.options) || [];
-    const newOptions = currentOptions.map((option, optionIndex) => ({
-      ...option,
-      isOther: optionIndex === index ? !option.isOther : false,
-      requireOtherText: optionIndex === index ? (option.isOther ? false : option.requireOtherText === true) : false,
-    }));
-    onUpdate(question.id, { options: newOptions });
-  };
-
-  const toggleRequireOtherText = (index: number, checked: boolean) => {
-    if (!question.options) return;
-    const currentOptions = normalizeQuestionOptions(question.options) || [];
-    const newOptions = currentOptions.map((option, optionIndex) => {
-      if (optionIndex !== index) return option;
-      return {
+  const toggleOtherOption = (optionId: string) => {
+    if (!isChoiceQuestion) return
+    updateOptions((options) =>
+      options.map((option) => ({
         ...option,
-        requireOtherText: option.isOther ? checked : false,
-      };
-    });
-    onUpdate(question.id, { options: newOptions });
-  };
+        isOther: option.id === optionId ? !option.isOther : false,
+        requireOtherText:
+          option.id === optionId ? (option.isOther ? false : option.requireOtherText === true) : false,
+      }))
+    )
+  }
 
-  const toggleExclusiveOption = (index: number) => {
-    if (!question.options || question.type !== "multi") return;
-    const currentOptions = normalizeQuestionOptions(question.options) || [];
-    const nextExclusive = !currentOptions[index]?.exclusive;
-    const newOptions = currentOptions.map((option, optionIndex) => ({
-      ...option,
-      exclusive: optionIndex === index ? nextExclusive : false,
-    }));
-    onUpdate(question.id, { options: newOptions });
-  };
+  const toggleRequireOtherText = (optionId: string, checked: boolean) => {
+    if (!isChoiceQuestion) return
+    updateOptions((options) =>
+      options.map((option) => {
+        if (option.id !== optionId) return option
+        return {
+          ...option,
+          requireOtherText: option.isOther ? checked : false,
+        }
+      })
+    )
+  }
+
+  const toggleExclusiveOption = (optionId: string) => {
+    if (!isChoiceQuestion || question.type !== "multi") return;
+    const nextExclusive = !questionOptions.find((option) => option.id === optionId)?.exclusive;
+    updateOptions((options) =>
+      options.map((option) => ({
+        ...option,
+        exclusive: option.id === optionId ? nextExclusive : false,
+      }))
+    )
+  }
+
+  const moveOption = (optionId: string, direction: "up" | "down") => {
+    if (!isChoiceQuestion) return
+    const currentIndex = questionOptions.findIndex((option) => option.id === optionId)
+    if (currentIndex === -1) return
+
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1
+    if (nextIndex < 0 || nextIndex >= questionOptions.length) return
+
+    onUpdate(question.id, {
+      options: arrayMove(questionOptions, currentIndex, nextIndex),
+    })
+  }
+
+  const handleOptionDragEnd = (event: DragEndEvent) => {
+    if (!isChoiceQuestion) return
+
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = questionOptions.findIndex((option) => option.id === active.id)
+    const newIndex = questionOptions.findIndex((option) => option.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    onUpdate(question.id, {
+      options: arrayMove(questionOptions, oldIndex, newIndex),
+    })
+  }
 
   const handleSelectionBoundChange = (field: "minSelections" | "maxSelections", value: string) => {
     const trimmed = value.trim();
@@ -162,28 +375,6 @@ export function QuestionCard({
     const parsed = Number.parseInt(trimmed, 10);
     onUpdate(question.id, { [field]: Number.isFinite(parsed) ? parsed : undefined });
   };
-
-  const renderChoiceMarker = (type: Question["type"]) => {
-    if (type === "multi") {
-      return (
-        <div
-          className="flex h-5 w-5 items-center justify-center rounded-md border-2 border-emerald-500 bg-emerald-50 text-emerald-600 shadow-sm"
-          data-testid="question-choice-marker-multi"
-        >
-          <Check className="h-3.5 w-3.5" />
-        </div>
-      )
-    }
-
-    return (
-      <div
-        className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-sky-500 bg-sky-50 text-sky-600 shadow-sm"
-        data-testid="question-choice-marker-single"
-      >
-        <Circle className="h-2.5 w-2.5 fill-current stroke-none" />
-      </div>
-    )
-  }
 
   return (
     <div 
@@ -328,52 +519,35 @@ export function QuestionCard({
           <div className="pl-2">
             {(question.type === 'single' || question.type === 'multi' || question.type === 'select') && (
               <div className="space-y-2">
-                {question.options?.map((option, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                      {renderChoiceMarker(question.type)}
-                      <Input 
-                        value={getQuestionOptionLabel(option)} 
-                        onChange={(e) => handleOptionChange(index, e.target.value)}
-                        className="h-8 text-sm"
+                <DndContext
+                  sensors={optionSensors}
+                  collisionDetection={builderCollisionDetection}
+                  onDragEnd={handleOptionDragEnd}
+                >
+                  <SortableContext
+                    items={questionOptions.map((option) => option.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {questionOptions.map((option, index) => (
+                      <SortableOptionRow
+                        key={option.id}
+                        option={option}
+                        questionType={choiceQuestionType!}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < questionOptions.length - 1}
+                        onMoveUp={(optionId) => moveOption(optionId, "up")}
+                        onMoveDown={(optionId) => moveOption(optionId, "down")}
+                        onOptionChange={handleOptionChange}
+                        onToggleOtherOption={toggleOtherOption}
+                        onToggleRequireOtherText={toggleRequireOtherText}
+                        onToggleExclusiveOption={toggleExclusiveOption}
+                        onRemoveOption={removeOption}
+                        hasExclusiveOptionWarning={hasExclusiveOptionWarning}
+                        tBuilder={tBuilder}
                       />
-                      <Button
-                        type="button"
-                        variant={isOtherQuestionOption(option) ? "secondary" : "outline"}
-                        size="sm"
-                        className="h-8 shrink-0"
-                        onClick={() => toggleOtherOption(index)}
-                      >
-                        {tBuilder("otherOptionToggle")}
-                      </Button>
-                      {question.type === "multi" ? (
-                        <Button
-                          type="button"
-                          variant={option.exclusive ? "secondary" : "outline"}
-                          size="sm"
-                          className={`h-8 shrink-0 ${
-                            hasExclusiveOptionWarning ? "border-red-300 text-red-600 hover:bg-red-50" : ""
-                          }`}
-                          onClick={() => toggleExclusiveOption(index)}
-                        >
-                          {tBuilder("exclusiveOptionToggle")}
-                        </Button>
-                      ) : null}
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => removeOption(index)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {isOtherQuestionOption(option) ? (
-                      <div className="ml-6 flex items-center justify-between rounded-md border border-dashed border-gray-200 px-3 py-2">
-                        <span className="text-xs text-gray-600">{tBuilder("otherTextRequiredToggle")}</span>
-                        <Switch
-                          checked={isOtherTextRequiredQuestionOption(option)}
-                          onCheckedChange={(checked) => toggleRequireOtherText(index, checked)}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-                ))}
+                    ))}
+                  </SortableContext>
+                </DndContext>
                 <Button variant="ghost" size="sm" onClick={addOption} className="text-purple-600 hover:text-purple-700 hover:bg-purple-50">
                   <Plus className="mr-2 h-3 w-3" /> {tBuilder("addOption")}
                 </Button>

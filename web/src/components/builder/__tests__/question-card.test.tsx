@@ -12,6 +12,14 @@ vi.mock("@dnd-kit/sortable", () => ({
     transition: null,
     isDragging: false,
   }),
+  SortableContext: ({ children }: { children: React.ReactNode }) => children,
+  arrayMove: <T,>(items: T[], oldIndex: number, newIndex: number) => {
+    const nextItems = [...items]
+    const [movedItem] = nextItems.splice(oldIndex, 1)
+    nextItems.splice(newIndex, 0, movedItem)
+    return nextItems
+  },
+  verticalListSortingStrategy: vi.fn(),
 }))
 
 vi.mock("@dnd-kit/utilities", () => ({
@@ -31,6 +39,9 @@ const messages: Record<string, Record<string, string>> = {
     addOption: "Add Option",
     moveUp: "Move up",
     moveDown: "Move down",
+    moveOptionUp: "Move option up",
+    moveOptionDown: "Move option down",
+    reorderOption: "Reorder option",
     otherOptionToggle: "Other",
     exclusiveOptionToggle: "Exclusive option",
     otherTextRequiredToggle: "Require details",
@@ -305,5 +316,76 @@ describe("QuestionCard", () => {
     expect(screen.getByTestId("question-warning-indicator")).toBeInTheDocument()
     expect(screen.getByDisplayValue("3")).toHaveClass("border-red-300", "text-red-600")
     expect(screen.getByDisplayValue("1")).toHaveClass("border-red-300", "text-red-600")
+  })
+
+  it("reorders options with the mobile move buttons and preserves option metadata", () => {
+    const onUpdate = vi.fn()
+
+    render(
+      <QuestionCard
+        question={{
+          id: "q-option-order",
+          type: "multi",
+          title: "Choose",
+          required: false,
+          options: [
+            { id: "opt-a", label: "A", exclusive: true },
+            { id: "opt-b", label: "B", isOther: true, requireOtherText: true },
+          ],
+        }}
+        onUpdate={onUpdate}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId("option-move-down-opt-a"))
+
+    expect(onUpdate).toHaveBeenCalledWith("q-option-order", {
+      options: [
+        { id: "opt-b", label: "B", isOther: true, requireOtherText: true, exclusive: false },
+        { id: "opt-a", label: "A", isOther: false, requireOtherText: false, exclusive: true },
+      ],
+    })
+  })
+
+  it("renders option reorder controls only for choice questions", () => {
+    const { rerender } = render(
+      <QuestionCard
+        question={{
+          id: "q-choice-controls",
+          type: "single",
+          title: "Pick one",
+          required: false,
+          options: [{ id: "opt-a", label: "A" }],
+        }}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.getByLabelText("Move option down")).toBeInTheDocument()
+    expect(screen.getByLabelText("Reorder option")).toBeInTheDocument()
+
+    rerender(
+      <QuestionCard
+        question={{
+          id: "q-text-controls",
+          type: "text",
+          title: "Long answer",
+          required: false,
+        }}
+        onUpdate={() => {}}
+        onDelete={() => {}}
+        onDuplicate={() => {}}
+        onOpenLogic={() => {}}
+      />
+    )
+
+    expect(screen.queryByLabelText("Move option down")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Reorder option")).not.toBeInTheDocument()
   })
 })

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, useSensor, useSensors, PointerSensor, closestCenter } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Question, QuestionType } from "@/types/survey";
 import { Toolbox } from "./toolbox";
@@ -25,7 +25,13 @@ import { getQuestionLogicIssues, normalizeLogicRule, normalizeQuestionLogic } fr
 import { getPublishBlockingLogicEntries } from "@/lib/survey-publish-logic";
 import type { SurveyVersion } from "@/lib/api";
 import { VersionDocumentPreview, type SurveyVersionSnapshotPreview } from "@/components/survey/version-document-preview";
-import { getDragOverlayState } from "@/components/builder/survey-builder-drag";
+import {
+  builderCollisionDetection,
+  getDragOverlayState,
+  isBuilderDropTarget,
+  reorderSurveyQuestions,
+  upsertToolboxPlaceholder,
+} from "@/components/builder/survey-builder-drag";
 import {
   Tooltip,
   TooltipContent,
@@ -360,57 +366,25 @@ export function SurveyBuilder() {
     // If dragging a toolbox item over the canvas
     const activeData = (active.data.current as DragData | null) ?? null
     if (isToolboxDrag(activeData)) {
-      const isOverCanvas = over.id === 'canvas-droppable' || questions.some(q => q.id === over.id);
+      const overId = String(over.id)
+      const isOverCanvas = isBuilderDropTarget(overId, questions)
       
       if (isOverCanvas) {
-        // Check if we already have a placeholder
-        const hasPlaceholder = questions.some(q => q.id === 'placeholder');
-        
-        if (!hasPlaceholder) {
-          const type = activeData.type as QuestionType;
-          const placeholder: Question = {
-            id: 'placeholder',
-            type,
-            title: tBuilder("newQuestion"),
-            required: false,
-            options: type === 'single' || type === 'multi' || type === 'select'
-              ? createDefaultQuestionOptions([
-                  tBuilder("optionLabel", { index: 1 }),
-                  tBuilder("optionLabel", { index: 2 }),
-                ])
-              : undefined,
-          };
+        const type = activeData.type as QuestionType;
+        const placeholder: Question = {
+          id: 'placeholder',
+          type,
+          title: tBuilder("newQuestion"),
+          required: false,
+          options: type === 'single' || type === 'multi' || type === 'select'
+            ? createDefaultQuestionOptions([
+                tBuilder("optionLabel", { index: 1 }),
+                tBuilder("optionLabel", { index: 2 }),
+              ])
+            : undefined,
+        };
 
-          setQuestions(items => {
-            // Insert at the hover position or end
-            let overIndex = items.findIndex(item => item.id === over.id);
-            
-            // Prevent inserting before the first section
-            if (overIndex === 0 && items.length > 0 && items[0].type === 'section') {
-                overIndex = 1;
-            }
-
-            const newItems = [...items];
-            
-            if (overIndex !== -1) {
-              newItems.splice(overIndex, 0, placeholder);
-            } else {
-              newItems.push(placeholder);
-            }
-            return newItems;
-          });
-        } else {
-            // Move placeholder if needed
-            setQuestions(items => {
-                const activeIndex = items.findIndex(i => i.id === 'placeholder');
-                const overIndex = items.findIndex(i => i.id === over.id);
-                
-                if (overIndex !== -1 && activeIndex !== overIndex) {
-                    return arrayMove(items, activeIndex, overIndex);
-                }
-                return items;
-            });
-        }
+        setQuestions(items => upsertToolboxPlaceholder(items, placeholder, overId));
       }
     }
   };
@@ -428,7 +402,8 @@ export function SurveyBuilder() {
     }
 
     // Check if dropped on a valid target (canvas or existing question)
-    const isOverCanvas = over.id === 'canvas-droppable' || questions.some(q => q.id === over.id);
+    const overId = String(over.id)
+    const isOverCanvas = isBuilderDropTarget(overId, questions)
     if (!isOverCanvas) {
         setQuestions(cleanQuestions);
         clearDragState();
@@ -445,21 +420,8 @@ export function SurveyBuilder() {
       if (placeholderIndex !== -1) {
           const newItems = [...questions];
           newItems[placeholderIndex] = newQuestion;
-          
-          // Enforce: Cannot be before first section
-          if (placeholderIndex === 0 && newItems.length > 1 && newItems[1].type === 'section') {
-             // Swap if needed, but usually we just want to ensure it's not at 0 if 0 is section
-             // Actually, if 0 is section, we can't be at 0 unless we replaced it? No, placeholder is separate.
-             // If placeholder is at 0, and we have a section at 1 (previously 0), then we are before it.
-          }
-          
-          // Simpler enforcement: If index 0 is NOT a section, move it.
-          // But wait, we have "Page 1" which is a section.
-          // So items[0] MUST be a section.
-          
+
           if (newItems.length > 0 && newItems[0].type !== 'section') {
-              // We just replaced placeholder at 0 with a non-section.
-              // We need to move it to 1.
               const firstItem = newItems[0];
               newItems.splice(0, 1);
               newItems.splice(1, 0, firstItem);
@@ -479,73 +441,7 @@ export function SurveyBuilder() {
     } 
     // Reordering existing items
     else if (active.id !== over.id) {
-      setQuestions((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        
-        // If moving a section, move the whole block
-        if (items[oldIndex].type === 'section') {
-            // 1. Find the block of questions belonging to this section
-            let endIndex = oldIndex;
-            for (let i = oldIndex + 1; i < items.length; i++) {
-                if (items[i].type === 'section') break;
-                endIndex = i;
-            }
-            
-            const movingBlock = items.slice(oldIndex, endIndex + 1);
-            const remainingItems = items.filter((_, index) => index < oldIndex || index > endIndex);
-            
-            // 2. Find where to insert in the remaining items
-            const overIndexInRemaining = remainingItems.findIndex(item => item.id === over.id);
-            if (overIndexInRemaining === -1) return items;
-
-            // Find the section that the 'over' item belongs to
-            let targetSectionStart = overIndexInRemaining;
-            // Scan backwards to find the section header
-            while (targetSectionStart >= 0 && remainingItems[targetSectionStart].type !== 'section') {
-                targetSectionStart--;
-            }
-            
-            // If we somehow didn't find a section (e.g. dropped before first section?), default to 0
-            if (targetSectionStart < 0) targetSectionStart = 0;
-
-            // Find the end of this target section
-            let targetSectionEnd = targetSectionStart;
-            while (targetSectionEnd + 1 < remainingItems.length && remainingItems[targetSectionEnd + 1].type !== 'section') {
-                targetSectionEnd++;
-            }
-
-            // Decide insertion point: Before target section or After target section?
-            // Use original indices to determine direction
-            let insertIndex = targetSectionStart;
-            
-            if (oldIndex < newIndex) {
-                // Dragging down: Insert after the target section
-                insertIndex = targetSectionEnd + 1;
-            } else {
-                // Dragging up: Insert before the target section
-                insertIndex = targetSectionStart;
-            }
-            
-            const newItems = [
-                ...remainingItems.slice(0, insertIndex),
-                ...movingBlock,
-                ...remainingItems.slice(insertIndex)
-            ];
-            
-            return newItems;
-        }
-
-        // Normal question reordering
-        const newItems = arrayMove(items, oldIndex, newIndex);
-        
-        // Enforce: First item must be a section
-        if (newItems.length > 0 && newItems[0].type !== 'section') {
-            return items;
-        }
-        
-        return newItems;
-      });
+      setQuestions((items) => reorderSurveyQuestions(items, String(active.id), overId));
       notifyChange();
     } else {
         // If dropped on self or no change, just ensure placeholder is gone
@@ -1552,7 +1448,7 @@ export function SurveyBuilder() {
         ) : (
              <DndContext 
                 sensors={sensors} 
-                collisionDetection={closestCenter} 
+                collisionDetection={builderCollisionDetection} 
                 onDragStart={handleDragStart} 
                 onDragCancel={handleDragCancel}
                 onDragOver={handleDragOver}
@@ -1731,6 +1627,7 @@ export function SurveyBuilder() {
                           hasCriticalLogicWarning={hasCriticalLogicWarning}
                           hasSelectionBoundsWarning={hasSelectionBoundsWarning}
                           hasExclusiveOptionWarning={hasExclusiveOptionWarning}
+                          isDragging={activeId !== null}
                         />
                       </SortableContext>
                        <div className="mt-4 flex justify-center pb-12">

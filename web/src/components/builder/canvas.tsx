@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { Question } from "@/types/survey";
 import { QuestionCard } from "./question-card";
 import { useTranslations } from "next-intl";
+import { BUILDER_CANVAS_DROP_ID, BUILDER_CANVAS_TAIL_DROP_ID } from "@/components/builder/survey-builder-drag";
 
 interface CanvasProps {
   questions: Question[];
@@ -20,6 +21,7 @@ interface CanvasProps {
   hasCriticalLogicWarning: (questionId: string) => boolean;
   hasSelectionBoundsWarning: (questionId: string) => boolean;
   hasExclusiveOptionWarning: (questionId: string) => boolean;
+  isDragging?: boolean;
 }
 
 export function Canvas({
@@ -38,11 +40,15 @@ export function Canvas({
   hasCriticalLogicWarning,
   hasSelectionBoundsWarning,
   hasExclusiveOptionWarning,
+  isDragging = false,
 }: CanvasProps) {
   const t = useTranslations("SurveyBuilder");
   const { setNodeRef } = useDroppable({
-    id: 'canvas-droppable',
+    id: BUILDER_CANVAS_DROP_ID,
   });
+  const { setNodeRef: setTailDropRef, isOver: isTailOver } = useDroppable({
+    id: BUILDER_CANVAS_TAIL_DROP_ID,
+  })
 
   // Calculate which questions should be hidden (because they are being dragged with a section)
   const hiddenIds = React.useMemo(() => {
@@ -188,6 +194,22 @@ export function Canvas({
                         </div>
                     </div>
                 ))}
+                <div
+                  ref={setTailDropRef}
+                  data-testid="survey-canvas-tail-dropzone"
+                  className={`mt-6 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-all ${
+                    isTailOver
+                      ? "border-purple-500 bg-purple-50 text-purple-700 shadow-sm dark:bg-purple-900/20 dark:text-purple-300"
+                      : isDragging
+                        ? "border-purple-300 bg-white/70 text-purple-600 dark:border-purple-700 dark:bg-gray-900/60 dark:text-purple-300"
+                        : "border-gray-200 bg-white/40 text-gray-400 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-500"
+                  }`}
+                >
+                  <div className="text-sm font-semibold">
+                    {isTailOver ? t("endDropZoneActiveTitle") : t("endDropZoneTitle")}
+                  </div>
+                  <p className="mt-1 text-xs">{t("endDropZoneDescription")}</p>
+                </div>
             </>
         );
       })()}

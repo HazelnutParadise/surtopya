@@ -7,13 +7,16 @@
 | Area | Path | Why |
 | --- | --- | --- |
 | Root orchestrator | `survey-builder.tsx` | Central state, DnD orchestration, save/publish/version flows |
-| Canvas + sorting surface | `canvas.tsx`, `question-card.tsx` | Question list rendering and item interactions |
+| Canvas + sorting surface | `canvas.tsx`, `question-card.tsx` | Question list rendering, tail drop zone, and item interactions |
+| Drag helpers | `survey-builder-drag.ts` | Shared DnD ids, collision strategy, and pure reorder helpers |
 | Input sidebars | `toolbox.tsx`, `logic-editor.tsx`, `theme-editor.tsx` | Question insertion, rule editing, theme controls |
 | Preview path | `preview-modal.tsx` | In-builder draft preview UI |
 
 ## Current Contracts
-- `survey-builder.tsx` is currently large (~1688 lines) and remains the primary technical debt node.
+- `survey-builder.tsx` is currently large and remains the primary technical debt node, but drag math should stay in `survey-builder-drag.ts`.
 - DnD behavior uses `@dnd-kit/core` + `@dnd-kit/sortable` with typed drag events and sortable context.
+- The survey canvas has a dedicated tail drop zone for reliable append-to-end behavior.
+- Choice-question option reordering is handled inside `question-card.tsx` with nested sortable state; mobile still relies on explicit move buttons.
 - Mobile authoring uses stacked collapsible panels plus explicit move up/down controls; do not assume drag-and-drop is the primary mobile interaction.
 - Publish/share behavior must respect survey publish lock and dataset sharing lock helpers from `@/lib/survey-publish-locks`.
 - Builder flow includes consent gating before entering full editing UI.
@@ -21,6 +24,7 @@
 
 ## Anti-Patterns
 - Adding more unrelated concerns directly into `survey-builder.tsx`.
+- Reimplementing reorder/index math inline when `survey-builder-drag.ts` already owns it.
 - Coupling UI rendering logic with persistence/network logic when extraction is feasible.
 - Introducing question type support in only one location (toolbox or renderer) and leaving partial behavior.
 - Reintroducing mobile-only drag assumptions after click-to-add and explicit reorder controls were added.
