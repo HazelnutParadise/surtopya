@@ -42,12 +42,13 @@ func TestAuthorHandler_GetAuthor_DirectSlug(t *testing.T) {
 		WithArgs(authorID, 20, 0, nil, nil).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
-			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
 		}).AddRow(
 			uuid.New(), authorID, "Survey A", "Desc", "public", false, true,
 			true, true, 1, []byte("{}"), 3,
+			nil, nil,
 			nil, 12, now, now, now,
 			uuid.New(), 1, false, nil, false, false,
 		))
@@ -111,7 +112,7 @@ func TestAuthorHandler_GetAuthor_RedirectSlugResolvesCanonical(t *testing.T) {
 		WithArgs(authorID, 20, 0, nil, nil).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
-			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at", "is_hot", "has_responded",
 		}))

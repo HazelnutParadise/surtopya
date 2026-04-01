@@ -83,6 +83,8 @@ func (h *SurveyHandler) canPublishUnderPlanLimit(ctx context.Context, userID uui
 type CreateSurveyRequest struct {
 	Title                 string              `json:"title"`
 	Description           string              `json:"description"`
+	CompletionTitle       *string             `json:"completionTitle"`
+	CompletionMessage     *string             `json:"completionMessage"`
 	Visibility            string              `json:"visibility"`
 	RequireLoginToRespond bool                `json:"requireLoginToRespond"`
 	IncludeInDatasets     bool                `json:"includeInDatasets"`
@@ -127,6 +129,18 @@ func nullableStringEqual(left *string, right *string) bool {
 		return left == nil && right == nil
 	}
 	return *left == *right
+}
+
+func normalizeOptionalText(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func normalizeQuestionOptionsForType(questionType string, options models.QuestionOptions) (models.QuestionOptions, error) {
@@ -314,6 +328,8 @@ func (h *SurveyHandler) CreateSurvey(c *gin.Context) {
 		UserID:                userID.(uuid.UUID),
 		Title:                 req.Title,
 		Description:           req.Description,
+		CompletionTitle:       normalizeOptionalText(req.CompletionTitle),
+		CompletionMessage:     normalizeOptionalText(req.CompletionMessage),
 		Visibility:            req.Visibility,
 		IsResponseOpen:        false,
 		RequireLoginToRespond: req.RequireLoginToRespond,
@@ -488,6 +504,8 @@ func (h *SurveyHandler) GetPublicSurveys(c *gin.Context) {
 type UpdateSurveyRequest struct {
 	Title                 *string             `json:"title"`
 	Description           *string             `json:"description"`
+	CompletionTitle       *string             `json:"completionTitle"`
+	CompletionMessage     *string             `json:"completionMessage"`
 	Visibility            *string             `json:"visibility"`
 	RequireLoginToRespond *bool               `json:"requireLoginToRespond"`
 	IncludeInDatasets     *bool               `json:"includeInDatasets"`
@@ -542,6 +560,8 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 
 	questionChanges := false
+	originalCompletionTitle := survey.CompletionTitle
+	originalCompletionMessage := survey.CompletionMessage
 
 	// Update fields if provided
 	if req.Title != nil {
@@ -549,6 +569,12 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 	if req.Description != nil {
 		survey.Description = *req.Description
+	}
+	if req.CompletionTitle != nil {
+		survey.CompletionTitle = normalizeOptionalText(req.CompletionTitle)
+	}
+	if req.CompletionMessage != nil {
+		survey.CompletionMessage = normalizeOptionalText(req.CompletionMessage)
 	}
 	if req.Visibility != nil {
 		if *req.Visibility != "public" && *req.Visibility != "non-public" {
@@ -622,6 +648,11 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 
 	if questionChanges && survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true
+	}
+	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
+		if !nullableStringEqual(originalCompletionTitle, survey.CompletionTitle) || !nullableStringEqual(originalCompletionMessage, survey.CompletionMessage) {
+			survey.HasUnpublishedChanges = true
+		}
 	}
 
 	if err := h.repo.Update(survey); err != nil {
@@ -712,12 +743,16 @@ type surveySnapshotQuestion struct {
 }
 
 type surveySnapshot struct {
-	Questions []surveySnapshotQuestion `json:"questions"`
+	CompletionTitle   *string                  `json:"completionTitle,omitempty"`
+	CompletionMessage *string                  `json:"completionMessage,omitempty"`
+	Questions         []surveySnapshotQuestion `json:"questions"`
 }
 
 func buildSurveySnapshot(survey *models.Survey) ([]byte, error) {
 	snapshot := surveySnapshot{
-		Questions: buildSnapshotQuestionsFromModels(survey.Questions),
+		CompletionTitle:   survey.CompletionTitle,
+		CompletionMessage: survey.CompletionMessage,
+		Questions:         buildSnapshotQuestionsFromModels(survey.Questions),
 	}
 
 	return json.Marshal(snapshot)
@@ -1255,6 +1290,9 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 			SortOrder:   i,
 		}
 	}
+
+	survey.CompletionTitle = snapshot.CompletionTitle
+	survey.CompletionMessage = snapshot.CompletionMessage
 
 	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true

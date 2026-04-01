@@ -158,12 +158,12 @@ func TestSurveyRepository_GetByIDForViewer_UsesUserContextForHasResponded(t *tes
 		WithArgs(surveyID, userID, nil).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
-			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
 		}).AddRow(
 			surveyID, userID, "Survey", "Desc", "public", false, true,
-			true, true, 1, []byte("{}"), 0,
+			true, true, 1, []byte("{}"), 0, nil, nil,
 			nil, 3, now, now, now,
 			nil, nil, false, true, nil,
 		))
@@ -196,12 +196,12 @@ func TestSurveyRepository_GetByIDForViewer_UsesAnonymousContextForHasResponded(t
 		WithArgs(surveyID, nil, anonymousID).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
-			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
 		}).AddRow(
 			surveyID, userID, "Survey", "Desc", "public", false, true,
-			true, true, 1, []byte("{}"), 0,
+			true, true, 1, []byte("{}"), 0, nil, nil,
 			nil, 3, now, now, now,
 			nil, nil, false, true, nil,
 		))
@@ -233,12 +233,12 @@ func TestSurveyRepository_GetByIDForViewer_NoViewerDefaultsHasRespondedFalse(t *
 		WithArgs(surveyID, nil, nil).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open_effective",
-			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+			"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 			"expires_at", "response_count", "created_at", "updated_at", "published_at",
 			"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "has_responded", "deleted_at",
 		}).AddRow(
 			surveyID, userID, "Survey", "Desc", "public", false, true,
-			true, true, 1, []byte("{}"), 0,
+			true, true, 1, []byte("{}"), 0, nil, nil,
 			nil, 3, now, now, now,
 			nil, nil, false, false, nil,
 		))

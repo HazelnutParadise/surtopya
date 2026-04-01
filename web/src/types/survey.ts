@@ -59,6 +59,8 @@ export interface Survey {
     id: string;
     title: string;
     description: string;
+    completionTitle?: string;
+    completionMessage?: string;
     questions: Question[];
     theme?: SurveyTheme;
     settings: {

@@ -8,6 +8,8 @@ describe("mapApiSurveyToUi", () => {
       id: "s1",
       title: "Survey",
       description: "Desc",
+      completionTitle: "Thanks",
+      completionMessage: "See you soon",
       visibility: "public",
       requireLoginToRespond: true,
       isResponseOpen: true,
@@ -24,5 +26,7 @@ describe("mapApiSurveyToUi", () => {
     const mapped = mapApiSurveyToUi(survey)
 
     expect(mapped.settings.requireLoginToRespond).toBe(true)
+    expect(mapped.completionTitle).toBe("Thanks")
+    expect(mapped.completionMessage).toBe("See you soon")
   })
 })

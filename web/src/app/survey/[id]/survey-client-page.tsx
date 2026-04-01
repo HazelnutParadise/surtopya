@@ -49,6 +49,7 @@ import {
   writeAnonymousClaimContext,
   type AnonymousClaimContext,
 } from "@/lib/anonymous-claim"
+import { writeResponseCompletionCopy } from "@/lib/response-completion"
 
 interface SurveyClientPageProps {
   initialSurvey?: SurveyDisplay
@@ -698,6 +699,22 @@ export function SurveyClientPage({
         const pointsParam = Number.isFinite(pointsAwarded)
           ? Math.max(0, Math.floor(pointsAwarded))
           : 0
+        const responseId =
+          payload?.response?.id && typeof payload.response.id === "string"
+            ? payload.response.id
+            : null
+        const completion = payload?.completion
+        if (
+          responseId &&
+          completion &&
+          typeof completion === "object" &&
+          !Array.isArray(completion)
+        ) {
+          writeResponseCompletionCopy(responseId, {
+            title: typeof completion.title === "string" ? completion.title : undefined,
+            message: typeof completion.message === "string" ? completion.message : undefined,
+          })
+        }
         if (!isLoggedIn) {
           const claimContext = payload?.claimContext
           if (
@@ -725,7 +742,10 @@ export function SurveyClientPage({
             clearAnonymousClaimContext(payload.response.id)
           }
         }
-        const qs = new URLSearchParams({ points: String(pointsParam) }).toString()
+        const qs = new URLSearchParams({
+          points: String(pointsParam),
+          ...(responseId ? { responseId } : {}),
+        }).toString()
 
         router.push(withLocalePath(`/survey/thank-you?${qs}`))
       } catch (error) {

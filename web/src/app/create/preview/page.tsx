@@ -94,6 +94,17 @@ export default function PreviewPage() {
                 {tSurveyPage("previewResultBackToEdit")}
               </Button>
             </div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/40">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
+                {tSurveyPage("previewCompleteTitle")}
+              </p>
+              <h3 className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
+                {survey.completionTitle || "Thank you"}
+              </h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                {survey.completionMessage || tSurveyPage("privacyDescription")}
+              </p>
+            </div>
             <div className="max-h-[60vh] overflow-auto rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
               <PreviewResponseReview
                 survey={survey}

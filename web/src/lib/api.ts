@@ -154,6 +154,7 @@ class ApiClient {
       message: string;
       response: SurveyResponse;
       pointsAwarded: number;
+      completion?: ResponseCompletionCopy;
     }>(`/responses/${responseId}/submit`, {
       method: "POST",
       body: JSON.stringify({ answers }),
@@ -255,6 +256,8 @@ export interface Survey {
   };
   title: string;
   description: string;
+  completionTitle?: string;
+  completionMessage?: string;
   visibility: "public" | "non-public";
   requireLoginToRespond?: boolean;
   isResponseOpen: boolean;
@@ -283,6 +286,8 @@ export interface SurveyVersion {
   snapshot: {
     title: string;
     description: string;
+    completionTitle?: string;
+    completionMessage?: string;
     visibility: "public" | "non-public";
     includeInDatasets: boolean;
     theme?: SurveyTheme;
@@ -300,6 +305,8 @@ export interface SurveyVersion {
 export interface CreateSurveyRequest {
   title: string;
   description: string;
+  completionTitle?: string;
+  completionMessage?: string;
   visibility: "public" | "non-public";
   requireLoginToRespond?: boolean;
   includeInDatasets: boolean;
@@ -313,6 +320,8 @@ export interface CreateSurveyRequest {
 export interface UpdateSurveyRequest {
   title?: string;
   description?: string;
+  completionTitle?: string;
+  completionMessage?: string;
   requireLoginToRespond?: boolean;
   theme?: SurveyTheme;
   pointsReward?: number;
@@ -353,6 +362,11 @@ export interface Answer {
 export interface SubmitAnswerRequest {
   questionId: string;
   value: AnswerValue;
+}
+
+export interface ResponseCompletionCopy {
+  title?: string;
+  message?: string;
 }
 
 export interface SurveyResponse {

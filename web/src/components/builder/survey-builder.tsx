@@ -132,6 +132,8 @@ export function SurveyBuilder() {
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<'builder' | 'settings'>('builder');
   const [description, setDescription] = useState("");
+  const [completionTitle, setCompletionTitle] = useState("");
+  const [completionMessage, setCompletionMessage] = useState("");
   const [pointsReward, setPointsReward] = useState(0);
   const [expiresAtLocal, setExpiresAtLocal] = useState("");
   const [surveyId, setSurveyId] = useState<string | null>(null);
@@ -205,6 +207,8 @@ export function SurveyBuilder() {
   const [settingsDraft, setSettingsDraft] = useState<{
       title: string;
       description: string;
+      completionTitle: string;
+      completionMessage: string;
       pointsReward: number;
       expiresAtLocal: string;
       isPublic: boolean;
@@ -217,6 +221,8 @@ export function SurveyBuilder() {
   const hasUnsavedSettings = settingsDraft ? (
       settingsDraft.title !== title || 
       settingsDraft.description !== description || 
+      settingsDraft.completionTitle !== completionTitle ||
+      settingsDraft.completionMessage !== completionMessage ||
       settingsDraft.pointsReward !== pointsReward || 
       settingsDraft.expiresAtLocal !== expiresAtLocal ||
       settingsDraft.isPublic !== isPublic ||
@@ -783,6 +789,8 @@ export function SurveyBuilder() {
     setSurveyId(mapped.id)
     setTitle(mapped.title)
     setDescription(mapped.description)
+    setCompletionTitle(mapped.completionTitle || "")
+    setCompletionMessage(mapped.completionMessage || "")
     setQuestions(safeQuestions)
     setTheme(
       mapped.theme || {
@@ -900,6 +908,8 @@ export function SurveyBuilder() {
       const payload = {
         title,
         description,
+        completionTitle,
+        completionMessage,
         visibility: isPublic ? "public" : "non-public",
         requireLoginToRespond,
         includeInDatasets: getSurveyDatasetSharingEffectiveValue({
@@ -1006,6 +1016,8 @@ export function SurveyBuilder() {
       id: 'preview',
       title,
       description,
+      completionTitle,
+      completionMessage,
       questions,
       settings: {
         isPublic,
@@ -1122,6 +1134,8 @@ export function SurveyBuilder() {
                                     setSettingsDraft({
                                         title,
                                         description,
+                                        completionTitle,
+                                        completionMessage,
                                         pointsReward,
                                         expiresAtLocal,
                                         isPublic,
@@ -1419,6 +1433,54 @@ export function SurveyBuilder() {
                                 </div>
                             )}
                         </div>
+
+                        <div
+                            className="space-y-4 rounded-xl border border-gray-200 bg-gray-50/80 p-5 dark:border-gray-800 dark:bg-gray-950/60"
+                            data-testid="builder-settings-completion-card"
+                        >
+                            <div className="space-y-1">
+                                <label className="text-sm font-bold flex items-center gap-2">
+                                    <Send className="h-4 w-4 text-purple-600" />
+                                    {tBuilder("completionCopySectionTitle")}
+                                </label>
+                                <p className="text-xs leading-relaxed text-gray-500">
+                                    {tBuilder("completionCopyDescription")}
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium" htmlFor="completion-title-input">
+                                    {tBuilder("completionTitleLabel")}
+                                </label>
+                                <Input
+                                    id="completion-title-input"
+                                    value={settingsDraft?.completionTitle || ""}
+                                    onChange={(e) =>
+                                      setSettingsDraft(prev =>
+                                        prev ? ({ ...prev, completionTitle: e.target.value }) : null
+                                      )
+                                    }
+                                    placeholder={tBuilder("completionTitlePlaceholder")}
+                                    data-testid="builder-settings-completion-title"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium" htmlFor="completion-message-input">
+                                    {tBuilder("completionMessageLabel")}
+                                </label>
+                                <textarea
+                                    id="completion-message-input"
+                                    value={settingsDraft?.completionMessage || ""}
+                                    onChange={(e) =>
+                                      setSettingsDraft(prev =>
+                                        prev ? ({ ...prev, completionMessage: e.target.value }) : null
+                                      )
+                                    }
+                                    placeholder={tBuilder("completionMessagePlaceholder")}
+                                    data-testid="builder-settings-completion-message"
+                                    className="min-h-[120px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:border-gray-800 dark:bg-gray-900"
+                                />
+                            </div>
+                        </div>
                         
                         <div className="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
                              <Button variant="ghost" onClick={() => setViewMode('builder')} className="text-gray-500 hover:text-gray-700">
@@ -1430,6 +1492,8 @@ export function SurveyBuilder() {
                                  if (settingsDraft) {
                                      setTitle(settingsDraft.title);
                                      setDescription(settingsDraft.description);
+                                     setCompletionTitle(settingsDraft.completionTitle);
+                                     setCompletionMessage(settingsDraft.completionMessage);
                                      setPointsReward(settingsDraft.pointsReward);
                                      setExpiresAtLocal(settingsDraft.expiresAtLocal);
                                      setIsPublic(settingsDraft.isPublic);

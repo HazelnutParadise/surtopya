@@ -37,7 +37,7 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 	now := time.Now().UTC()
 	surveyCols := []string{
 		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
-		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
 	}
@@ -54,6 +54,8 @@ func surveyGetByIDRowsForTest(id uuid.UUID, userID uuid.UUID, pointsReward int, 
 		1,
 		[]byte("{}"),
 		pointsReward,
+		nil,
+		nil,
 		nil,
 		0,
 		now,
@@ -506,6 +508,70 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_SubmitAllAnswers_ReturnsCompletionCopyFromSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	responseID := uuid.New()
+	surveyID := uuid.New()
+	versionID := uuid.New()
+	respondentID := uuid.New()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, user_id, status FROM responses WHERE id = \\$1 FOR UPDATE").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 3, respondentID, "in_progress"))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(versionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"completionTitle":"Custom title","completionMessage":"Custom message","questions":[]}`), 0))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
+	mock.ExpectExec("UPDATE responses SET status = 'completed'").
+		WithArgs(responseID, sqlmock.AnyArg(), 6).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET response_count = response_count \\+ 1 WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2 WHERE id = \\$1").
+		WithArgs(respondentID, 6).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), respondentID, 6, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery("FROM responses WHERE id = \\$1").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 3, respondentID, nil, "completed", 6, time.Now(), time.Now(), time.Now()))
+	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
+		WithArgs(responseID).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
+
+	r := gin.New()
+	r.POST("/api/v1/responses/:id/submit", h.SubmitAllAnswers)
+
+	body, err := json.Marshal(map[string]any{"answers": []any{}})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/responses/"+responseID.String()+"/submit", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Custom title","message":"Custom message"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

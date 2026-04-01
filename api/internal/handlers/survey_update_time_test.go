@@ -24,7 +24,7 @@ func surveyRowsForUpdateTimeTest(id uuid.UUID, userID uuid.UUID, expiresAt *time
 
 	surveyCols := []string{
 		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
-		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
 	}
@@ -41,6 +41,8 @@ func surveyRowsForUpdateTimeTest(id uuid.UUID, userID uuid.UUID, expiresAt *time
 		0,
 		[]byte("{}"),
 		0,
+		nil,
+		nil,
 		expiresAtValue,
 		0,
 		now,
@@ -128,6 +130,8 @@ func TestSurveyHandler_UpdateSurvey_ConvertsExpiresAtLocalToUTC(t *testing.T) {
 			0,
 			sqlmock.AnyArg(),
 			0,
+			nil,
+			nil,
 			time.Date(2099, 3, 11, 7, 0, 0, 0, time.UTC),
 			nil,
 			nil,
@@ -238,6 +242,8 @@ func TestSurveyHandler_UpdateSurvey_AllowsClearingExpiresAt(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
+			nil,
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -298,6 +304,8 @@ func TestSurveyHandler_UpdateSurvey_AllowsKeepingUnchangedLegacyPastExpiresAt(t 
 			0,
 			sqlmock.AnyArg(),
 			0,
+			nil,
+			nil,
 			legacyPast,
 			nil,
 			nil,

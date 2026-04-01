@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,24 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
+
+type snapshotContainsMatcher struct {
+	substrings []string
+}
+
+func (m snapshotContainsMatcher) Match(value driver.Value) bool {
+	raw, ok := value.([]byte)
+	if !ok {
+		return false
+	}
+	text := string(raw)
+	for _, needle := range m.substrings {
+		if !strings.Contains(text, needle) {
+			return false
+		}
+	}
+	return true
+}
 
 func newSurveyHandlerForPublishTest(t *testing.T) (*SurveyHandler, sqlmock.Sqlmock, func()) {
 	t.Helper()
@@ -46,7 +66,7 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 
 	surveyCols := []string{
 		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
-		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
 	}
@@ -63,6 +83,8 @@ func surveyRowsForPublishTest(id uuid.UUID, userID uuid.UUID, visibility string,
 		publishedCount,
 		[]byte("{}"),
 		pointsReward,
+		"Thanks for finishing",
+		"We will review your answers soon.",
 		nil,
 		0,
 		now,
@@ -722,5 +744,78 @@ func TestSurveyHandler_OpenSurveyResponses_ExpiredVersionReturnsConflict(t *test
 
 	require.Equal(t, http.StatusConflict, w.Code)
 	require.Contains(t, w.Body.String(), publishedVersionExpiredError)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_PublishSurvey_SnapshotIncludesCompletionCopy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 0, 0, false, nil, nil)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
+		WithArgs(surveyID, snapshotContainsMatcher{substrings: []string{`"completionTitle":"Thanks for finishing"`, `"completionMessage":"We will review your answers soon."`}}).
+		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(1))
+	mock.ExpectQuery("INSERT INTO survey_versions").
+		WithArgs(
+			sqlmock.AnyArg(),
+			surveyID,
+			1,
+			sqlmock.AnyArg(),
+			0,
+			nil,
+			sqlmock.AnyArg(),
+			publisherID,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
+	mock.ExpectExec("UPDATE surveys SET").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.PublishSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      0,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"completionTitle":"Thanks for finishing"`)
+	require.Contains(t, w.Body.String(), `"completionMessage":"We will review your answers soon."`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

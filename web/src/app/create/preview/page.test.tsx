@@ -21,6 +21,7 @@ const messages: Record<string, Record<string, string>> = {
     previewResultBackToEdit: "Back to editing",
     previewResultOpenFullPage: "Open full page",
     previewResultBackToModal: "Back to dialog",
+    privacyDescription: "Your responses are anonymous and used only for research purposes.",
   },
   Common: {
     cancel: "Cancel",
@@ -66,17 +67,19 @@ vi.mock("@/components/survey/survey-renderer", () => ({
 
 describe("create preview page", () => {
   beforeEach(() => {
-    sessionStorage.clear()
+    window.sessionStorage.clear()
     mocks.push.mockReset()
     mocks.close.mockReset()
     vi.stubGlobal("close", mocks.close)
 
-    sessionStorage.setItem(
+    window.sessionStorage.setItem(
       "preview_survey",
       JSON.stringify({
         id: "survey-1",
         title: "Preview survey",
         description: "Description",
+        completionTitle: "Custom thanks",
+        completionMessage: "We will review your answers soon.",
         settings: {
           isPublic: true,
           isResponseOpen: true,
@@ -99,7 +102,7 @@ describe("create preview page", () => {
         ],
       })
     )
-    sessionStorage.setItem(
+    window.sessionStorage.setItem(
       "preview_theme",
       JSON.stringify({
         primaryColor: "#000000",
@@ -121,6 +124,8 @@ describe("create preview page", () => {
     expect(screen.queryByText("Responses:")).not.toBeInTheDocument()
     expect(screen.queryByText(/\{/)).not.toBeInTheDocument()
     expect(screen.getByText("Preview answers")).toBeInTheDocument()
+    expect(screen.getByText("Custom thanks")).toBeInTheDocument()
+    expect(screen.getByText("We will review your answers soon.")).toBeInTheDocument()
     expect(screen.getByText("Favorite choice")).toBeInTheDocument()
     expect(screen.getByText("Custom answer")).toBeInTheDocument()
 

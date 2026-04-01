@@ -280,6 +280,7 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": surveyVersionNumber,
+		"completion":          completionCopyFromSnapshot(snapshot),
 	})
 }
 

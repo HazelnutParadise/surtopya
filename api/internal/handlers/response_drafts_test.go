@@ -24,7 +24,7 @@ func surveyRowsForAnonymousResponseTest(
 	now := time.Now().UTC()
 	surveyCols := []string{
 		"id", "user_id", "title", "description", "visibility", "require_login_to_respond", "is_response_open",
-		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward",
+		"include_in_datasets", "ever_public", "published_count", "theme", "points_reward", "completion_title", "completion_message",
 		"expires_at", "response_count", "created_at", "updated_at", "published_at",
 		"current_published_version_id", "current_published_version_number", "has_unpublished_changes", "deleted_at",
 	}
@@ -41,6 +41,8 @@ func surveyRowsForAnonymousResponseTest(
 		1,
 		[]byte("{}"),
 		pointsReward,
+		nil,
+		nil,
 		nil,
 		0,
 		now,
@@ -319,7 +321,7 @@ func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.
 			versionID,
 			surveyID,
 			1,
-			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			[]byte(`{"completionTitle":"Thanks","completionMessage":"See you again","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			9,
 			nil,
 			now,
@@ -331,7 +333,7 @@ func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow(
-			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			[]byte(`{"completionTitle":"Thanks","completionMessage":"See you again","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			9,
 		))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
@@ -388,6 +390,7 @@ func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
 	require.Contains(t, w.Body.String(), `"claimContext"`)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Thanks","message":"See you again"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -714,6 +717,132 @@ func TestResponseHandler_SubmitDraft_OwnerGetsZeroPoints(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"pointsAwarded":0`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestResponseHandler_SubmitDraft_ReturnsCompletionCopyFromSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	draftID := uuid.New()
+	surveyID := uuid.New()
+	respondentID := uuid.New()
+	ownerID := uuid.New()
+	surveyVersionID := uuid.New()
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, started_at\\s+FROM response_drafts").
+		WithArgs(draftID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "started_at"}).AddRow(
+			surveyID, surveyVersionID, 2, now,
+		))
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, true, surveyVersionID, 2)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(
+			surveyVersionID,
+			surveyID,
+			2,
+			[]byte(`{"completionTitle":"Draft title","completionMessage":"Draft message","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			0,
+			nil,
+			now,
+			ownerID,
+			now,
+		))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(surveyVersionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow(
+			[]byte(`{"completionTitle":"Draft title","completionMessage":"Draft message","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			0,
+		))
+	mock.ExpectExec("INSERT INTO response_draft_answers").
+		WithArgs(sqlmock.AnyArg(), draftID, questionID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT question_id, value\\s+FROM response_draft_answers\\s+WHERE draft_id = \\$1").
+		WithArgs(draftID).
+		WillReturnRows(sqlmock.NewRows([]string{"question_id", "value"}).AddRow(
+			questionID,
+			[]byte(`{"text":"hello"}`),
+		))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(ownerID))
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
+	mock.ExpectExec("INSERT INTO responses").
+		WithArgs(sqlmock.AnyArg(), surveyID, surveyVersionID, 2, respondentID, 6, now, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO survey_response_once_locks").
+		WithArgs(sqlmock.AnyArg(), surveyID, sqlmock.AnyArg(), respondentID, nil, "authenticated_submit").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO answers").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), questionID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET response_count = response_count \\+ 1 WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2 WHERE id = \\$1").
+		WithArgs(respondentID, 6).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), respondentID, 6, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("DELETE FROM response_drafts WHERE id = \\$1").
+		WithArgs(draftID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery("FROM responses WHERE id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(uuid.New(), surveyID, surveyVersionID, 2, respondentID, nil, "completed", 6, now, now, now))
+	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}))
+
+	r := gin.New()
+	r.POST("/api/v1/drafts/:id/submit", func(c *gin.Context) {
+		c.Set("userID", respondentID)
+		h.SubmitDraft(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"answers": []map[string]any{
+			{
+				"questionId": questionID.String(),
+				"value": map[string]any{
+					"text": "hello",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/"+draftID.String()+"/submit", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Draft title","message":"Draft message"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

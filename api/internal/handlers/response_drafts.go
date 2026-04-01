@@ -30,6 +30,11 @@ type SaveDraftAnswersBulkRequest struct {
 	Answers []SubmitAnswerRequest `json:"answers"`
 }
 
+type completionCopyPayload struct {
+	Title   *string `json:"title,omitempty"`
+	Message *string `json:"message,omitempty"`
+}
+
 const (
 	loginRequiredToRespondCode = "LOGIN_REQUIRED_TO_RESPOND"
 	alreadySubmittedCode       = "ALREADY_SUBMITTED"
@@ -139,6 +144,17 @@ func validateRequiredSupplementalAnswersOrRespond(c *gin.Context, snapshot surve
 		return false
 	}
 	return true
+}
+
+func completionCopyFromSnapshot(snapshot surveySnapshot) *completionCopyPayload {
+	if snapshot.CompletionTitle == nil && snapshot.CompletionMessage == nil {
+		return nil
+	}
+
+	return &completionCopyPayload{
+		Title:   snapshot.CompletionTitle,
+		Message: snapshot.CompletionMessage,
+	}
 }
 
 func (h *ResponseHandler) ensureSurveyAcceptingResponses(surveyID uuid.UUID) (*models.Survey, *models.SurveyVersion, int, string) {
@@ -707,6 +723,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": surveyVersionNumber,
+		"completion":          completionCopyFromSnapshot(snapshot),
 	})
 }
 
@@ -924,6 +941,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": version.VersionNumber,
+		"completion":          completionCopyFromSnapshot(snapshot),
 	}
 	if claimContext != nil {
 		payload["claimContext"] = claimContext

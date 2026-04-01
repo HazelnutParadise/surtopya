@@ -50,6 +50,8 @@ export const mapApiSurveyToUi = (survey: ApiSurvey): SurveyDisplay => {
     id: survey.id,
     title: survey.title,
     description: survey.description,
+    completionTitle: survey.completionTitle || undefined,
+    completionMessage: survey.completionMessage || undefined,
     questions,
     theme: survey.theme,
     settings: {

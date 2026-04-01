@@ -14,6 +14,7 @@ import {
   readActiveAnonymousClaimContext,
   type AnonymousClaimContext,
 } from "@/lib/anonymous-claim";
+import { readResponseCompletionCopy } from "@/lib/response-completion";
 import type { UserProfile } from "@/lib/api";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { resolveUiError, toUiErrorMessage } from "@/lib/ui-error";
@@ -30,6 +31,8 @@ export default function ThankYouPage() {
   const pointsRaw = searchParams.get("points") || "0"
   const parsedPoints = Number.parseInt(pointsRaw, 10)
   const points = Number.isFinite(parsedPoints) ? Math.max(0, parsedPoints) : 0
+  const responseId = searchParams.get("responseId") || ""
+  const storedCompletion = responseId ? readResponseCompletionCopy(responseId) : null
   const [displayPoints, setDisplayPoints] = useState(points)
   const [claimContext, setClaimContext] = useState<AnonymousClaimContext | null>(null)
   const [claimResult, setClaimResult] = useState<"claimed" | "forfeited" | null>(null)
@@ -170,7 +173,7 @@ export default function ThankYouPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 mb-4">
             <CheckCircle2 className="h-10 w-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">{t("title")}</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">{storedCompletion?.title || t("title")}</h1>
           <p className="text-white/80">{t("subtitle")}</p>
         </div>
         
@@ -189,7 +192,7 @@ export default function ThankYouPage() {
           </div>
 
           <p className="text-gray-600 dark:text-gray-400">
-            {t("message")}
+            {storedCompletion?.message || t("message")}
           </p>
 
           {claimContext ? (

@@ -54,8 +54,8 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 			require_login_to_respond,
 			include_in_datasets, ever_public, published_count,
 			current_published_version_id, current_published_version_number,
-			theme, points_reward, expires_at, has_unpublished_changes
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			theme, points_reward, completion_title, completion_message, expires_at, has_unpublished_changes
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING id, created_at, updated_at
 	`
 
@@ -65,7 +65,7 @@ func (r *SurveyRepository) Create(survey *models.Survey) error {
 		survey.Visibility, survey.IsResponseOpen, survey.RequireLoginToRespond,
 		survey.IncludeInDatasets, survey.EverPublic, survey.PublishedCount,
 		survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber,
-		themeJSON, survey.PointsReward, survey.ExpiresAt, survey.HasUnpublishedChanges,
+		themeJSON, survey.PointsReward, survey.CompletionTitle, survey.CompletionMessage, survey.ExpiresAt, survey.HasUnpublishedChanges,
 	).Scan(&survey.ID, &survey.CreatedAt, &survey.UpdatedAt)
 
 	if err != nil {
@@ -85,6 +85,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.completion_title, s.completion_message,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
 			s.has_unpublished_changes, s.deleted_at
@@ -98,6 +99,7 @@ func (r *SurveyRepository) GetByID(id uuid.UUID) (*models.Survey, error) {
 		&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 		&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 		&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+		&survey.CompletionTitle, &survey.CompletionMessage,
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
 		&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
@@ -151,6 +153,7 @@ func (r *SurveyRepository) GetByIDForViewer(
 			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.completion_title, s.completion_message,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
 			s.has_unpublished_changes,
@@ -177,6 +180,7 @@ func (r *SurveyRepository) GetByIDForViewer(
 		&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 		&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 		&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+		&survey.CompletionTitle, &survey.CompletionMessage,
 		&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 		&survey.UpdatedAt, &survey.PublishedAt,
 		&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
@@ -213,6 +217,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.completion_title, s.completion_message,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
 			s.has_unpublished_changes, s.deleted_at
@@ -238,6 +243,7 @@ func (r *SurveyRepository) GetByUserID(userID uuid.UUID) ([]models.Survey, error
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.CompletionTitle, &survey.CompletionMessage,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
@@ -292,6 +298,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 			s.require_login_to_respond,
 			(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 			s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+			s.completion_title, s.completion_message,
 			s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 			s.current_published_version_id, s.current_published_version_number,
 			s.has_unpublished_changes, s.deleted_at
@@ -343,6 +350,7 @@ func (r *SurveyRepository) GetAllAdmin(search string, visibility string, publish
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.CompletionTitle, &survey.CompletionMessage,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
@@ -406,6 +414,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 					s.require_login_to_respond,
 					(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 					s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+					s.completion_title, s.completion_message,
 					s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 					s.current_published_version_id, s.current_published_version_number,
 					s.has_unpublished_changes, s.deleted_at, s.is_hot,
@@ -459,6 +468,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 				wp.id, wp.user_id, wp.title, wp.description, wp.visibility,
 				wp.require_login_to_respond, wp.is_response_open_effective,
 				wp.include_in_datasets, wp.ever_public, wp.published_count, wp.theme, wp.points_reward,
+				wp.completion_title, wp.completion_message,
 				wp.expires_at, wp.response_count, wp.created_at, wp.updated_at, wp.published_at,
 				wp.current_published_version_id, wp.current_published_version_number,
 				wp.has_unpublished_changes, wp.deleted_at, wp.is_hot, wp.has_responded
@@ -506,6 +516,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 				s.require_login_to_respond,
 				(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 				s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+				s.completion_title, s.completion_message,
 				s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 				s.current_published_version_id, s.current_published_version_number,
 				s.has_unpublished_changes, s.deleted_at, s.is_hot,
@@ -536,6 +547,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 				s.require_login_to_respond,
 				(s.is_response_open AND (sv.expires_at IS NULL OR sv.expires_at > NOW())) AS is_response_open_effective,
 				s.include_in_datasets, s.ever_public, s.published_count, s.theme, s.points_reward,
+				s.completion_title, s.completion_message,
 				s.expires_at, s.response_count, s.created_at, s.updated_at, s.published_at,
 				s.current_published_version_id, s.current_published_version_number,
 				s.has_unpublished_changes, s.deleted_at, s.is_hot,
@@ -577,6 +589,7 @@ func (r *SurveyRepository) GetPublicSurveys(
 			&survey.ID, &survey.UserID, &survey.Title, &survey.Description,
 			&survey.Visibility, &survey.RequireLoginToRespond, &survey.IsResponseOpen, &survey.IncludeInDatasets,
 			&survey.EverPublic, &survey.PublishedCount, &themeJSON, &survey.PointsReward,
+			&survey.CompletionTitle, &survey.CompletionMessage,
 			&survey.ExpiresAt, &survey.ResponseCount, &survey.CreatedAt,
 			&survey.UpdatedAt, &survey.PublishedAt,
 			&survey.CurrentPublishedVersionID, &survey.CurrentPublishedVersionNumber,
@@ -721,9 +734,10 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 			title = $2, description = $3, visibility = $4, is_response_open = $5,
 			require_login_to_respond = $6, include_in_datasets = $7,
 			ever_public = $8, published_count = $9, theme = $10,
-			points_reward = $11, expires_at = $12, published_at = $13,
-			current_published_version_id = $14, current_published_version_number = $15,
-			has_unpublished_changes = $16
+			points_reward = $11, completion_title = $12, completion_message = $13,
+			expires_at = $14, published_at = $15,
+			current_published_version_id = $16, current_published_version_number = $17,
+			has_unpublished_changes = $18
 		WHERE id = $1
 	`
 
@@ -732,16 +746,16 @@ func (r *SurveyRepository) UpdateTx(tx *sql.Tx, survey *models.Survey) error {
 			query,
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
 			survey.IsResponseOpen, survey.RequireLoginToRespond, survey.IncludeInDatasets, survey.EverPublic,
-			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
-			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
+			survey.PublishedCount, themeJSON, survey.PointsReward, survey.CompletionTitle, survey.CompletionMessage,
+			survey.ExpiresAt, survey.PublishedAt, survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)
 	} else {
 		_, err = r.db.Exec(
 			query,
 			survey.ID, survey.Title, survey.Description, survey.Visibility,
 			survey.IsResponseOpen, survey.RequireLoginToRespond, survey.IncludeInDatasets, survey.EverPublic,
-			survey.PublishedCount, themeJSON, survey.PointsReward, survey.ExpiresAt, survey.PublishedAt,
-			survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
+			survey.PublishedCount, themeJSON, survey.PointsReward, survey.CompletionTitle, survey.CompletionMessage,
+			survey.ExpiresAt, survey.PublishedAt, survey.CurrentPublishedVersionID, survey.CurrentPublishedVersionNumber, survey.HasUnpublishedChanges,
 		)
 	}
 

@@ -60,6 +60,8 @@ type Survey struct {
 	CurrentPublishedVersionNumber *int          `json:"currentPublishedVersionNumber,omitempty" db:"current_published_version_number"`
 	Theme                         *SurveyTheme  `json:"theme,omitempty" db:"theme"`
 	PointsReward                  int           `json:"pointsReward" db:"points_reward"`
+	CompletionTitle               *string       `json:"completionTitle" db:"completion_title"`
+	CompletionMessage             *string       `json:"completionMessage" db:"completion_message"`
 	ExpiresAt                     *time.Time    `json:"expiresAt,omitempty" db:"expires_at"`
 	ResponseCount                 int           `json:"responseCount" db:"response_count"`
 	IsHot                         bool          `json:"isHot" db:"is_hot"`
