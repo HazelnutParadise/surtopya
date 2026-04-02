@@ -204,6 +204,26 @@ export function SurveyBuilder() {
       : undefined,
   })
 
+  const createToolboxPlaceholder = React.useCallback(
+    (type: QuestionType): Question => ({
+      id: "placeholder",
+      type,
+      title: tBuilder("newQuestion"),
+      required: false,
+      options:
+        type === "single" || type === "multi" || type === "select"
+          ? createDefaultQuestionOptions(
+              [
+                tBuilder("optionLabel", { index: 1 }),
+                tBuilder("optionLabel", { index: 2 }),
+              ],
+              (index) => `placeholder-option-${index + 1}`
+            )
+          : undefined,
+    }),
+    [tBuilder]
+  )
+
   // Settings Draft State (for cancel/unsaved changes)
   const [settingsDraft, setSettingsDraft] = useState<{
       title: string;
@@ -378,19 +398,7 @@ export function SurveyBuilder() {
       
       if (isOverCanvas) {
         const type = activeData.type as QuestionType;
-        const placeholder: Question = {
-          id: 'placeholder',
-          type,
-          title: tBuilder("newQuestion"),
-          required: false,
-          options: type === 'single' || type === 'multi' || type === 'select'
-            ? createDefaultQuestionOptions([
-                tBuilder("optionLabel", { index: 1 }),
-                tBuilder("optionLabel", { index: 2 }),
-              ])
-            : undefined,
-        };
-
+        const placeholder = createToolboxPlaceholder(type)
         setQuestions(items => upsertToolboxPlaceholder(items, placeholder, overId));
       }
     }

@@ -76,8 +76,11 @@ export const hasOtherQuestionOption = (question: Pick<Question, "type" | "option
   return normalizeChoiceQuestionOptions(question).some((option) => option.isOther)
 }
 
-export const createDefaultQuestionOptions = (labels: string[]): QuestionOption[] => {
-  return labels.map((label) => ({ id: generateClientUUID(), label }))
+export const createDefaultQuestionOptions = (
+  labels: string[],
+  idFactory: (index: number, label: string) => string = () => generateClientUUID()
+): QuestionOption[] => {
+  return labels.map((label, index) => ({ id: idFactory(index, label), label }))
 }
 
 export const ensureQuestionOptionIds = (
