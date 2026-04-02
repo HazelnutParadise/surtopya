@@ -23,12 +23,16 @@
 - Internal app routes require valid timestamp + HMAC signature checks.
 - Public survey listing supports sort query values `recommended`, `newest`, `points-high` (default `newest`).
 - Keep JSON/API field naming in `snake_case` for external contracts.
+- Mutable live authoring tables that are rewritten in place must not own historical or snapshot-backed child data via `ON DELETE CASCADE`.
+- Current guarded example: `repository.SaveQuestionsTx` rewrites `questions`, so `answers.question_id` and `response_draft_answers.question_id` must not cascade from `questions(id)`.
+- Repo audit note: no other current `ON DELETE CASCADE` pair matches the same "historical child + delete/recreate parent" failure pattern; re-audit immediately if an immutable/version table ever becomes rewrite-in-place.
 
 ## Anti-Patterns
 - Adding business logic to `routes/`.
 - Pushing SQL into handlers or middleware.
 - Skipping permission middleware and relying on best-effort checks in handlers.
 - Introducing hidden global state for request-scoped values.
+- Re-adding cascade FKs from historical response tables to mutable live `questions` rows.
 
 ## Update Discipline
 - Update this file when internal package map, guard model, or route contracts change.

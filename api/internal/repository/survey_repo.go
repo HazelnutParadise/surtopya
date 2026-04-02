@@ -851,7 +851,10 @@ func (r *SurveyRepository) SaveQuestions(surveyID uuid.UUID, questions []models.
 	return tx.Commit()
 }
 
-// SaveQuestionsTx saves questions for a survey (replaces all) in an existing transaction.
+// SaveQuestionsTx saves questions for a survey by replacing the live question rows in-place.
+// Historical response data must not FK-cascade from questions(id) because analytics/export
+// resolve question meaning from immutable survey_versions snapshots, not these mutable rows.
+// Keep answers/question_id and response_draft_answers/question_id detached from cascade deletes.
 func (r *SurveyRepository) SaveQuestionsTx(tx *sql.Tx, surveyID uuid.UUID, questions []models.Question) error {
 	// Delete existing questions
 	_, err := tx.Exec("DELETE FROM questions WHERE survey_id = $1", surveyID)
