@@ -11,6 +11,8 @@ type Props = {
   params: Promise<{ slug: string }>
 }
 
+const DEFAULT_SURVEY_BASE_POINTS = 1
+
 const fetchAuthorPageData = async (slug: string): Promise<AuthorPageResponse | null> => {
   const token = await getAuthToken()
   const cookieStore = await cookies()
@@ -38,9 +40,25 @@ const fetchAuthorPageData = async (slug: string): Promise<AuthorPageResponse | n
   return (await response.json()) as AuthorPageResponse
 }
 
+const fetchSurveyBasePoints = async (): Promise<number> => {
+  const response = await fetchInternalApp("/config", { cache: "no-store" })
+  if (!response.ok) {
+    return DEFAULT_SURVEY_BASE_POINTS
+  }
+
+  const payload = await response.json().catch(() => ({}))
+  const raw = Number(payload?.surveyBasePoints)
+  return Number.isFinite(raw) && raw >= 0
+    ? Math.floor(raw)
+    : DEFAULT_SURVEY_BASE_POINTS
+}
+
 export default async function AuthorPage({ params }: Props) {
   const { slug } = await params
-  const payload = await fetchAuthorPageData(slug)
+  const [payload, surveyBasePoints] = await Promise.all([
+    fetchAuthorPageData(slug),
+    fetchSurveyBasePoints(),
+  ])
   if (!payload) {
     notFound()
   }
@@ -55,6 +73,7 @@ export default async function AuthorPage({ params }: Props) {
     <AuthorPageClient
       author={payload.author}
       surveys={payload.surveys || []}
+      surveyBasePoints={surveyBasePoints}
     />
   )
 }

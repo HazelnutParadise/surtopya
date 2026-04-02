@@ -13,9 +13,10 @@ import { MapPin, Phone, Mail, CalendarDays } from "lucide-react"
 type AuthorPageClientProps = {
   author: AuthorPageAuthor
   surveys: Survey[]
+  surveyBasePoints: number
 }
 
-export function AuthorPageClient({ author, surveys }: AuthorPageClientProps) {
+export function AuthorPageClient({ author, surveys, surveyBasePoints }: AuthorPageClientProps) {
   const pathname = usePathname()
   const locale = getLocaleFromPath(pathname)
   const t = useTranslations("AuthorPage")
@@ -77,7 +78,7 @@ export function AuthorPageClient({ author, surveys }: AuthorPageClientProps) {
                   id={survey.id}
                   title={survey.title}
                   description={survey.description}
-                  points={1 + Math.floor((survey.pointsReward || 0) / 3)}
+                  points={surveyBasePoints + Math.floor((survey.pointsReward || 0) / 3)}
                   responses={survey.responseCount}
                   visibility={survey.visibility}
                   requireLoginToRespond={Boolean(survey.requireLoginToRespond)}

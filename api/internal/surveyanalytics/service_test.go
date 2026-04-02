@@ -207,6 +207,68 @@ func TestBuildReport_SingleVersionFiltersResultsAndRedactsTextResponsesWhenDisab
 	require.False(t, report.Pages[0].Questions[0].HasMoreResponses)
 }
 
+func TestBuildReport_SelectedVersionChangesCountsAndBuckets(t *testing.T) {
+	questionID := uuid.New()
+	now := time.Now().UTC()
+
+	versions := []models.SurveyVersion{
+		{
+			ID:            uuid.New(),
+			SurveyID:      uuid.New(),
+			VersionNumber: 2,
+			Snapshot: snapshotForTest(t, map[string]any{
+				"id":        questionID,
+				"type":      "single",
+				"title":     "Favorite color",
+				"options":   []string{"Red", "Blue"},
+				"required":  false,
+				"sortOrder": 0,
+			}),
+		},
+		{
+			ID:            uuid.New(),
+			SurveyID:      uuid.New(),
+			VersionNumber: 1,
+			Snapshot: snapshotForTest(t, map[string]any{
+				"id":        questionID,
+				"type":      "single",
+				"title":     "Favorite color",
+				"options":   []string{"Red", "Blue"},
+				"required":  false,
+				"sortOrder": 0,
+			}),
+		},
+	}
+
+	responses := []models.Response{
+		completedResponseForTest(1, now.Add(-2*time.Hour), answerForTest(questionID, models.AnswerValue{Value: ptr("Red")})),
+		completedResponseForTest(2, now.Add(-time.Hour), answerForTest(questionID, models.AnswerValue{Value: ptr("Blue")})),
+	}
+
+	reportV1, err := BuildReport(versions, responses, BuildOptions{
+		SelectedVersion:      "1",
+		IncludeTextResponses: true,
+		GeneratedAt:          now,
+	})
+	require.NoError(t, err)
+
+	reportV2, err := BuildReport(versions, responses, BuildOptions{
+		SelectedVersion:      "2",
+		IncludeTextResponses: true,
+		GeneratedAt:          now,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "1", reportV1.SelectedVersion)
+	require.Equal(t, "2", reportV2.SelectedVersion)
+	require.Equal(t, 1, reportV1.Summary.TotalCompletedResponses)
+	require.Equal(t, 1, reportV2.Summary.TotalCompletedResponses)
+	require.Len(t, reportV1.Pages, 1)
+	require.Len(t, reportV2.Pages, 1)
+	require.Equal(t, []int{1, 0}, bucketCounts(reportV1.Pages[0].Questions[0].OptionCounts))
+	require.Equal(t, []int{0, 1}, bucketCounts(reportV2.Pages[0].Questions[0].OptionCounts))
+}
+
 func TestBuildReport_TextQuestionKeepsNewestTwentyResponses(t *testing.T) {
 	questionID := uuid.New()
 	now := time.Now().UTC()

@@ -2453,7 +2453,9 @@ export default function AdminPage() {
                                 <div className="text-xs text-gray-400">
                                   {tAdmin("surveyMeta", {
                                     responses: survey.responseCount,
-                                    points: survey.pointsReward,
+                                    points:
+                                      surveyBasePointsDraft +
+                                      Math.floor((survey.pointsReward || 0) / 3),
                                   })}
                                 </div>
                               </div>
