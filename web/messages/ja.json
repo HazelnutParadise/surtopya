@@ -133,7 +133,7 @@
     "descriptionPlaceholder": "このアンケートの概要を説明してください…",
     "supportsMarkdown": "マークダウンに対応",
     "completionCopySectionTitle": "完了画面の文言",
-    "completionCopyDescription": "このブロックは設定画面の最後に固定されます。回答送信後に表示され、次回公開時に反映されます。",
+    "completionCopyDescription": "このブロックは設定画面の最後に固定されます。回答送信後に表示され、保存するとすぐ反映され、新しいバージョンも作成しません。",
     "completionTitleLabel": "完了タイトル",
     "completionTitlePlaceholder": "ご回答ありがとうございました",
     "completionMessageLabel": "完了メッセージ",

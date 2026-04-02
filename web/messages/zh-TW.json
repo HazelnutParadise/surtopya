@@ -133,7 +133,7 @@
     "descriptionPlaceholder": "描述這份問卷的內容...",
     "supportsMarkdown": "支援 Markdown 格式",
     "completionCopySectionTitle": "完成頁文案",
-    "completionCopyDescription": "這一塊固定在設定頁最後，會在填答者送出後顯示，並於下一次發布後正式生效。",
+    "completionCopyDescription": "這一塊固定在設定頁最後，會在填答者送出後顯示，儲存後會立即生效，不會建立新版本。",
     "completionTitleLabel": "完成標題",
     "completionTitlePlaceholder": "感謝你完成填答",
     "completionMessageLabel": "完成訊息",

@@ -560,9 +560,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 
 	questionChanges := false
-	originalCompletionTitle := survey.CompletionTitle
-	originalCompletionMessage := survey.CompletionMessage
-
 	// Update fields if provided
 	if req.Title != nil {
 		survey.Title = *req.Title
@@ -648,11 +645,6 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 
 	if questionChanges && survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true
-	}
-	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
-		if !nullableStringEqual(originalCompletionTitle, survey.CompletionTitle) || !nullableStringEqual(originalCompletionMessage, survey.CompletionMessage) {
-			survey.HasUnpublishedChanges = true
-		}
 	}
 
 	if err := h.repo.Update(survey); err != nil {
@@ -750,9 +742,7 @@ type surveySnapshot struct {
 
 func buildSurveySnapshot(survey *models.Survey) ([]byte, error) {
 	snapshot := surveySnapshot{
-		CompletionTitle:   survey.CompletionTitle,
-		CompletionMessage: survey.CompletionMessage,
-		Questions:         buildSnapshotQuestionsFromModels(survey.Questions),
+		Questions: buildSnapshotQuestionsFromModels(survey.Questions),
 	}
 
 	return json.Marshal(snapshot)
@@ -1290,9 +1280,6 @@ func (h *SurveyHandler) RestoreSurveyVersionDraft(c *gin.Context) {
 			SortOrder:   i,
 		}
 	}
-
-	survey.CompletionTitle = snapshot.CompletionTitle
-	survey.CompletionMessage = snapshot.CompletionMessage
 
 	if survey.CurrentPublishedVersionNumber != nil && *survey.CurrentPublishedVersionNumber > 0 {
 		survey.HasUnpublishedChanges = true

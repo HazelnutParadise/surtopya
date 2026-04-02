@@ -336,6 +336,9 @@ func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.
 			[]byte(`{"completionTitle":"Thanks","completionMessage":"See you again","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			9,
 		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow("Live thanks", "Live follow-up"))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
@@ -390,7 +393,7 @@ func TestResponseHandler_SubmitAnonymousResponse_ReturnsClaimContext(t *testing.
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"pointsAwarded":9`)
 	require.Contains(t, w.Body.String(), `"claimContext"`)
-	require.Contains(t, w.Body.String(), `"completion":{"title":"Thanks","message":"See you again"}`)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Live thanks","message":"Live follow-up"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -437,6 +440,9 @@ func TestResponseHandler_SubmitAnonymousResponse_DuplicateAnonymousRejected(t *t
 			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			9,
 		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
 		WithArgs("survey_base_points").
 		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
@@ -517,6 +523,9 @@ func TestResponseHandler_SubmitAnonymousResponse_RejectsMissingRequiredSupplemen
 			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"single","title":"Q1","required":false,"options":[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]}]}`),
 			0,
 		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectRollback()
 
 	r := gin.New()
@@ -653,6 +662,9 @@ func TestResponseHandler_SubmitDraft_OwnerGetsZeroPoints(t *testing.T) {
 			[]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			9,
 		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectExec("INSERT INTO response_draft_answers").
 		WithArgs(sqlmock.AnyArg(), draftID, questionID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -720,7 +732,7 @@ func TestResponseHandler_SubmitDraft_OwnerGetsZeroPoints(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestResponseHandler_SubmitDraft_ReturnsCompletionCopyFromSnapshot(t *testing.T) {
+func TestResponseHandler_SubmitDraft_ReturnsLiveCompletionCopy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
@@ -770,6 +782,9 @@ func TestResponseHandler_SubmitDraft_ReturnsCompletionCopyFromSnapshot(t *testin
 			[]byte(`{"completionTitle":"Draft title","completionMessage":"Draft message","questions":[{"id":"`+questionID.String()+`","type":"short","title":"Q1","required":false}]}`),
 			0,
 		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow("Live draft title", "Live draft message"))
 	mock.ExpectExec("INSERT INTO response_draft_answers").
 		WithArgs(sqlmock.AnyArg(), draftID, questionID, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -842,7 +857,7 @@ func TestResponseHandler_SubmitDraft_ReturnsCompletionCopyFromSnapshot(t *testin
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), `"completion":{"title":"Draft title","message":"Draft message"}`)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Live draft title","message":"Live draft message"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

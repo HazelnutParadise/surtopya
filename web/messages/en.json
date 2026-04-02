@@ -158,7 +158,7 @@
     "descriptionPlaceholder": "Describe what this survey is about...",
     "supportsMarkdown": "Supports Markdown formatting",
     "completionCopySectionTitle": "Completion screen copy",
-    "completionCopyDescription": "This block stays at the end of settings. It appears after respondents submit and goes live on the next publish.",
+    "completionCopyDescription": "This block stays at the end of settings. It appears after respondents submit, applies as soon as you save, and does not create a new version.",
     "completionTitleLabel": "Completion title",
     "completionTitlePlaceholder": "Thanks for finishing",
     "completionMessageLabel": "Completion message",

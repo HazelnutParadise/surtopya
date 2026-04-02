@@ -49,6 +49,7 @@ import {
 import { useTimeZone, useTranslations } from "next-intl";
 import { localDatetimeToUtcISOString, utcToDatetimeLocal } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
+import { openSurveyPreview } from "@/lib/survey-preview";
 import {
   readUiPayloadError,
   readUiPayloadMessage,
@@ -1011,24 +1012,27 @@ export function SurveyBuilder() {
   };
 
   const openPreview = () => {
-    // Save survey data to sessionStorage for the preview page
-    const surveyData = {
-      id: 'preview',
-      title,
-      description,
-      completionTitle,
-      completionMessage,
-      questions,
-      settings: {
-        isPublic,
-        pointsReward,
-      }
-    };
-    sessionStorage.setItem('preview_survey', JSON.stringify(surveyData));
-    sessionStorage.setItem('preview_theme', JSON.stringify(theme));
-    
-    // Open preview in new tab
-    window.open(withLocalePath('/create/preview'), '_blank');
+    openSurveyPreview({
+      survey: {
+        id: "preview",
+        title,
+        description,
+        completionTitle,
+        completionMessage,
+        questions,
+        settings: {
+          isPublic,
+          isResponseOpen: true,
+          requireLoginToRespond,
+          visibility: isPublic ? "public" : "non-public",
+          isDatasetActive: includeInDatasets,
+          pointsReward,
+          expiresAt: expiresAtLocal || undefined,
+        },
+      },
+      theme,
+      previewPath: withLocalePath("/create/preview"),
+    });
   };
 
   if (!mounted) return null;

@@ -116,6 +116,8 @@ const buildSurveyPayload = (overrides?: Record<string, unknown>) => ({
   id: "survey-1",
   title: "Survey",
   description: "Description",
+  completionTitle: "Dashboard thanks",
+  completionMessage: "Dashboard follow-up",
   visibility: "non-public",
   requireLoginToRespond: false,
   isResponseOpen: true,
@@ -299,6 +301,22 @@ describe("SurveyManagementPage publish new version", () => {
     fireEvent.click(screen.getByTestId("survey-version-view-3"))
 
     expect(await screen.findByTestId("version-document-preview")).toBeInTheDocument()
+  })
+
+  it("includes live completion copy when opening dashboard preview", async () => {
+    render(<SurveyManagementPage />)
+
+    const previewButton = await screen.findByRole("button", { name: "previewSurvey" })
+    fireEvent.click(previewButton)
+
+    expect(openMock).toHaveBeenCalledWith("/zh-TW/create/preview", "_blank")
+
+    const stored = window.sessionStorage.getItem("preview_survey")
+    expect(stored).not.toBeNull()
+
+    const parsed = JSON.parse(stored as string)
+    expect(parsed.completionTitle).toBe("Dashboard thanks")
+    expect(parsed.completionMessage).toBe("Dashboard follow-up")
   })
 
   it("blocks publish from survey management when the draft has invalid logic", async () => {

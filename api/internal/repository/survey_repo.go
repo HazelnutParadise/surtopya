@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -1076,15 +1077,48 @@ func (r *SurveyRepository) UpdateCurrentPublishedVersionStateTx(
 // IsCurrentVersionSnapshotEqual checks if a snapshot matches the currently published version.
 func (r *SurveyRepository) IsCurrentVersionSnapshotEqual(surveyID uuid.UUID, snapshot []byte) (bool, error) {
 	query := `
-		SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = $2::jsonb END
+		SELECT sv.snapshot
 		FROM surveys s
 		LEFT JOIN survey_versions sv ON sv.id = s.current_published_version_id
 		WHERE s.id = $1
 		  AND s.deleted_at IS NULL
 	`
-	var isEqual bool
-	if err := r.db.QueryRow(query, surveyID, snapshot).Scan(&isEqual); err != nil {
+	var currentSnapshot []byte
+	if err := r.db.QueryRow(query, surveyID).Scan(&currentSnapshot); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to compare survey snapshots: %w", err)
 	}
-	return isEqual, nil
+
+	if len(currentSnapshot) == 0 {
+		return false, nil
+	}
+
+	normalizedCurrent, err := normalizeVersionSnapshotForComparison(currentSnapshot)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize current survey snapshot: %w", err)
+	}
+	normalizedNext, err := normalizeVersionSnapshotForComparison(snapshot)
+	if err != nil {
+		return false, fmt.Errorf("failed to normalize next survey snapshot: %w", err)
+	}
+
+	return bytes.Equal(normalizedCurrent, normalizedNext), nil
+}
+
+func normalizeVersionSnapshotForComparison(snapshot []byte) ([]byte, error) {
+	if len(snapshot) == 0 {
+		return []byte("{}"), nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(snapshot, &payload); err != nil {
+		return nil, err
+	}
+
+	delete(payload, "completionTitle")
+	delete(payload, "completionMessage")
+
+	return json.Marshal(payload)
 }

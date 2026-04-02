@@ -171,6 +171,11 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode survey version snapshot"})
 		return
 	}
+	completionCopy, err := loadSurveyCompletionCopyTx(tx, surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey completion copy"})
+		return
+	}
 
 	validQuestions := make(map[uuid.UUID]struct{}, len(snapshot.Questions))
 	for _, q := range snapshot.Questions {
@@ -280,7 +285,7 @@ func (h *ResponseHandler) SubmitAllAnswers(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": surveyVersionNumber,
-		"completion":          completionCopyFromSnapshot(snapshot),
+		"completion":          completionCopy,
 	})
 }
 

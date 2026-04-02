@@ -36,6 +36,24 @@ func (m snapshotContainsMatcher) Match(value driver.Value) bool {
 	return true
 }
 
+type snapshotExcludesMatcher struct {
+	substrings []string
+}
+
+func (m snapshotExcludesMatcher) Match(value driver.Value) bool {
+	raw, ok := value.([]byte)
+	if !ok {
+		return false
+	}
+	text := string(raw)
+	for _, needle := range m.substrings {
+		if strings.Contains(text, needle) {
+			return false
+		}
+	}
+	return true
+}
+
 func newSurveyHandlerForPublishTest(t *testing.T) (*SurveyHandler, sqlmock.Sqlmock, func()) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
@@ -141,9 +159,9 @@ func TestSurveyHandler_PublishSurvey_FirstPublish_DeductsBoostSpend(t *testing.T
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -9, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}))
 	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(1))
@@ -278,14 +296,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_DeductsOnlyTopUp(t *testi
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -3, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
-	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
 		WithArgs(surveyID).
-		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(2))
-	mock.ExpectQuery("INSERT INTO survey_versions").
-		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}).AddRow([]byte(`{"questions":[]}`)))
+	mock.ExpectExec("UPDATE survey_versions\\s+SET points_reward = \\$2,\\s+expires_at = \\$3").
+		WithArgs(surveyID, 12, nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("UPDATE surveys SET").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -358,14 +374,12 @@ func TestSurveyHandler_PublishSurvey_AfterFirstPublish_UsesPublishedVersionPoint
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -6, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
-	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
 		WithArgs(surveyID).
-		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(2))
-	mock.ExpectQuery("INSERT INTO survey_versions").
-		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(time.Now().UTC()))
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}).AddRow([]byte(`{"questions":[]}`)))
+	mock.ExpectExec("UPDATE survey_versions\\s+SET points_reward = \\$2,\\s+expires_at = \\$3").
+		WithArgs(surveyID, 12, nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("UPDATE surveys SET").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -532,9 +546,9 @@ func TestSurveyHandler_PublishSurvey_MetadataOnly_DoesNotCreateVersion(t *testin
 		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(true))
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}).AddRow([]byte(`{"questions":[]}`)))
 	mock.ExpectExec("UPDATE survey_versions\\s+SET points_reward = \\$2,\\s+expires_at = \\$3").
 		WithArgs(surveyID, 9, nil).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -610,9 +624,9 @@ func TestSurveyHandler_PublishSurvey_MetadataOnlyWithTopUp_DeductsPointsWithoutN
 	mock.ExpectExec("INSERT INTO points_transactions").
 		WithArgs(sqlmock.AnyArg(), publisherID, -3, sqlmock.AnyArg(), surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, sqlmock.AnyArg()).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(true))
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}).AddRow([]byte(`{"questions":[]}`)))
 	mock.ExpectExec("UPDATE survey_versions\\s+SET points_reward = \\$2,\\s+expires_at = \\$3").
 		WithArgs(surveyID, 12, nil).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -747,7 +761,7 @@ func TestSurveyHandler_OpenSurveyResponses_ExpiredVersionReturnsConflict(t *test
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestSurveyHandler_PublishSurvey_SnapshotIncludesCompletionCopy(t *testing.T) {
+func TestSurveyHandler_PublishSurvey_SnapshotExcludesCompletionCopy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
@@ -774,9 +788,9 @@ func TestSurveyHandler_PublishSurvey_SnapshotIncludesCompletionCopy(t *testing.T
 		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("SELECT CASE WHEN sv.id IS NULL THEN FALSE ELSE sv.snapshot = \\$2::jsonb END").
-		WithArgs(surveyID, snapshotContainsMatcher{substrings: []string{`"completionTitle":"Thanks for finishing"`, `"completionMessage":"We will review your answers soon."`}}).
-		WillReturnRows(sqlmock.NewRows([]string{"is_equal"}).AddRow(false))
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}))
 	mock.ExpectQuery("SELECT COALESCE\\(MAX\\(version_number\\), 0\\) \\+ 1 FROM survey_versions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"next"}).AddRow(1))
@@ -785,7 +799,7 @@ func TestSurveyHandler_PublishSurvey_SnapshotIncludesCompletionCopy(t *testing.T
 			sqlmock.AnyArg(),
 			surveyID,
 			1,
-			sqlmock.AnyArg(),
+			snapshotExcludesMatcher{substrings: []string{`"completionTitle":"Thanks for finishing"`, `"completionMessage":"We will review your answers soon."`}},
 			0,
 			nil,
 			sqlmock.AnyArg(),
@@ -815,7 +829,73 @@ func TestSurveyHandler_PublishSurvey_SnapshotIncludesCompletionCopy(t *testing.T
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), `"completionTitle":"Thanks for finishing"`)
-	require.Contains(t, w.Body.String(), `"completionMessage":"We will review your answers soon."`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_PublishSurvey_MetadataOnly_IgnoresLegacyCompletionFieldsInSnapshot(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	publisherID := uuid.New()
+	currentVersionID := uuid.New()
+	currentVersionNumber := 1
+
+	surveyRows, questionRows := surveyRowsForPublishTest(surveyID, publisherID, "public", true, 9, 1, false, &currentVersionID, &currentVersionNumber)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(publisherID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(currentVersionID, surveyID, 1, []byte(`{"completionTitle":"Legacy title","completionMessage":"Legacy message","questions":[]}`), 9, nil, time.Now().UTC(), publisherID, time.Now().UTC()))
+	mock.ExpectExec("INSERT INTO user_memberships").
+		WithArgs(publisherID, policy.DefaultMembershipTierCode).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT mt.max_active_surveys").
+		WithArgs(publisherID).
+		WillReturnRows(sqlmock.NewRows([]string{"max_active_surveys"}).AddRow(nil))
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT sv.snapshot\\s+FROM surveys s").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot"}).AddRow([]byte(`{"completionTitle":"Legacy title","completionMessage":"Legacy message","questions":[]}`)))
+	mock.ExpectExec("UPDATE survey_versions\\s+SET points_reward = \\$2,\\s+expires_at = \\$3").
+		WithArgs(surveyID, 9, nil).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.POST("/api/v1/surveys/:id/publish", func(c *gin.Context) {
+		c.Set("userID", publisherID)
+		h.PublishSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"visibility":        "public",
+		"includeInDatasets": true,
+		"pointsReward":      9,
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/surveys/"+surveyID.String()+"/publish", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"message":"Settings saved. No new version was created."`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

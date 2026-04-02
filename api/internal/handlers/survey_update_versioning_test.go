@@ -478,3 +478,83 @@ func TestSurveyHandler_UpdateSurvey_BlankCompletionCopy_NormalizesToNull(t *test
 	require.Contains(t, w.Body.String(), `"completionMessage":null`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestSurveyHandler_UpdateSurvey_CompletionCopyChanged_DoesNotMarkUnpublished(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	currentVersionID := uuid.New()
+	currentVersionNumber := 2
+
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(
+			surveyRowsForUpdateVersioningTest(
+				surveyID,
+				userID,
+				"non-public",
+				false,
+				1,
+				&currentVersionID,
+				&currentVersionNumber,
+				false,
+			),
+		)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
+		}))
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectExec("UPDATE surveys SET").
+		WithArgs(
+			surveyID,
+			"Publish Test",
+			"Desc",
+			"non-public",
+			false,
+			false,
+			false,
+			true,
+			1,
+			sqlmock.AnyArg(),
+			0,
+			"Thanks right away",
+			"Visible without republish",
+			nil,
+			nil,
+			currentVersionID,
+			currentVersionNumber,
+			false,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	r := gin.New()
+	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
+		c.Set("userID", userID)
+		h.UpdateSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"completionTitle":   "Thanks right away",
+		"completionMessage": "Visible without republish",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/surveys/"+surveyID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"hasUnpublishedChanges":false`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

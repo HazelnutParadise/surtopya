@@ -282,6 +282,9 @@ func TestResponseHandler_SubmitAllAnswers_Authenticated_AwardsBasePoints(t *test
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
@@ -351,6 +354,9 @@ func TestResponseHandler_SubmitAllAnswers_OwnerGetsZeroPoints(t *testing.T) {
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(ownerID))
@@ -405,6 +411,9 @@ func TestResponseHandler_SubmitAllAnswers_Anonymous_AwardsZeroPoints(t *testing.
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 0))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 
 	mock.ExpectExec("UPDATE responses SET status = 'completed'").
 		WithArgs(responseID, sqlmock.AnyArg(), 0).
@@ -460,6 +469,9 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[]}`), 9))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
@@ -511,7 +523,7 @@ func TestResponseHandler_SubmitAllAnswers_AppliesPublisherBoostWhenEligible(t *t
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestResponseHandler_SubmitAllAnswers_ReturnsCompletionCopyFromSnapshot(t *testing.T) {
+func TestResponseHandler_SubmitAllAnswers_ReturnsLiveCompletionCopy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	h, mock, cleanup := newResponseHandlerForTest(t)
@@ -528,7 +540,10 @@ func TestResponseHandler_SubmitAllAnswers_ReturnsCompletionCopyFromSnapshot(t *t
 		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "user_id", "status"}).AddRow(surveyID, versionID, 3, respondentID, "in_progress"))
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
-		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"completionTitle":"Custom title","completionMessage":"Custom message","questions":[]}`), 0))
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"completionTitle":"Old version title","completionMessage":"Old version message","questions":[]}`), 0))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow("Live title", "Live message"))
 	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
 		WithArgs(surveyID).
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(uuid.New()))
@@ -571,7 +586,7 @@ func TestResponseHandler_SubmitAllAnswers_ReturnsCompletionCopyFromSnapshot(t *t
 	r.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), `"completion":{"title":"Custom title","message":"Custom message"}`)
+	require.Contains(t, w.Body.String(), `"completion":{"title":"Live title","message":"Live message"}`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -594,6 +609,9 @@ func TestResponseHandler_SubmitAllAnswers_RejectsMissingRequiredSupplementalText
 	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
 		WithArgs(versionID).
 		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow([]byte(`{"questions":[{"id":"`+questionID.String()+`","type":"single","title":"Q1","required":false,"options":[{"label":"Regular"},{"label":"Can add details","isOther":true,"requireOtherText":true}]}]}`), 0))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
 	mock.ExpectRollback()
 
 	r := gin.New()

@@ -548,6 +548,11 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
 		return
 	}
+	completionCopy, err := loadSurveyCompletionCopyTx(tx, surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey completion copy"})
+		return
+	}
 
 	for _, ansReq := range req.Answers {
 		questionID, err := uuid.Parse(ansReq.QuestionID)
@@ -723,7 +728,7 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": surveyVersionNumber,
-		"completion":          completionCopyFromSnapshot(snapshot),
+		"completion":          completionCopy,
 	})
 }
 
@@ -798,6 +803,11 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 	validQuestions, boostSpend, snapshot, err := h.loadVersionQuestionSet(tx, version.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey version"})
+		return
+	}
+	completionCopy, err := loadSurveyCompletionCopyTx(tx, surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load survey completion copy"})
 		return
 	}
 
@@ -941,7 +951,7 @@ func (h *ResponseHandler) SubmitAnonymousResponse(c *gin.Context) {
 		"response":            response,
 		"pointsAwarded":       pointsAwarded,
 		"surveyVersionNumber": version.VersionNumber,
-		"completion":          completionCopyFromSnapshot(snapshot),
+		"completion":          completionCopy,
 	}
 	if claimContext != nil {
 		payload["claimContext"] = claimContext

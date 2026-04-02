@@ -47,6 +47,7 @@ import { normalizeQuestionOptions } from "@/lib/question-options";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import { getPublishBlockingLogicEntries } from "@/lib/survey-publish-logic";
+import { openSurveyPreview } from "@/lib/survey-preview";
 import {
   readUiPayloadError,
   readUiPayloadMessage,
@@ -377,16 +378,19 @@ export default function SurveyManagementPage() {
 
   const handlePreview = () => {
     if (survey) {
-      const surveyData = {
-        id: survey.id,
-        title: survey.title,
-        description: survey.description,
-        questions: survey.questions,
-        settings: survey.settings,
-      };
-      sessionStorage.setItem("preview_survey", JSON.stringify(surveyData));
-      sessionStorage.setItem("preview_theme", JSON.stringify(survey.theme || {}));
-      window.open(withLocalePath("/create/preview"), "_blank");
+      openSurveyPreview({
+        survey: {
+          id: survey.id,
+          title: survey.title,
+          description: survey.description,
+          completionTitle: survey.completionTitle,
+          completionMessage: survey.completionMessage,
+          questions: survey.questions,
+          settings: survey.settings,
+        },
+        theme: survey.theme,
+        previewPath: withLocalePath("/create/preview"),
+      })
     }
   };
 
