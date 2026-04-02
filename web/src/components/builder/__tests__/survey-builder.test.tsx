@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SurveyBuilder } from "@/components/builder/survey-builder"
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events"
 
 const state = vi.hoisted(() => ({
   editId: "survey-1" as string | null,
@@ -146,7 +147,7 @@ describe("SurveyBuilder settings save", () => {
       const url = typeof input === "string" ? input : input.toString()
 
       if (url === "/api/app/me") {
-        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 999 }))
       }
 
       if (url === "/api/app/surveys/survey-1" && !init?.method) {
@@ -209,5 +210,198 @@ describe("SurveyBuilder settings save", () => {
     })
 
     expect(screen.getByRole("button", { name: "save" })).toBeEnabled()
+  })
+
+  it("warns and blocks first publish when boost points exceed the current balance", async () => {
+    state.editId = "survey-1"
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 5 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 0,
+          currentPublishedVersionNumber: undefined,
+          hasUnpublishedChanges: true,
+          pointsReward: 0,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ versions: [] }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/publish" && init?.method === "POST") {
+        return Promise.resolve(buildJsonResponse({ error: "should not publish" }, false))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<SurveyBuilder />)
+
+    fireEvent.click(screen.getByRole("button", { name: "agree" }))
+    fireEvent.click(await screen.findByRole("button", { name: "publish" }))
+    fireEvent.change(screen.getByTestId("builder-publish-points-input"), { target: { value: "12" } })
+
+    expect(await screen.findByTestId("builder-publish-insufficient-points-warning")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "confirmPublish" })).toBeDisabled()
+
+    const publishCalls = fetchMock.mock.calls.filter(
+      ([url, requestInit]) =>
+        url === "/api/app/surveys/survey-1/publish" &&
+        (requestInit as RequestInit | undefined)?.method === "POST"
+    )
+    expect(publishCalls).toHaveLength(0)
+  })
+
+  it("warns and blocks saving published survey settings when the boost top-up exceeds the current balance", async () => {
+    state.editId = "survey-1"
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 5 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 1,
+          currentPublishedVersionNumber: 3,
+          hasUnpublishedChanges: false,
+          pointsReward: 6,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ versions: [] }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<SurveyBuilder />)
+
+    fireEvent.click(screen.getByRole("button", { name: "agree" }))
+    fireEvent.click(await screen.findByTestId("builder-tab-settings"))
+    fireEvent.change(await screen.findByTestId("builder-settings-points-input"), { target: { value: "12" } })
+
+    expect(await screen.findByTestId("builder-settings-insufficient-points-warning")).toBeInTheDocument()
+    const saveButtons = screen.getAllByRole("button", { name: "save" })
+    expect(saveButtons[1]).toBeDisabled()
+
+    fireEvent.click(saveButtons[1])
+
+    const putCalls = fetchMock.mock.calls.filter(
+      ([url, requestInit]) =>
+        url === "/api/app/surveys/survey-1" &&
+        (requestInit as RequestInit | undefined)?.method === "PUT"
+    )
+    expect(putCalls).toHaveLength(0)
+  })
+
+  it("allows saving published survey settings when the top-up is within the current balance", async () => {
+    state.editId = "survey-1"
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 4 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 1,
+          currentPublishedVersionNumber: 3,
+          hasUnpublishedChanges: false,
+          pointsReward: 8,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ versions: [] }))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && init?.method === "PUT") {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 1,
+          currentPublishedVersionNumber: 3,
+          hasUnpublishedChanges: false,
+          pointsReward: 12,
+        })))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<SurveyBuilder />)
+
+    fireEvent.click(screen.getByRole("button", { name: "agree" }))
+    fireEvent.click(await screen.findByTestId("builder-tab-settings"))
+    fireEvent.change(await screen.findByTestId("builder-settings-points-input"), { target: { value: "12" } })
+
+    expect(screen.queryByTestId("builder-settings-insufficient-points-warning")).not.toBeInTheDocument()
+    const saveButtons = screen.getAllByRole("button", { name: "save" })
+    expect(saveButtons[1]).toBeEnabled()
+    fireEvent.click(saveButtons[1])
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/app/surveys/survey-1",
+        expect.objectContaining({
+          method: "PUT",
+        })
+      )
+    })
+
+    expect(notifyPointsBalanceChanged).toHaveBeenCalled()
+  })
+
+  it("keeps boost points read-only in the publish dialog after first publish", async () => {
+    state.editId = "survey-1"
+
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 0 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 1,
+          currentPublishedVersionNumber: 3,
+          hasUnpublishedChanges: true,
+          pointsReward: 8,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ versions: [] }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<SurveyBuilder />)
+
+    fireEvent.click(screen.getByRole("button", { name: "agree" }))
+    fireEvent.click(await screen.findByRole("button", { name: "republish" }))
+
+    expect(await screen.findByTestId("builder-publish-points-input")).toBeDisabled()
   })
 })

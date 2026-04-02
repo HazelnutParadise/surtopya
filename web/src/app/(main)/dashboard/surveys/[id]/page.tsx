@@ -48,6 +48,7 @@ import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary";
 import { getPublishBlockingLogicEntries } from "@/lib/survey-publish-logic";
 import { openSurveyPreview } from "@/lib/survey-preview";
+import { resolvePublishBoostState, resolveSaveBoostState } from "@/lib/survey-boost-publish";
 import {
   readUiPayloadError,
   readUiPayloadMessage,
@@ -143,6 +144,7 @@ export default function SurveyManagementPage() {
   const [confirmRestoreVersionNumber, setConfirmRestoreVersionNumber] = useState<number | null>(null)
   const [pendingPublishAction, setPendingPublishAction] = useState<"initial_publish" | "publish_new_version" | null>(null)
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
+  const [pointsBalance, setPointsBalance] = useState(0)
   const [formState, setFormState] = useState({
     title: "",
     description: "",
@@ -236,10 +238,12 @@ export default function SurveyManagementPage() {
         const payload = await response.json().catch(() => ({}))
         if (isMounted && response.ok) {
           setCapabilities(payload.capabilities || {})
+          setPointsBalance(Math.max(0, Math.floor(Number(payload.pointsBalance || 0))))
         }
       } catch {
         if (isMounted) {
           setCapabilities({})
+          setPointsBalance(0)
         }
       }
     }
@@ -351,7 +355,32 @@ export default function SurveyManagementPage() {
     [survey]
   )
   const hasPublishBlockingIssues = publishBlockingLogicEntries.length > 0
+  const savedPublishBoostState = useMemo(() => {
+    if (!survey) {
+      return resolvePublishBoostState({
+        draftPointsReward: 0,
+        pointsBalance,
+      })
+    }
 
+    if ((survey.settings.publishedCount ?? 0) > 0) {
+      return resolvePublishBoostState({
+        draftPointsReward: 0,
+        pointsBalance,
+      })
+    }
+
+    return resolvePublishBoostState({
+      draftPointsReward: survey.settings.pointsReward,
+      pointsBalance,
+      publishedCount: survey.settings.publishedCount,
+      currentPublishedVersionNumber: survey.settings.currentPublishedVersionNumber,
+      hasUnpublishedChanges: survey.settings.hasUnpublishedChanges,
+      versions: surveyVersions,
+      fallbackPublishedPointsReward: survey.settings.pointsReward,
+      versionsLoading,
+    })
+  }, [pointsBalance, survey, surveyVersions, versionsLoading])
   const handleExportCsv = (scope: SurveyResponsesExportScope, encoding: SurveyResponsesExportEncoding) => {
     const rows = buildSurveyResponsesCsvRows({
       responses: responseRows,
@@ -429,12 +458,21 @@ export default function SurveyManagementPage() {
     const rawError = readUiPayloadError(payload)
     if (!rawError) return tCommon("error");
     if (rawError === "Active survey limit reached") return tBuilder("publishErrorActiveSurveyLimitReached");
+    if (rawError === "Insufficient points for boost top-up") return tBuilder("publishErrorInsufficientBoostPoints");
     if (rawError === "No changes to publish") return tBuilder("noChangesToPublish");
     if (rawError === "Survey responses are closed") return tBuilder("responsesClosed");
     if (rawError === "Published version expired") return tBuilder("publishedVersionExpired");
     if (rawError === "Survey contains invalid logic") return tBuilder("publishBlockedByLogicTitle");
     return tCommon("error");
   };
+
+  const mapSaveSettingsError = (payload: unknown) => {
+    const apiMessage = readUiPayloadMessage(payload)
+    if (apiMessage) return apiMessage
+    const rawError = readUiPayloadError(payload)
+    if (rawError === "Insufficient points for boost top-up") return tBuilder("publishErrorInsufficientBoostPoints")
+    return getUiError(payload, t("saveSettingsFailed"))
+  }
 
   const getPublishRequestBody = () =>
     JSON.stringify({
@@ -445,6 +483,11 @@ export default function SurveyManagementPage() {
 
   const publishSurveyVersion = async (eventName: "initial_publish" | "publish_new_version") => {
     if (!survey) return;
+    if (savedPublishBoostState.isPublishBlocked) return
+    if (savedPublishBoostState.hasInsufficientBoostPoints) {
+      setPublishError(tBuilder("publishErrorInsufficientBoostPoints"))
+      return
+    }
     setPublishing(true);
     setPublishError(null);
     void trackUIEvent({
@@ -493,6 +536,11 @@ export default function SurveyManagementPage() {
 
   const handleInitialPublish = async () => {
     if (hasPublishBlockingIssues) return
+    if (savedPublishBoostState.hasInsufficientBoostPoints) {
+      setPublishError(tBuilder("publishErrorInsufficientBoostPoints"))
+      return
+    }
+    if (savedPublishBoostState.isPublishBlocked) return
     setPendingPublishAction("initial_publish")
   }
 
@@ -603,6 +651,10 @@ export default function SurveyManagementPage() {
 
   const handleSaveSettings = async () => {
     if (!survey) return;
+    if (formSaveBoostState.hasInsufficientBoostPoints) {
+      setSaveError(tBuilder("publishErrorInsufficientBoostPoints"))
+      return
+    }
     setSaving(true);
     setSaveError(null);
     void trackUIEvent({
@@ -635,9 +687,12 @@ export default function SurveyManagementPage() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(getUiError(data, t("saveSettingsFailed")));
+        throw new Error(mapSaveSettingsError(data));
       }
       setSurvey(mapApiSurveyToUi(data));
+      if (formSaveBoostState.requiredTopUp > 0) {
+        notifyPointsBalanceChanged();
+      }
       void trackUIEvent({
         screen: "survey_admin_detail",
         component: "settings_form",
@@ -722,6 +777,31 @@ export default function SurveyManagementPage() {
     setSelectedVersion(version)
     setIsVersionPreviewOpen(true)
   }, [])
+  const isDirty = survey ? (
+    formState.title !== survey.title ||
+    formState.description !== (survey.description || "") ||
+    formState.visibility !== survey.settings.visibility ||
+    formState.requireLoginToRespond !== survey.settings.requireLoginToRespond ||
+    formState.includeInDatasets !== survey.settings.isDatasetActive ||
+    formState.pointsReward !== survey.settings.pointsReward ||
+    formState.expiresAtLocal !== utcToDatetimeLocal(survey.settings.expiresAt, timeZone)
+  ) : false
+  const formSaveBoostState = useMemo(() => {
+    if (!survey) {
+      return resolveSaveBoostState({
+        draftPointsReward: 0,
+        savedPointsReward: 0,
+        pointsBalance,
+      })
+    }
+
+    return resolveSaveBoostState({
+      draftPointsReward: formState.pointsReward,
+      savedPointsReward: survey.settings.pointsReward,
+      pointsBalance,
+      publishedCount: survey.settings.publishedCount,
+    })
+  }, [formState.pointsReward, pointsBalance, survey])
 
   if (loading) {
     return (
@@ -745,15 +825,6 @@ export default function SurveyManagementPage() {
       </div>
     );
   }
-
-  const isDirty =
-    formState.title !== survey.title ||
-    formState.description !== (survey.description || "") ||
-    formState.visibility !== survey.settings.visibility ||
-    formState.requireLoginToRespond !== survey.settings.requireLoginToRespond ||
-    formState.includeInDatasets !== survey.settings.isDatasetActive ||
-    formState.pointsReward !== survey.settings.pointsReward ||
-    formState.expiresAtLocal !== utcToDatetimeLocal(survey.settings.expiresAt, timeZone);
 
   const publishedCount = survey.settings.publishedCount ?? 0
   const hasPublishedVersion = Boolean(
@@ -813,6 +884,9 @@ export default function SurveyManagementPage() {
                   hasPublishedVersion={hasPublishedVersion}
                   hasUnpublishedChanges={hasUnpublishedChanges}
                   hasPublishBlockingIssues={hasPublishBlockingIssues}
+                  hasInsufficientBoostPoints={
+                    savedPublishBoostState.hasInsufficientBoostPoints || savedPublishBoostState.isPublishBlocked
+                  }
                   isResponseOpen={survey.settings.isResponseOpen}
                   publishing={publishing}
                   isDirty={isDirty}
@@ -875,7 +949,11 @@ export default function SurveyManagementPage() {
                   <BarChart3 className="mr-2 h-4 w-4" />
                   {t("responsesTab")}
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-purple-600 px-6 py-3">
+                <TabsTrigger
+                  value="settings"
+                  data-testid="survey-tab-settings"
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-purple-600 px-6 py-3"
+                >
                   <Settings className="mr-2 h-4 w-4" />
                   {tCommon("settings")}
                 </TabsTrigger>
@@ -982,7 +1060,7 @@ export default function SurveyManagementPage() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="settings" className="mt-6">
+              <TabsContent value="settings" className="mt-6" forceMount>
                 <Card>
                   <CardHeader>
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -994,7 +1072,7 @@ export default function SurveyManagementPage() {
                         <Button variant="outline" onClick={handleResetSettings} disabled={!isDirty || saving}>
                           {tCommon("cancel")}
                         </Button>
-                        <Button onClick={handleSaveSettings} disabled={!isDirty || saving}>
+                        <Button onClick={handleSaveSettings} disabled={!isDirty || saving || formSaveBoostState.hasInsufficientBoostPoints}>
                           {saving ? tCommon("saving") : tCommon("save")}
                         </Button>
                       </div>
@@ -1220,6 +1298,7 @@ export default function SurveyManagementPage() {
                         type="number"
                         value={formState.pointsReward}
                         className="w-32"
+                        data-testid="survey-settings-points-input"
                         onChange={(event) =>
                           setFormState((prev) => ({
                             ...prev,
@@ -1228,6 +1307,16 @@ export default function SurveyManagementPage() {
                         }
                       />
                       <p className="text-sm text-gray-500">{t("pointsRewardDescription")}</p>
+                      {formSaveBoostState.hasInsufficientBoostPoints ? (
+                        <div
+                          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                          data-testid="survey-settings-insufficient-points-warning"
+                        >
+                          <p>{tBuilder("publishBoostPointsWarning")}</p>
+                          <p>{tBuilder("publishBoostPointsBalance", { points: pointsBalance })}</p>
+                          <p>{tBuilder("publishBoostPointsRequiredSpend", { points: formSaveBoostState.requiredTopUp })}</p>
+                        </div>
+                      ) : null}
                     </div>
 
                     {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}

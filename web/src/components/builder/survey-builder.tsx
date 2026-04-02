@@ -50,6 +50,7 @@ import { useTimeZone, useTranslations } from "next-intl";
 import { localDatetimeToUtcISOString, utcToDatetimeLocal } from "@/lib/date-time";
 import { notifyPointsBalanceChanged } from "@/lib/points-balance-events";
 import { openSurveyPreview } from "@/lib/survey-preview";
+import { resolvePublishBoostState, resolveSaveBoostState } from "@/lib/survey-boost-publish";
 import {
   readUiPayloadError,
   readUiPayloadMessage,
@@ -156,7 +157,9 @@ export function SurveyBuilder() {
   const [hasUnpublishedChanges, setHasUnpublishedChanges] = useState(false);
   const [publishSettingsOpen, setPublishSettingsOpen] = useState(false);
   const [publishedCount, setPublishedCount] = useState(0);
+  const [currentPublishedVersionNumber, setCurrentPublishedVersionNumber] = useState<number | null>(null);
   const [capabilities, setCapabilities] = useState<Record<string, boolean>>({});
+  const [pointsBalance, setPointsBalance] = useState(0);
   const [versions, setVersions] = useState<SurveyVersion[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<SurveyVersion | null>(null);
@@ -252,8 +255,37 @@ export function SurveyBuilder() {
   ) : false;
   const hasSavedDraft = Boolean(surveyId)
   const hasPublishableChanges = !isPublished || hasUnpublishedChanges
+  const shouldEnforcePublishBoostSpend = publishedCount === 0
+  const publishBoostState = React.useMemo(() => {
+    return resolvePublishBoostState({
+      draftPointsReward: pointsReward,
+      pointsBalance,
+      publishedCount,
+      currentPublishedVersionNumber,
+      hasUnpublishedChanges,
+      versions,
+      fallbackPublishedPointsReward: !hasUnpublishedChanges ? pointsReward : null,
+      versionsLoading,
+    })
+  }, [currentPublishedVersionNumber, hasUnpublishedChanges, pointsBalance, pointsReward, publishedCount, versions, versionsLoading])
+  const settingsDraftSaveBoostState = React.useMemo(() => {
+    return resolveSaveBoostState({
+      draftPointsReward: settingsDraft?.pointsReward ?? pointsReward,
+      savedPointsReward: pointsReward,
+      pointsBalance,
+      publishedCount,
+    })
+  }, [pointsBalance, pointsReward, publishedCount, settingsDraft?.pointsReward])
   const canOpenPublishDialog =
-    hasSavedDraft && hasPublishableChanges && !isDirty && !publishingSurvey && !loadingSurvey
+    hasSavedDraft &&
+    hasPublishableChanges &&
+    !isDirty &&
+    !publishingSurvey &&
+    !loadingSurvey &&
+    (!shouldEnforcePublishBoostSpend || (
+      !publishBoostState.isPublishBlocked &&
+      !publishBoostState.hasInsufficientBoostPoints
+    ))
 
   const isPublishLocked = isSurveyPublishLocked(publishedCount)
   const isBuilderDatasetSharingLocked = isSurveyDatasetSharingLocked({
@@ -321,10 +353,12 @@ export function SurveyBuilder() {
         const payload = await response.json().catch(() => ({}))
         if (isActive && response.ok) {
           setCapabilities(payload.capabilities || {})
+          setPointsBalance(Math.max(0, Math.floor(Number(payload.pointsBalance || 0))))
         }
       } catch {
         if (isActive) {
           setCapabilities({})
+          setPointsBalance(0)
         }
       }
     }
@@ -850,6 +884,7 @@ export function SurveyBuilder() {
     setRequireLoginToRespond(mapped.settings.requireLoginToRespond)
     setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
+    setCurrentPublishedVersionNumber(mapped.settings.currentPublishedVersionNumber ?? null)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
     savedQuestionsRef.current = serializeQuestions(safeQuestions)
     savedThemeRef.current = JSON.stringify(nextTheme)
@@ -868,6 +903,7 @@ export function SurveyBuilder() {
     setRequireLoginToRespond(mapped.settings.requireLoginToRespond)
     setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
+    setCurrentPublishedVersionNumber(mapped.settings.currentPublishedVersionNumber ?? null)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
   }, [timeZone])
 
@@ -1021,6 +1057,13 @@ export function SurveyBuilder() {
   };
 
   const publishSurvey = async () => {
+    if (shouldEnforcePublishBoostSpend && publishBoostState.isPublishBlocked) {
+      return
+    }
+    if (shouldEnforcePublishBoostSpend && publishBoostState.hasInsufficientBoostPoints) {
+      setPublishError(tBuilder("publishErrorInsufficientBoostPoints"))
+      return
+    }
     setPublishingSurvey(true);
     setPublishError(null);
     try {
@@ -1081,6 +1124,12 @@ export function SurveyBuilder() {
       return saved
     }
 
+    if (settingsDraftSaveBoostState.hasInsufficientBoostPoints) {
+      setSaveError(tBuilder("publishErrorInsufficientBoostPoints"))
+      setSaveErrorRequiresAuth(false)
+      return null
+    }
+
     setSavingSurvey(true)
     setSaveError(null)
     setSaveErrorRequiresAuth(false)
@@ -1115,6 +1164,9 @@ export function SurveyBuilder() {
         if (response.status === 401) {
           throw new Error(tBuilder("saveErrorUnauthorized"))
         }
+        if (readUiPayloadError(errorPayload) === "Insufficient points for boost top-up") {
+          throw new Error(tBuilder("publishErrorInsufficientBoostPoints"))
+        }
         throw new Error(resolveUiError(errorPayload, tBuilder("saveErrorGeneric")))
       }
 
@@ -1124,6 +1176,9 @@ export function SurveyBuilder() {
       applyMappedSettings(mapped)
       setIsDirty(hasUnsavedBuilderChanges())
       setViewMode("builder")
+      if (settingsDraftSaveBoostState.requiredTopUp > 0) {
+        notifyPointsBalanceChanged();
+      }
 
       return mapped
     } catch (error) {
@@ -1451,6 +1506,7 @@ export function SurveyBuilder() {
                                 <label className="text-sm font-medium">{tBuilder("pointsReward")}</label>
                                 <Input 
                                     type="number" 
+                                data-testid="builder-settings-points-input"
                                 value={settingsDraft?.pointsReward || 0} 
                                 onChange={(e) =>
                                   setSettingsDraft(prev => prev ? ({ ...prev, pointsReward: normalizeNonNegativePoints(e.target.value) }) : null)
@@ -1458,6 +1514,16 @@ export function SurveyBuilder() {
                                 min={0}
                                 />
                                 <p className="text-xs text-gray-500">{tBuilder("pointsRewardDescription")}</p>
+                                {settingsDraftSaveBoostState.hasInsufficientBoostPoints ? (
+                                  <div
+                                    className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                                    data-testid="builder-settings-insufficient-points-warning"
+                                  >
+                                    <p>{tBuilder("publishBoostPointsWarning")}</p>
+                                    <p>{tBuilder("publishBoostPointsBalance", { points: pointsBalance })}</p>
+                                    <p>{tBuilder("publishBoostPointsRequiredSpend", { points: settingsDraftSaveBoostState.requiredTopUp })}</p>
+                                  </div>
+                                ) : null}
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">{tBuilder("expirationDate")}</label>
@@ -1617,7 +1683,7 @@ export function SurveyBuilder() {
                                 {tCommon("cancel")}
                              </Button>
                              <Button 
-                                disabled={!hasUnsavedSettings}
+                                disabled={!hasUnsavedSettings || settingsDraftSaveBoostState.hasInsufficientBoostPoints}
                                 onClick={saveSettings}
                                 className={hasUnsavedSettings ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 text-gray-500 hover:bg-gray-200"}>
                                 {tCommon("save")}
@@ -2079,12 +2145,24 @@ export function SurveyBuilder() {
                             </div>
                             <Input 
                                 type="number" 
+                                data-testid="builder-publish-points-input"
                                 value={pointsReward} 
                                 onChange={(e) => setPointsReward(normalizeNonNegativePoints(e.target.value))}
                                 min={0}
                                 className="w-24"
+                                disabled={!shouldEnforcePublishBoostSpend}
                             />
                         </div>
+                        {shouldEnforcePublishBoostSpend && publishBoostState.hasInsufficientBoostPoints ? (
+                          <div
+                            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                            data-testid="builder-publish-insufficient-points-warning"
+                          >
+                            <p>{tBuilder("publishBoostPointsWarning")}</p>
+                            <p>{tBuilder("publishBoostPointsBalance", { points: pointsBalance })}</p>
+                            <p>{tBuilder("publishBoostPointsRequiredSpend", { points: publishBoostState.requiredBoostSpend })}</p>
+                          </div>
+                        ) : null}
                         {publishError ? (
                           <p className="text-sm text-red-600" data-testid="builder-publish-error">
                             {publishError}
@@ -2105,7 +2183,14 @@ export function SurveyBuilder() {
                         <Button 
                             className="bg-purple-600 hover:bg-purple-700" 
                             onClick={publishSurvey}
-                            disabled={!canOpenPublishDialog || hasPublishBlockingLogicIssues}
+                            disabled={
+                              !canOpenPublishDialog ||
+                              hasPublishBlockingLogicIssues ||
+                              (shouldEnforcePublishBoostSpend && (
+                                publishBoostState.hasInsufficientBoostPoints ||
+                                publishBoostState.isPublishBlocked
+                              ))
+                            }
                         >
                             <Rocket className="mr-2 h-4 w-4" />
                             {isPublished ? tBuilder("confirmRepublish") : tBuilder("confirmPublish")}

@@ -546,6 +546,7 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 		return
 	}
+	previousPointsReward := survey.PointsReward
 
 	var req UpdateSurveyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -648,6 +649,10 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 	}
 
 	syncPublishedMutableState := survey.CurrentPublishedVersionID != nil && (req.PointsReward != nil || req.ExpiresAtLocal != nil || req.TimeZone != nil)
+	boostTopUp := 0
+	if survey.PublishedCount > 0 && survey.CurrentPublishedVersionID != nil && req.PointsReward != nil && survey.PointsReward > previousPointsReward {
+		boostTopUp = survey.PointsReward - previousPointsReward
+	}
 
 	tx, err := h.db.Begin()
 	if err != nil {
@@ -655,6 +660,17 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		return
 	}
 	defer tx.Rollback()
+
+	if boostTopUp > 0 {
+		if err := h.pointsRepo.DeductForSurveyBoostTx(tx, survey.UserID, survey.ID, boostTopUp, "Survey boost spend (save settings)"); err != nil {
+			if err == repository.ErrInsufficientPoints {
+				c.JSON(http.StatusPaymentRequired, gin.H{"error": "Insufficient points for boost top-up"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to deduct boost points"})
+			return
+		}
+	}
 
 	if err := h.repo.UpdateTx(tx, survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})

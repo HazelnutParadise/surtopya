@@ -8,6 +8,7 @@ interface SurveyManagementPublishActionsProps {
   hasPublishedVersion: boolean
   hasUnpublishedChanges: boolean
   hasPublishBlockingIssues: boolean
+  hasInsufficientBoostPoints: boolean
   isResponseOpen: boolean
   publishing: boolean
   isDirty: boolean
@@ -20,6 +21,7 @@ export function SurveyManagementPublishActions({
   hasPublishedVersion,
   hasUnpublishedChanges,
   hasPublishBlockingIssues,
+  hasInsufficientBoostPoints,
   isResponseOpen,
   publishing,
   isDirty,
@@ -30,7 +32,7 @@ export function SurveyManagementPublishActions({
   const t = useTranslations("SurveyManagement")
   const tCommon = useTranslations("Common")
 
-  const publishDisabled = publishing || isDirty || hasPublishBlockingIssues
+  const publishDisabled = publishing || isDirty || hasPublishBlockingIssues || hasInsufficientBoostPoints
 
   if (!hasPublishedVersion) {
     return (

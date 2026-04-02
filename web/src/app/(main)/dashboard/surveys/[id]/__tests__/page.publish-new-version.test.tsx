@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import SurveyManagementPage from "../page"
+import { notifyPointsBalanceChanged } from "@/lib/points-balance-events"
 
 const openMock = vi.fn()
 
@@ -92,6 +93,10 @@ vi.mock("@/components/survey/survey-responses-export-menu", () => ({
 
 vi.mock("@/lib/ui-telemetry", () => ({
   trackUIEvent: vi.fn(() => Promise.resolve()),
+}))
+
+vi.mock("@/lib/points-balance-events", () => ({
+  notifyPointsBalanceChanged: vi.fn(),
 }))
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -194,7 +199,7 @@ describe("SurveyManagementPage publish new version", () => {
       }
 
       if (url === "/api/app/me") {
-        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 999 }))
       }
 
       if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
@@ -280,7 +285,12 @@ describe("SurveyManagementPage publish new version", () => {
     )
     expect(publishCallsBeforeCancel).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    const enabledCancelButton = screen
+      .getAllByRole("button", { name: "Cancel" })
+      .find((button) => !button.hasAttribute("disabled"))
+
+    expect(enabledCancelButton).toBeDefined()
+    fireEvent.click(enabledCancelButton as HTMLButtonElement)
 
     const publishCallsAfterCancel = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
       ([url, init]) =>
@@ -349,7 +359,7 @@ describe("SurveyManagementPage publish new version", () => {
       }
 
       if (url === "/api/app/me") {
-        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 999 }))
       }
 
       if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
@@ -422,7 +432,7 @@ describe("SurveyManagementPage publish new version", () => {
       }
 
       if (url === "/api/app/me") {
-        return Promise.resolve(buildJsonResponse({ capabilities: {} }))
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 999 }))
       }
 
       if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
@@ -450,5 +460,259 @@ describe("SurveyManagementPage publish new version", () => {
 
     expect(await screen.findByTestId("survey-management-header-actions")).toHaveClass("flex-wrap")
     expect(screen.getByTestId("survey-management-publish-logic-block")).toHaveClass("w-full")
+  })
+
+  it("shows an inline warning and blocks saving settings when the boost top-up exceeds the current balance", async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          pointsReward: 6,
+          hasUnpublishedChanges: false,
+          currentPublishedVersionNumber: 3,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && init?.method === "PUT") {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          pointsReward: 12,
+          hasUnpublishedChanges: true,
+          currentPublishedVersionNumber: 3,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ responses: [] }))
+      }
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 5 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({
+          versions: [
+            {
+              id: "version-3",
+              surveyId: "survey-1",
+              versionNumber: 3,
+              snapshot: {
+                title: "Survey",
+                description: "Description",
+                visibility: "non-public",
+                includeInDatasets: false,
+                pointsReward: 6,
+                questions: [baseQuestion],
+              },
+              pointsReward: 6,
+              publishedAt: "2026-03-10T00:00:00Z",
+              createdAt: "2026-03-10T00:00:00Z",
+            },
+          ],
+        }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 0,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(<SurveyManagementPage />)
+
+    fireEvent.click(await screen.findByTestId("survey-tab-settings"))
+    fireEvent.change(await screen.findByTestId("survey-settings-points-input"), { target: { value: "12" } })
+
+    expect(await screen.findByTestId("survey-settings-insufficient-points-warning")).toBeInTheDocument()
+
+    const saveButton = screen.getByRole("button", { name: "save" })
+    expect(saveButton).toBeDisabled()
+    fireEvent.click(saveButton)
+
+    const putCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([url, init]) =>
+        url === "/api/app/surveys/survey-1" &&
+        (init as RequestInit | undefined)?.method === "PUT"
+    )
+    expect(putCalls).toHaveLength(0)
+  })
+
+  it("allows saving settings when the boost top-up is within the current balance and refreshes points", async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          pointsReward: 8,
+          hasUnpublishedChanges: false,
+          currentPublishedVersionNumber: 3,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1" && init?.method === "PUT") {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          pointsReward: 12,
+          hasUnpublishedChanges: false,
+          currentPublishedVersionNumber: 3,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ responses: [] }))
+      }
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 5 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({
+          versions: [
+            {
+              id: "version-3",
+              surveyId: "survey-1",
+              versionNumber: 3,
+              snapshot: {
+                title: "Survey",
+                description: "Description",
+                visibility: "non-public",
+                includeInDatasets: false,
+                pointsReward: 8,
+                questions: [baseQuestion],
+              },
+              pointsReward: 8,
+              publishedAt: "2026-03-10T00:00:00Z",
+              createdAt: "2026-03-10T00:00:00Z",
+            },
+          ],
+        }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 0,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(<SurveyManagementPage />)
+
+    fireEvent.click(await screen.findByTestId("survey-tab-settings"))
+    fireEvent.change(await screen.findByTestId("survey-settings-points-input"), { target: { value: "12" } })
+
+    const saveButton = screen.getByRole("button", { name: "save" })
+    expect(saveButton).toBeEnabled()
+    fireEvent.click(saveButton)
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/app/surveys/survey-1",
+        expect.objectContaining({
+          method: "PUT",
+        })
+      )
+    })
+
+    expect(notifyPointsBalanceChanged).toHaveBeenCalled()
+  })
+
+  it("does not disable publish confirmation for already-live boost that was charged on save", async () => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input.toString()
+
+      if (url === "/api/app/surveys/survey-1" && !init?.method) {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          pointsReward: 12,
+          hasUnpublishedChanges: true,
+          currentPublishedVersionNumber: 3,
+        })))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({ responses: [] }))
+      }
+
+      if (url === "/api/app/me") {
+        return Promise.resolve(buildJsonResponse({ capabilities: {}, pointsBalance: 5 }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/versions" && !init?.method) {
+        return Promise.resolve(buildJsonResponse({
+          versions: [
+            {
+              id: "version-3",
+              surveyId: "survey-1",
+              versionNumber: 3,
+              snapshot: {
+                title: "Survey",
+                description: "Description",
+                visibility: "non-public",
+                includeInDatasets: false,
+                pointsReward: 6,
+                questions: [baseQuestion],
+              },
+              pointsReward: 6,
+              publishedAt: "2026-03-10T00:00:00Z",
+              createdAt: "2026-03-10T00:00:00Z",
+            },
+          ],
+        }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/responses/analytics") {
+        return Promise.resolve(buildJsonResponse({
+          selectedVersion: "all",
+          availableVersions: [3],
+          summary: {
+            totalCompletedResponses: 0,
+            questionCount: 1,
+            generatedAt: "2026-03-10T00:05:00Z",
+          },
+          pages: [],
+          warnings: [],
+        }))
+      }
+
+      if (url === "/api/app/surveys/survey-1/publish" && init?.method === "POST") {
+        return Promise.resolve(buildJsonResponse(buildSurveyPayload({
+          publishedCount: 2,
+          currentPublishedVersionNumber: 4,
+          hasUnpublishedChanges: false,
+          pointsReward: 12,
+        })))
+      }
+
+      throw new Error(`Unhandled fetch request: ${url}`)
+    })
+
+    render(<SurveyManagementPage />)
+
+    const publishButton = await screen.findByRole("button", { name: "Publish new version" })
+    expect(publishButton).toBeEnabled()
+
+    fireEvent.click(publishButton)
+    expect(await screen.findByRole("button", { name: "Confirm publish" })).toBeInTheDocument()
   })
 })

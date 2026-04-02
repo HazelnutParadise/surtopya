@@ -26,6 +26,7 @@ const renderActions = (props: Partial<ComponentProps<typeof SurveyManagementPubl
         hasPublishedVersion={false}
         hasUnpublishedChanges={false}
         hasPublishBlockingIssues={false}
+        hasInsufficientBoostPoints={false}
         isResponseOpen={false}
         publishing={false}
         isDirty={false}
@@ -89,6 +90,16 @@ describe("SurveyManagementPublishActions", () => {
       hasPublishedVersion: true,
       hasUnpublishedChanges: true,
       hasPublishBlockingIssues: true,
+    })
+
+    expect(screen.getByRole("button", { name: "Publish new version" })).toBeDisabled()
+  })
+
+  it("disables publish actions when boost points are insufficient", () => {
+    renderActions({
+      hasPublishedVersion: true,
+      hasUnpublishedChanges: true,
+      hasInsufficientBoostPoints: true,
     })
 
     expect(screen.getByRole("button", { name: "Publish new version" })).toBeDisabled()
