@@ -66,9 +66,17 @@ vi.mock("@/components/ui/select", () => ({
 }))
 
 vi.mock("@/components/survey-card", () => ({
-  SurveyCard: ({ title, hasResponded }: { title: string; hasResponded?: boolean }) => (
+  SurveyCard: ({
+    title,
+    hasResponded,
+    points,
+  }: {
+    title: string
+    hasResponded?: boolean
+    points?: number
+  }) => (
     <div data-testid="survey-card">
-      {title}:{hasResponded ? "responded" : "fresh"}
+      {title}:{hasResponded ? "responded" : "fresh"}:{points ?? 0}
     </div>
   ),
 }))
@@ -201,7 +209,30 @@ describe("Explore page sorting behavior", () => {
     render(<ExplorePage />)
 
     const cards = await screen.findAllByTestId("survey-card")
-    expect(cards[0]?.textContent).toBe("Fresh First:fresh")
-    expect(cards[1]?.textContent).toBe("Done Later:responded")
+    expect(cards[0]?.textContent).toBe("Fresh First:fresh:3")
+    expect(cards[1]?.textContent).toBe("Done Later:responded:3")
+  })
+
+  it("shows the base survey point immediately even before runtime config resolves", async () => {
+    mocks.getRuntimeConfig.mockReturnValue(
+      new Promise(() => {})
+    )
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          surveys: [makeSurvey("boosted-1", "Boosted Survey", false)],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(<ExplorePage />)
+
+    expect(await screen.findByTestId("survey-card")).toHaveTextContent("Boosted Survey:fresh:3")
   })
 })

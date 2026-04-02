@@ -75,7 +75,18 @@ vi.mock("@/components/survey/response-analytics-panel", () => ({
 }))
 
 vi.mock("@/components/survey/survey-response-summary-cards", () => ({
-  SurveyResponseSummaryCards: () => <div data-testid="survey-response-summary-cards" />,
+  SurveyResponseSummaryCards: ({
+    totalResponses,
+    questionCount,
+  }: {
+    totalResponses: number
+    questionCount: number
+  }) => (
+    <div data-testid="survey-response-summary-cards">
+      <div data-testid="summary-total-responses">{totalResponses}</div>
+      <div data-testid="summary-question-count">{questionCount}</div>
+    </div>
+  ),
 }))
 
 vi.mock("@/components/survey/version-document-preview", () => ({
@@ -127,7 +138,7 @@ const buildSurveyPayload = () => ({
   hasUnpublishedChanges: false,
   currentPublishedVersionNumber: 3,
   pointsReward: 0,
-  responseCount: 1,
+  responseCount: 3,
   createdAt: "2026-03-10T00:00:00Z",
   updatedAt: "2026-03-10T00:00:00Z",
   questions: [baseQuestion],
@@ -153,7 +164,48 @@ describe("SurveyManagementPage analytics version switching", () => {
       }
 
       if (url === "/api/app/surveys/survey-1/responses" && !init?.method) {
-        return Promise.resolve(buildJsonResponse({ responses: [] }))
+        return Promise.resolve(
+          buildJsonResponse({
+            responses: [
+              {
+                id: "response-3a",
+                surveyId: "survey-1",
+                surveyVersionId: "version-3",
+                surveyVersionNumber: 3,
+                status: "completed",
+                pointsAwarded: 0,
+                startedAt: "2026-03-10T00:00:00Z",
+                completedAt: "2026-03-10T00:10:00Z",
+                createdAt: "2026-03-10T00:00:00Z",
+                answers: [],
+              },
+              {
+                id: "response-3b",
+                surveyId: "survey-1",
+                surveyVersionId: "version-3",
+                surveyVersionNumber: 3,
+                status: "completed",
+                pointsAwarded: 0,
+                startedAt: "2026-03-10T00:15:00Z",
+                completedAt: "2026-03-10T00:20:00Z",
+                createdAt: "2026-03-10T00:15:00Z",
+                answers: [],
+              },
+              {
+                id: "response-1a",
+                surveyId: "survey-1",
+                surveyVersionId: "version-1",
+                surveyVersionNumber: 1,
+                status: "completed",
+                pointsAwarded: 0,
+                startedAt: "2026-03-09T00:00:00Z",
+                completedAt: "2026-03-09T00:05:00Z",
+                createdAt: "2026-03-09T00:00:00Z",
+                answers: [],
+              },
+            ],
+          })
+        )
       }
 
       if (url === "/api/app/me") {
@@ -174,11 +226,34 @@ describe("SurveyManagementPage analytics version switching", () => {
                   visibility: "non-public",
                   includeInDatasets: false,
                   pointsReward: 0,
-                  questions: [baseQuestion],
+                  questions: [
+                    baseQuestion,
+                    {
+                      ...baseQuestion,
+                      id: "q-2",
+                      title: "Question 2",
+                    },
+                  ],
                 },
                 pointsReward: 0,
                 publishedAt: "2026-03-10T00:00:00Z",
                 createdAt: "2026-03-10T00:00:00Z",
+              },
+              {
+                id: "version-1",
+                surveyId: "survey-1",
+                versionNumber: 1,
+                snapshot: {
+                  title: "Survey",
+                  description: "Description",
+                  visibility: "non-public",
+                  includeInDatasets: false,
+                  pointsReward: 0,
+                  questions: [baseQuestion],
+                },
+                pointsReward: 0,
+                publishedAt: "2026-03-09T00:00:00Z",
+                createdAt: "2026-03-09T00:00:00Z",
               },
             ],
           })
@@ -192,7 +267,7 @@ describe("SurveyManagementPage analytics version switching", () => {
             availableVersions: [3, 1],
             summary: {
               totalCompletedResponses: 3,
-              questionCount: 1,
+              questionCount: 2,
               generatedAt: "2026-03-10T00:05:00Z",
             },
             pages: [],
@@ -229,6 +304,8 @@ describe("SurveyManagementPage analytics version switching", () => {
     await waitFor(() => {
       expect(screen.getByTestId("analytics-count")).toHaveTextContent("3")
     })
+    expect(screen.getByTestId("summary-total-responses")).toHaveTextContent("3")
+    expect(screen.getByTestId("summary-question-count")).toHaveTextContent("2")
 
     fireEvent.change(screen.getByTestId("analytics-version"), {
       target: { value: "1" },
@@ -247,5 +324,10 @@ describe("SurveyManagementPage analytics version switching", () => {
     await waitFor(() => {
       expect(screen.getByTestId("analytics-count")).toHaveTextContent("1")
     })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("summary-total-responses")).toHaveTextContent("1")
+    })
+    expect(screen.getByTestId("summary-question-count")).toHaveTextContent("1")
   })
 })

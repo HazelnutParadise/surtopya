@@ -2,6 +2,38 @@ import { describe, expect, it } from "vitest"
 import { getSurveyResponseSummaryQuestionCount } from "@/lib/survey-response-summary"
 
 describe("survey response summary question count", () => {
+  it("uses the selected published version question count when a specific version is active", () => {
+    const count = getSurveyResponseSummaryQuestionCount({
+      selectedVersion: "1",
+      draftQuestions: [
+        { type: "short" },
+        { type: "short" },
+      ],
+      surveyVersions: [
+        {
+          versionNumber: 3,
+          snapshot: {
+            questions: [
+              { type: "short" },
+              { type: "long" },
+            ],
+          },
+        },
+        {
+          versionNumber: 1,
+          snapshot: {
+            questions: [
+              { type: "section" },
+              { type: "date" },
+            ],
+          },
+        },
+      ],
+    })
+
+    expect(count).toBe(1)
+  })
+
   it("prefers the latest published version question count over the current draft", () => {
     const count = getSurveyResponseSummaryQuestionCount({
       draftQuestions: [
@@ -11,6 +43,7 @@ describe("survey response summary question count", () => {
       ],
       surveyVersions: [
         {
+          versionNumber: 3,
           snapshot: {
             questions: [
               { type: "short" },
@@ -21,6 +54,7 @@ describe("survey response summary question count", () => {
           },
         },
         {
+          versionNumber: 2,
           snapshot: {
             questions: [{ type: "short" }],
           },
@@ -49,6 +83,7 @@ describe("survey response summary question count", () => {
       draftQuestions: [{ type: "short" }],
       surveyVersions: [
         {
+          versionNumber: 1,
           snapshot: {
             questions: [
               { type: "section" },

@@ -31,7 +31,7 @@ function ExploreContent() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [offset, setOffset] = useState(0)
-  const [surveyBasePoints, setSurveyBasePoints] = useState(0)
+  const [surveyBasePoints, setSurveyBasePoints] = useState(1)
 
   useEffect(() => {
     let alive = true

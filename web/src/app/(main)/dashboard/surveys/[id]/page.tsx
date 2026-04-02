@@ -323,33 +323,56 @@ export default function SurveyManagementPage() {
     })
   }, [responses])
 
-  const completedResponseCount = useMemo(
-    () => responseRows.filter((response) => response.status === "completed").length,
+  const completedResponseRows = useMemo(
+    () => responseRows.filter((response) => response.status === "completed"),
     [responseRows]
   )
 
-  const lastResponseAt = useMemo(() => {
-    if (responseRows.length === 0) return ""
-    return responseRows[0]?.completedAt || responseRows[0]?.createdAt || ""
-  }, [responseRows])
+  const completedResponseCount = useMemo(
+    () => completedResponseRows.length,
+    [completedResponseRows]
+  )
 
-  const lastResponse = useMemo(
-    () => formatUtcDateTimeLines(lastResponseAt, { locale, timeZone }),
-    [lastResponseAt, locale, timeZone]
+  const summaryResponseRows = useMemo(() => {
+    if (analyticsVersion === "all") {
+      return completedResponseRows
+    }
+
+    return completedResponseRows.filter(
+      (response) => String(response.surveyVersionNumber) === analyticsVersion
+    )
+  }, [analyticsVersion, completedResponseRows])
+
+  const summaryTotalResponses = analytics?.summary.totalCompletedResponses ?? summaryResponseRows.length
+
+  const summaryQuestionCount = useMemo(() => {
+    if (analytics) {
+      return analytics.summary.questionCount
+    }
+
+    if (!survey) return 0
+
+    return getSurveyResponseSummaryQuestionCount({
+      selectedVersion: analyticsVersion,
+      draftQuestions: survey.questions,
+      surveyVersions,
+    })
+  }, [analytics, analyticsVersion, survey, surveyVersions])
+
+  const summaryLastResponseAt = useMemo(() => {
+    if (summaryResponseRows.length === 0) return ""
+    return summaryResponseRows[0]?.completedAt || summaryResponseRows[0]?.createdAt || ""
+  }, [summaryResponseRows])
+
+  const summaryLastResponse = useMemo(
+    () => formatUtcDateTimeLines(summaryLastResponseAt, { locale, timeZone }),
+    [summaryLastResponseAt, locale, timeZone]
   )
 
   const exportVersionOptions = useMemo(() => {
     return [...new Set(surveyVersions.map((version) => version.versionNumber))].sort((left, right) => right - left)
   }, [surveyVersions])
 
-  const summaryQuestionCount = useMemo(() => {
-    if (!survey) return 0
-
-    return getSurveyResponseSummaryQuestionCount({
-      draftQuestions: survey.questions,
-      surveyVersions,
-    })
-  }, [survey, surveyVersions])
   const publishBlockingLogicEntries = useMemo(
     () => (survey ? getPublishBlockingLogicEntries(survey.questions) : []),
     [survey]
@@ -935,9 +958,9 @@ export default function SurveyManagementPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-3">
             <SurveyResponseSummaryCards
-              totalResponses={survey.responseCount}
-              lastResponseDate={lastResponse?.date}
-              lastResponseTime={lastResponse?.time}
+              totalResponses={summaryTotalResponses}
+              lastResponseDate={summaryLastResponse?.date}
+              lastResponseTime={summaryLastResponse?.time}
               questionCount={summaryQuestionCount}
             />
           </div>

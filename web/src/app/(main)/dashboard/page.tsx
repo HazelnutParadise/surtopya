@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [drafts, setDrafts] = useState<ResponseDraftSummary[]>([])
   const [completedResponses, setCompletedResponses] = useState<CompletedResponseSummary[]>([])
   const [loading, setLoading] = useState(true);
-  const [surveyBasePoints, setSurveyBasePoints] = useState(0)
+  const [surveyBasePoints, setSurveyBasePoints] = useState(1)
 
   useEffect(() => {
     let alive = true
