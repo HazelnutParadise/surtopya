@@ -861,6 +861,120 @@ func TestResponseHandler_SubmitDraft_ReturnsLiveCompletionCopy(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestResponseHandler_SubmitDraft_IgnoresStaleDraftAnswersOutsidePublishedVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newResponseHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	draftID := uuid.New()
+	surveyID := uuid.New()
+	respondentID := uuid.New()
+	ownerID := uuid.New()
+	surveyVersionID := uuid.New()
+	validQuestionID := uuid.New()
+	staleQuestionID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT survey_id, survey_version_id, survey_version_number, started_at\\s+FROM response_drafts").
+		WithArgs(draftID, respondentID).
+		WillReturnRows(sqlmock.NewRows([]string{"survey_id", "survey_version_id", "survey_version_number", "started_at"}).AddRow(
+			surveyID, surveyVersionID, 2, now,
+		))
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, true, surveyVersionID, 2)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+	mock.ExpectQuery("FROM surveys s\\s+JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "version_number", "snapshot", "points_reward",
+			"expires_at", "published_at", "published_by", "created_at",
+		}).AddRow(
+			surveyVersionID,
+			surveyID,
+			2,
+			[]byte(`{"questions":[{"id":"`+validQuestionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			0,
+			nil,
+			now,
+			ownerID,
+			now,
+		))
+	mock.ExpectQuery("SELECT snapshot, points_reward FROM survey_versions WHERE id = \\$1").
+		WithArgs(surveyVersionID).
+		WillReturnRows(sqlmock.NewRows([]string{"snapshot", "points_reward"}).AddRow(
+			[]byte(`{"questions":[{"id":"`+validQuestionID.String()+`","type":"short","title":"Q1","required":false}]}`),
+			0,
+		))
+	mock.ExpectQuery("SELECT completion_title, completion_message FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"completion_title", "completion_message"}).AddRow(nil, nil))
+	mock.ExpectQuery("SELECT question_id, value\\s+FROM response_draft_answers\\s+WHERE draft_id = \\$1").
+		WithArgs(draftID).
+		WillReturnRows(sqlmock.NewRows([]string{"question_id", "value"}).
+			AddRow(validQuestionID, []byte(`{"text":"keep me"}`)).
+			AddRow(staleQuestionID, []byte(`{"text":"stale"}`)))
+	mock.ExpectQuery("SELECT user_id FROM surveys WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(ownerID))
+	mock.ExpectQuery("SELECT value FROM system_settings WHERE key = \\$1").
+		WithArgs("survey_base_points").
+		WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow("6"))
+	mock.ExpectExec("INSERT INTO responses").
+		WithArgs(sqlmock.AnyArg(), surveyID, surveyVersionID, 2, respondentID, 6, now, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO survey_response_once_locks").
+		WithArgs(sqlmock.AnyArg(), surveyID, sqlmock.AnyArg(), respondentID, nil, "authenticated_submit").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO answers").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), validQuestionID, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE surveys SET response_count = response_count \\+ 1 WHERE id = \\$1").
+		WithArgs(surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE users SET points_balance = points_balance \\+ \\$2 WHERE id = \\$1").
+		WithArgs(respondentID, 6).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO points_transactions").
+		WithArgs(sqlmock.AnyArg(), respondentID, 6, sqlmock.AnyArg(), surveyID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("DELETE FROM response_drafts WHERE id = \\$1").
+		WithArgs(draftID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	mock.ExpectQuery("FROM responses WHERE id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(uuid.New(), surveyID, surveyVersionID, 2, respondentID, nil, "completed", 6, now, now, now))
+	mock.ExpectQuery("FROM answers WHERE response_id = \\$1").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}).
+			AddRow(uuid.New(), uuid.New(), validQuestionID, []byte(`{"text":"keep me"}`), now))
+
+	r := gin.New()
+	r.POST("/api/v1/drafts/:id/submit", func(c *gin.Context) {
+		c.Set("userID", respondentID)
+		h.SubmitDraft(c)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/"+draftID.String()+"/submit", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestResponseHandler_ClaimAnonymousPoints_OwnerGetsZeroPoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

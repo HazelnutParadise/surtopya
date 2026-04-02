@@ -615,6 +615,9 @@ func (h *ResponseHandler) SubmitDraft(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode draft answers"})
 			return
 		}
+		if _, ok := validQuestions[row.questionID]; !ok {
+			continue
+		}
 		answerValues[row.questionID] = answerValue
 		draftAnswers = append(draftAnswers, row)
 	}
