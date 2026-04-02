@@ -117,6 +117,7 @@ func TestSurveyHandler_UpdateSurvey_ConvertsExpiresAtLocalToUTC(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(false))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -139,6 +140,7 @@ func TestSurveyHandler_UpdateSurvey_ConvertsExpiresAtLocalToUTC(t *testing.T) {
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
@@ -225,6 +227,7 @@ func TestSurveyHandler_UpdateSurvey_AllowsClearingExpiresAt(t *testing.T) {
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(false))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -247,6 +250,7 @@ func TestSurveyHandler_UpdateSurvey_AllowsClearingExpiresAt(t *testing.T) {
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
@@ -291,6 +295,7 @@ func TestSurveyHandler_UpdateSurvey_AllowsKeepingUnchangedLegacyPastExpiresAt(t 
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(false))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -313,6 +318,7 @@ func TestSurveyHandler_UpdateSurvey_AllowsKeepingUnchangedLegacyPastExpiresAt(t 
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {

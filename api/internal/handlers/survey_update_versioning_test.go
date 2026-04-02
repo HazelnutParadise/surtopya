@@ -131,6 +131,7 @@ func TestSurveyHandler_UpdateSurvey_MetadataOnly_DoesNotMarkUnpublished(t *testi
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -153,6 +154,7 @@ func TestSurveyHandler_UpdateSurvey_MetadataOnly_DoesNotMarkUnpublished(t *testi
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
@@ -172,6 +174,92 @@ func TestSurveyHandler_UpdateSurvey_MetadataOnly_DoesNotMarkUnpublished(t *testi
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"hasUnpublishedChanges":false`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSurveyHandler_UpdateSurvey_PublishedMutableState_SyncsCurrentVersion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newSurveyHandlerForPublishTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	userID := uuid.New()
+	currentVersionID := uuid.New()
+	currentVersionNumber := 2
+
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(
+			surveyRowsForUpdateVersioningTest(
+				surveyID,
+				userID,
+				"non-public",
+				false,
+				1,
+				&currentVersionID,
+				&currentVersionNumber,
+				false,
+			),
+		)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "type", "title", "description", "options", "required",
+			"max_rating", "min_selections", "max_selections", "default_destination_question_id",
+			"logic", "sort_order", "created_at", "updated_at",
+		}))
+	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
+		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
+		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE surveys SET").
+		WithArgs(
+			surveyID,
+			"Publish Test",
+			"Desc",
+			"non-public",
+			false,
+			false,
+			false,
+			true,
+			1,
+			sqlmock.AnyArg(),
+			7,
+			nil,
+			nil,
+			sqlmock.AnyArg(),
+			nil,
+			currentVersionID,
+			currentVersionNumber,
+			false,
+		).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE survey_versions\\s+SET\\s+points_reward = \\$2,\\s+expires_at = \\$3").
+		WithArgs(surveyID, 7, sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	r := gin.New()
+	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
+		c.Set("userID", userID)
+		h.UpdateSurvey(c)
+	})
+
+	body, err := json.Marshal(map[string]any{
+		"pointsReward":   7,
+		"expiresAtLocal": "2026-05-01T09:00",
+		"timeZone":       "Asia/Taipei",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/surveys/"+surveyID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"pointsReward":7`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -207,6 +295,7 @@ func TestSurveyHandler_UpdateSurvey_QuestionChanged_MarksUnpublished(t *testing.
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -229,8 +318,6 @@ func TestSurveyHandler_UpdateSurvey_QuestionChanged_MarksUnpublished(t *testing.
 			true,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-
-	mock.ExpectBegin()
 	mock.ExpectExec("DELETE FROM questions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -317,6 +404,7 @@ func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -339,7 +427,6 @@ func TestSurveyHandler_UpdateSurvey_AcceptsStructuredOptionsAndReturnsOtherFlag(
 			true,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectBegin()
 	mock.ExpectExec("DELETE FROM questions WHERE survey_id = \\$1").
 		WithArgs(surveyID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -433,6 +520,7 @@ func TestSurveyHandler_UpdateSurvey_BlankCompletionCopy_NormalizesToNull(t *test
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -455,6 +543,7 @@ func TestSurveyHandler_UpdateSurvey_BlankCompletionCopy_NormalizesToNull(t *test
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {
@@ -514,6 +603,7 @@ func TestSurveyHandler_UpdateSurvey_CompletionCopyChanged_DoesNotMarkUnpublished
 	mock.ExpectQuery("SELECT COALESCE\\(tc.is_allowed, false\\)").
 		WithArgs(userID, policy.CapabilitySurveyPublicDatasetOptOut).
 		WillReturnRows(sqlmock.NewRows([]string{"is_allowed"}).AddRow(true))
+	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE surveys SET").
 		WithArgs(
 			surveyID,
@@ -536,6 +626,7 @@ func TestSurveyHandler_UpdateSurvey_CompletionCopyChanged_DoesNotMarkUnpublished
 			false,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	r := gin.New()
 	r.PUT("/api/v1/surveys/:id", func(c *gin.Context) {

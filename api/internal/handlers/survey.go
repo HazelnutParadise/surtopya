@@ -647,7 +647,16 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 		survey.HasUnpublishedChanges = true
 	}
 
-	if err := h.repo.Update(survey); err != nil {
+	syncPublishedMutableState := survey.CurrentPublishedVersionID != nil && (req.PointsReward != nil || req.ExpiresAtLocal != nil || req.TimeZone != nil)
+
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
+	if err := h.repo.UpdateTx(tx, survey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update survey"})
 		return
 	}
@@ -660,11 +669,23 @@ func (h *SurveyHandler) UpdateSurvey(c *gin.Context) {
 			return
 		}
 
-		if err := h.repo.SaveQuestions(survey.ID, questions); err != nil {
+		if err := h.repo.SaveQuestionsTx(tx, survey.ID, questions); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save questions"})
 			return
 		}
 		survey.Questions = questions
+	}
+
+	if syncPublishedMutableState {
+		if err := h.repo.UpdateCurrentPublishedVersionStateTx(tx, survey.ID, survey.PointsReward, survey.ExpiresAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to synchronize current published version settings"})
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit survey update"})
+		return
 	}
 
 	c.JSON(http.StatusOK, survey)

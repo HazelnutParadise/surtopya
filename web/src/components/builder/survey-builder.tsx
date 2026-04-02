@@ -774,6 +774,46 @@ export function SurveyBuilder() {
       }));
   };
 
+  const serializeQuestions = React.useCallback((items: Question[]) => {
+    return JSON.stringify(
+      items
+        .map((question) => normalizeQuestionLogic(question))
+        .filter((question) => question.id !== "placeholder")
+        .map((question) => ({
+          id: question.id,
+          type: question.type,
+          title: question.title,
+          description: question.description || "",
+          options: normalizeQuestionOptions(question.options) || [],
+          required: question.required,
+          maxRating: question.maxRating || 0,
+          minSelections: question.minSelections,
+          maxSelections: question.maxSelections,
+          defaultDestinationQuestionId: question.defaultDestinationQuestionId,
+          logic: question.logic || [],
+        }))
+    )
+  }, [])
+
+  const defaultTheme = React.useMemo(
+    () => ({
+      primaryColor: "#9333ea",
+      backgroundColor: "#f9fafb",
+      fontFamily: "inter",
+    }),
+    []
+  )
+
+  const savedQuestionsRef = React.useRef(serializeQuestions(questions))
+  const savedThemeRef = React.useRef(JSON.stringify(theme))
+
+  const hasUnsavedBuilderChanges = React.useCallback(
+    (nextQuestions: Question[] = questions, nextTheme: SurveyTheme = theme) =>
+      savedQuestionsRef.current !== serializeQuestions(nextQuestions) ||
+      savedThemeRef.current !== JSON.stringify(nextTheme),
+    [questions, serializeQuestions, theme]
+  )
+
   const applyMappedSurvey = React.useCallback((mapped: ReturnType<typeof mapApiSurveyToUi>) => {
     const defaultSection: Question = {
       id: generateId(),
@@ -793,13 +833,8 @@ export function SurveyBuilder() {
     setCompletionTitle(mapped.completionTitle || "")
     setCompletionMessage(mapped.completionMessage || "")
     setQuestions(safeQuestions)
-    setTheme(
-      mapped.theme || {
-        primaryColor: "#9333ea",
-        backgroundColor: "#f9fafb",
-        fontFamily: "inter",
-      }
-    )
+    const nextTheme = mapped.theme || defaultTheme
+    setTheme(nextTheme)
     setPointsReward(mapped.settings.pointsReward)
     setExpiresAtLocal(utcToDatetimeLocal(mapped.settings.expiresAt, timeZone))
     setIsPublic(mapped.settings.visibility === "public")
@@ -808,7 +843,25 @@ export function SurveyBuilder() {
     setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
     setPublishedCount(mapped.settings.publishedCount || 0)
     setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
-  }, [defaultPageTitle, timeZone])
+    savedQuestionsRef.current = serializeQuestions(safeQuestions)
+    savedThemeRef.current = JSON.stringify(nextTheme)
+  }, [defaultPageTitle, defaultTheme, serializeQuestions, timeZone])
+
+  const applyMappedSettings = React.useCallback((mapped: ReturnType<typeof mapApiSurveyToUi>) => {
+    setSurveyId(mapped.id)
+    setTitle(mapped.title)
+    setDescription(mapped.description)
+    setCompletionTitle(mapped.completionTitle || "")
+    setCompletionMessage(mapped.completionMessage || "")
+    setPointsReward(mapped.settings.pointsReward)
+    setExpiresAtLocal(utcToDatetimeLocal(mapped.settings.expiresAt, timeZone))
+    setIsPublic(mapped.settings.visibility === "public")
+    setIncludeInDatasets(mapped.settings.isDatasetActive)
+    setRequireLoginToRespond(mapped.settings.requireLoginToRespond)
+    setIsPublished(Boolean(mapped.settings.isPublished || (mapped.settings.publishedCount || 0) > 0))
+    setPublishedCount(mapped.settings.publishedCount || 0)
+    setHasUnpublishedChanges(Boolean(mapped.settings.hasUnpublishedChanges))
+  }, [timeZone])
 
   const loadSurveyVersions = React.useCallback(async (id: string) => {
     setVersionsLoading(true)
@@ -1010,6 +1063,71 @@ export function SurveyBuilder() {
       setPublishingSurvey(false);
     }
   };
+
+  const saveSettings = async () => {
+    if (!surveyId) {
+      const saved = await saveSurvey()
+      if (saved) {
+        setViewMode("builder")
+      }
+      return saved
+    }
+
+    setSavingSurvey(true)
+    setSaveError(null)
+    setSaveErrorRequiresAuth(false)
+    try {
+      const payload = {
+        title: settingsDraft?.title ?? title,
+        description: settingsDraft?.description ?? description,
+        completionTitle: settingsDraft?.completionTitle ?? completionTitle,
+        completionMessage: settingsDraft?.completionMessage ?? completionMessage,
+        visibility: (settingsDraft?.isPublic ?? isPublic) ? "public" : "non-public",
+        requireLoginToRespond: settingsDraft?.requireLoginToRespond ?? requireLoginToRespond,
+        includeInDatasets: getSurveyDatasetSharingEffectiveValue({
+          capabilities,
+          visibility: (settingsDraft?.isPublic ?? isPublic) ? "public" : "non-public",
+          includeInDatasets: settingsDraft?.includeInDatasets ?? includeInDatasets,
+        }),
+        pointsReward: settingsDraft?.pointsReward ?? pointsReward,
+        expiresAtLocal: settingsDraft?.expiresAtLocal ?? expiresAtLocal,
+        timeZone,
+      }
+
+      const response = await fetch(`/api/app/surveys/${surveyId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          throw new Error(tBuilder("saveErrorUnauthorized"))
+        }
+        throw new Error(resolveUiError(errorPayload, tBuilder("saveErrorGeneric")))
+      }
+
+      const data = await response.json()
+      const mapped = mapApiSurveyToUi(data)
+
+      applyMappedSettings(mapped)
+      setIsDirty(hasUnsavedBuilderChanges())
+      setViewMode("builder")
+
+      return mapped
+    } catch (error) {
+      const message = toUiErrorMessage(error, tBuilder("saveErrorGeneric"))
+      const needsAuth = message === tBuilder("saveErrorUnauthorized")
+      setSaveError(message)
+      setSaveErrorRequiresAuth(needsAuth)
+      throw error
+    } finally {
+      setSavingSurvey(false)
+    }
+  }
 
   const openPreview = () => {
     openSurveyPreview({
@@ -1492,21 +1610,8 @@ export function SurveyBuilder() {
                              </Button>
                              <Button 
                                 disabled={!hasUnsavedSettings}
-                                onClick={() => {
-                                 if (settingsDraft) {
-                                     setTitle(settingsDraft.title);
-                                     setDescription(settingsDraft.description);
-                                     setCompletionTitle(settingsDraft.completionTitle);
-                                     setCompletionMessage(settingsDraft.completionMessage);
-                                     setPointsReward(settingsDraft.pointsReward);
-                                     setExpiresAtLocal(settingsDraft.expiresAtLocal);
-                                     setIsPublic(settingsDraft.isPublic);
-                                     setIncludeInDatasets(settingsDraft.includeInDatasets);
-                                     setRequireLoginToRespond(settingsDraft.requireLoginToRespond);
-                                     notifyChange();
-                                     setViewMode('builder');
-                                 }
-                             }} className={hasUnsavedSettings ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 text-gray-500 hover:bg-gray-200"}>
+                                onClick={saveSettings}
+                                className={hasUnsavedSettings ? "bg-purple-600 hover:bg-purple-700 text-white" : "bg-gray-200 text-gray-500 hover:bg-gray-200"}>
                                 {tCommon("save")}
                              </Button>
                         </div>
