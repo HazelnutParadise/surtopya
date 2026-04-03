@@ -15,6 +15,7 @@
 
 ## Current Contracts
 - Use route handlers in `api/app/**` as the frontend BFF boundary for app operations.
+- Authenticated survey taking flows use app-internal draft handlers under `api/app/surveys/[id]/drafts/**`; keep resume (`start`) and destructive restart (`restart`) semantics aligned with backend behavior.
 - `@slug` public author URLs are rewritten in middleware to internal `/author/[slug]` routes.
 - Keep route handler semantics aligned with backend router contracts (`/api/app/*` and `/v1/*`).
 - Locale behavior is controlled by cookies/headers/path utilities (`LocaleSync`, `locale.ts`), not a dedicated `[locale]` route folder.

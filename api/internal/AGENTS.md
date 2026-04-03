@@ -23,6 +23,7 @@
 - Internal app routes require valid timestamp + HMAC signature checks.
 - Public survey listing supports sort query values `recommended`, `newest`, `points-high` (default `newest`).
 - Keep JSON/API field naming in `snake_case` for external contracts.
+- Authenticated response drafts are version-bound snapshots: `/api/app/surveys/:id/drafts/start` resumes the existing draft unchanged, while `/api/app/surveys/:id/drafts/restart` is the explicit destructive path that resets to the current published version.
 - Mutable live authoring tables that are rewritten in place must not own historical or snapshot-backed child data via `ON DELETE CASCADE`.
 - Current guarded example: `repository.SaveQuestionsTx` rewrites `questions`, so `answers.question_id` and `response_draft_answers.question_id` must not cascade from `questions(id)`.
 - Repo audit note: no other current `ON DELETE CASCADE` pair matches the same "historical child + delete/recreate parent" failure pattern; re-audit immediately if an immutable/version table ever becomes rewrite-in-place.

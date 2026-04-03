@@ -84,6 +84,7 @@ func setupRouter(options setupOptions) *gin.Engine {
 			app.POST("/surveys/:id/responses/start", freshHandler(handlers.NewResponseHandler, (*handlers.ResponseHandler).StartResponse))
 			app.POST("/surveys/:id/responses/submit-anonymous", freshHandler(handlers.NewResponseHandler, (*handlers.ResponseHandler).SubmitAnonymousResponse))
 			app.POST("/surveys/:id/drafts/start", middleware.RequireAuth(), freshHandler(handlers.NewResponseHandler, (*handlers.ResponseHandler).StartDraft))
+			app.POST("/surveys/:id/drafts/restart", middleware.RequireAuth(), freshHandler(handlers.NewResponseHandler, (*handlers.ResponseHandler).RestartDraft))
 
 			appDrafts := app.Group("/drafts", middleware.RequireAuth())
 			{

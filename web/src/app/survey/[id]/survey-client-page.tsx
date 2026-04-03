@@ -94,6 +94,17 @@ type MergeConflictState = {
   conflictQuestionIds: string[]
 }
 
+type DraftSessionPayload = {
+  id: string
+  surveyVersionNumber?: number
+  answers?: DraftAnswer[]
+}
+
+type StaleDraftPromptState = {
+  payload: DraftSessionPayload
+  currentVersionNumber: number
+}
+
 const guestAnswersStorageKey = (surveyId: string) => `surtopya:guest_answers:${surveyId}`
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -215,6 +226,9 @@ export function SurveyClientPage({
   const [mergeConflictState, setMergeConflictState] = useState<MergeConflictState | null>(null)
   const [mergeApplyingSource, setMergeApplyingSource] = useState<MergeSource | null>(null)
   const [mergeSaveError, setMergeSaveError] = useState<string | null>(null)
+  const [staleDraftPromptState, setStaleDraftPromptState] = useState<StaleDraftPromptState | null>(null)
+  const [staleDraftAction, setStaleDraftAction] = useState<"continue" | "restart" | null>(null)
+  const [staleDraftError, setStaleDraftError] = useState<string | null>(null)
   const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown> | null>(null)
   const [previewResultView, setPreviewResultView] = useState<"hidden" | "modal" | "full-screen">("hidden")
 
@@ -450,29 +464,48 @@ export function SurveyClientPage({
     }, 700)
   }, [flushProgress])
 
-  const startDraftSession = useCallback(async (): Promise<{
+  const requestDraftSession = useCallback(
+    async (mode: "start" | "restart"): Promise<DraftSessionPayload> => {
+      const response = await fetch(`/api/app/surveys/${surveyId}/drafts/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok || !payload?.id) {
+        throw toFlowApiError(
+          payload,
+          response.status,
+          mode === "restart" ? "Failed to restart response draft" : "Failed to start response draft"
+        )
+      }
+
+      return {
+        id: String(payload.id),
+        surveyVersionNumber:
+          typeof payload.surveyVersionNumber === "number"
+            ? payload.surveyVersionNumber
+            : Number.isFinite(Number(payload.surveyVersionNumber))
+              ? Number(payload.surveyVersionNumber)
+              : undefined,
+        answers: Array.isArray(payload.answers) ? (payload.answers as DraftAnswer[]) : undefined,
+      }
+    },
+    [surveyId]
+  )
+
+  const hydrateDraftSession = useCallback(async (payload: DraftSessionPayload): Promise<{
     draftId: string | null
     requiresMergeDecision: boolean
   }> => {
-    const response = await fetch(`/api/app/surveys/${surveyId}/drafts/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    })
-
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok || !payload?.id) {
-      throw toFlowApiError(payload, response.status, "Failed to start response draft")
-    }
-
-    const nextDraftId = String(payload.id)
+    const nextDraftId = payload.id
     setDraftId(nextDraftId)
     setMergeConflictState(null)
     setMergeSaveError(null)
+    setStaleDraftError(null)
 
-    const draftAnswers = toRendererAnswers(
-      Array.isArray(payload.answers) ? (payload.answers as DraftAnswer[]) : undefined
-    )
+    const draftAnswers = toRendererAnswers(payload.answers)
     const guestAnswers = readGuestAnswers(surveyId)
     const hasGuestAnswers = Object.keys(guestAnswers).length > 0
 
@@ -526,6 +559,37 @@ export function SurveyClientPage({
     return { draftId: nextDraftId, requiresMergeDecision: false }
   }, [formatSavedTime, persistDraftBulk, setAnswersSnapshot, survey, surveyId])
 
+  const startDraftSession = useCallback(async (): Promise<{
+    draftId: string | null
+    requiresMergeDecision: boolean
+    requiresStaleDecision: boolean
+  }> => {
+    const payload = await requestDraftSession("start")
+    const currentVersionNumber = survey?.settings.currentPublishedVersionNumber
+    const draftVersionNumber = payload.surveyVersionNumber
+
+    if (
+      survey &&
+      typeof currentVersionNumber === "number" &&
+      typeof draftVersionNumber === "number" &&
+      draftVersionNumber < currentVersionNumber
+    ) {
+      setStaleDraftPromptState({ payload, currentVersionNumber })
+      setStaleDraftError(null)
+      return {
+        draftId: payload.id,
+        requiresMergeDecision: false,
+        requiresStaleDecision: true,
+      }
+    }
+
+    const result = await hydrateDraftSession(payload)
+    return {
+      ...result,
+      requiresStaleDecision: false,
+    }
+  }, [hydrateDraftSession, requestDraftSession, survey])
+
   const clearProgressForAlreadySubmitted = useCallback(() => {
     clearGuestAnswers(surveyId)
     setDraftId(null)
@@ -534,6 +598,8 @@ export function SurveyClientPage({
     setLastSavedAt(null)
     setMergeConflictState(null)
     setMergeSaveError(null)
+    setStaleDraftPromptState(null)
+    setStaleDraftError(null)
     setIsTaking(false)
     setSubmissionState("already_submitted")
     isDirtyRef.current = false
@@ -565,7 +631,7 @@ export function SurveyClientPage({
     try {
       if (isLoggedIn) {
         const startResult = await startDraftSession()
-        if (startResult.requiresMergeDecision) {
+        if (startResult.requiresMergeDecision || startResult.requiresStaleDecision) {
           return
         }
       } else {
@@ -574,6 +640,8 @@ export function SurveyClientPage({
         setLastSavedAt(null)
         setMergeConflictState(null)
         setMergeSaveError(null)
+        setStaleDraftPromptState(null)
+        setStaleDraftError(null)
         setAnswersSnapshot(readGuestAnswers(surveyId))
         isDirtyRef.current = false
       }
@@ -602,6 +670,57 @@ export function SurveyClientPage({
     t,
     tCommon,
   ])
+
+  const handleContinueStaleDraft = useCallback(async () => {
+    if (!staleDraftPromptState) return
+
+    setStaleDraftAction("continue")
+    setStaleDraftError(null)
+    try {
+      const result = await hydrateDraftSession(staleDraftPromptState.payload)
+      setStaleDraftPromptState(null)
+      if (result.requiresMergeDecision) {
+        return
+      }
+      setRendererSessionKey((prev) => prev + 1)
+      setIsTaking(true)
+    } catch (error) {
+      if (isAlreadySubmittedError(error)) {
+        clearProgressForAlreadySubmitted()
+        setFlowError(t("alreadySubmittedDescription"))
+        return
+      }
+      setStaleDraftError(tCommon("error"))
+    } finally {
+      setStaleDraftAction(null)
+    }
+  }, [clearProgressForAlreadySubmitted, hydrateDraftSession, staleDraftPromptState, t, tCommon])
+
+  const handleRestartStaleDraft = useCallback(async () => {
+    if (!staleDraftPromptState) return
+
+    setStaleDraftAction("restart")
+    setStaleDraftError(null)
+    try {
+      const payload = await requestDraftSession("restart")
+      const result = await hydrateDraftSession(payload)
+      setStaleDraftPromptState(null)
+      if (result.requiresMergeDecision) {
+        return
+      }
+      setRendererSessionKey((prev) => prev + 1)
+      setIsTaking(true)
+    } catch (error) {
+      if (isAlreadySubmittedError(error)) {
+        clearProgressForAlreadySubmitted()
+        setFlowError(t("alreadySubmittedDescription"))
+        return
+      }
+      setStaleDraftError(tCommon("error"))
+    } finally {
+      setStaleDraftAction(null)
+    }
+  }, [clearProgressForAlreadySubmitted, hydrateDraftSession, requestDraftSession, staleDraftPromptState, t, tCommon])
 
   const handleAnswerChange = useCallback(
     (_questionId: string, _value: unknown, allAnswers: Record<string, unknown>) => {
@@ -653,8 +772,8 @@ export function SurveyClientPage({
           let targetDraftId = draftId
           if (!targetDraftId) {
             const startResult = await startDraftSession()
-            if (startResult.requiresMergeDecision) {
-              throw new Error("Merge conflict requires selection")
+            if (startResult.requiresMergeDecision || startResult.requiresStaleDecision) {
+              throw new Error("Draft action requires user selection")
             }
             targetDraftId = startResult.draftId
           }
@@ -1480,6 +1599,57 @@ export function SurveyClientPage({
           </div>
         </div>
       </main>
+
+      <Dialog
+        open={Boolean(staleDraftPromptState)}
+        onOpenChange={() => {
+          // Intentionally non-closable: user must choose how to proceed.
+        }}
+      >
+        <DialogContent onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{t("staleDraftDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {staleDraftPromptState
+                ? t("staleDraftDialogDescription", {
+                    draftVersion: staleDraftPromptState.payload.surveyVersionNumber ?? "?",
+                    currentVersion: staleDraftPromptState.currentVersionNumber,
+                  })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {t("staleDraftRestartDescription")}
+          </div>
+
+          {staleDraftError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {staleDraftError}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={staleDraftAction !== null}
+              onClick={() => {
+                void handleContinueStaleDraft()
+              }}
+            >
+              {staleDraftAction === "continue" ? tCommon("loading") : t("staleDraftContinueAction")}
+            </Button>
+            <Button
+              disabled={staleDraftAction !== null}
+              onClick={() => {
+                void handleRestartStaleDraft()
+              }}
+            >
+              {staleDraftAction === "restart" ? tCommon("loading") : t("staleDraftRestartAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(mergeConflictState)}

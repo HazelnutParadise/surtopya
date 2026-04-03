@@ -239,12 +239,6 @@ func (h *ResponseHandler) StartDraft(c *gin.Context) {
 		return
 	}
 	if existingDraft != nil {
-		if existingDraft.SurveyVersionID != version.ID || existingDraft.SurveyVersionNumber != version.VersionNumber {
-			if err := h.draftRepo.ResetToVersion(existingDraft, version.ID, version.VersionNumber); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh response draft"})
-				return
-			}
-		}
 		c.JSON(http.StatusOK, existingDraft)
 		return
 	}
@@ -259,6 +253,67 @@ func (h *ResponseHandler) StartDraft(c *gin.Context) {
 	}
 	if err := h.draftRepo.Create(draft); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start response draft"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, draft)
+}
+
+// RestartDraft handles POST /api/app/surveys/:id/drafts/restart
+func (h *ResponseHandler) RestartDraft(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	surveyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid survey ID"})
+		return
+	}
+
+	_, version, code, message := h.ensureSurveyAcceptingResponses(surveyID)
+	if code != 0 {
+		c.JSON(code, gin.H{"error": message})
+		return
+	}
+
+	uid := userID.(uuid.UUID)
+	hasOnceLock, err := h.responseRepo.HasSurveyResponseOnceLockForUser(surveyID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check survey response lock"})
+		return
+	}
+	if hasOnceLock {
+		c.JSON(http.StatusConflict, alreadySubmittedPayload(nil))
+		return
+	}
+
+	existingDraft, err := h.draftRepo.GetBySurveyAndUser(surveyID, uid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get response draft"})
+		return
+	}
+	if existingDraft != nil {
+		if err := h.draftRepo.ResetToVersion(existingDraft, version.ID, version.VersionNumber); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restart response draft"})
+			return
+		}
+		c.JSON(http.StatusOK, existingDraft)
+		return
+	}
+
+	draft := &models.ResponseDraft{
+		ID:                  uuid.New(),
+		SurveyID:            surveyID,
+		SurveyVersionID:     version.ID,
+		SurveyVersionNumber: version.VersionNumber,
+		UserID:              uid,
+		StartedAt:           time.Now(),
+	}
+	if err := h.draftRepo.Create(draft); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restart response draft"})
 		return
 	}
 
