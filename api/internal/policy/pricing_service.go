@@ -36,14 +36,16 @@ func localizedFromI18n(i18n map[string]string, locale, fallback string) string {
 	if v := strings.TrimSpace(i18n[locale]); v != "" {
 		return v
 	}
-	if v := strings.TrimSpace(i18n["en"]); v != "" {
-		return v
-	}
 	if v := strings.TrimSpace(i18n["zh-TW"]); v != "" {
 		return v
 	}
-	if v := strings.TrimSpace(i18n["ja"]); v != "" {
+	if v := strings.TrimSpace(i18n["en"]); v != "" {
 		return v
+	}
+	for _, v := range i18n {
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			return trimmed
+		}
 	}
 	return fallback
 }

@@ -53,6 +53,7 @@ func TestSetupRouter_AgentAdminUsageIndexAdvertisesSurveyAnalyticsEndpoint(t *te
 	surveysRead, ok := scopeEndpoints["surveys.read"].([]any)
 	require.True(t, ok)
 	require.Contains(t, surveysRead, "GET /v1/agent-admin/surveys/:id/responses/analytics")
+	require.Contains(t, surveysRead, "GET /v1/agent-admin/surveys/:id/responses")
 }
 
 func TestSetupRouter_AgentAdminUsageIndexAdvertisesDeidEndpointsInDeidScopes(t *testing.T) {
@@ -127,9 +128,11 @@ func TestSetupRouter_AgentAdminOpenAPIDocIncludesExtendedPaths(t *testing.T) {
 	require.True(t, ok)
 
 	require.Contains(t, paths, "/users/points-adjust")
+	require.Contains(t, paths, "/users/{id}")
 	require.Contains(t, paths, "/subscription-plans")
 	require.Contains(t, paths, "/system-settings")
 	require.Contains(t, paths, "/logs/{id}")
+	require.Contains(t, paths, "/surveys/{id}/responses")
 
 	deidPath, ok := paths["/deid"].(map[string]any)
 	require.True(t, ok)
@@ -156,6 +159,8 @@ func TestSetupRouter_AgentAdminExtendedRoutesAreRegistered(t *testing.T) {
 		{method: http.MethodGet, path: "/v1/agent-admin/surveys"},
 		{method: http.MethodPatch, path: "/v1/agent-admin/surveys/00000000-0000-0000-0000-000000000000"},
 		{method: http.MethodGet, path: "/v1/agent-admin/datasets"},
+		{method: http.MethodGet, path: "/v1/agent-admin/surveys/00000000-0000-0000-0000-000000000000/responses"},
+		{method: http.MethodGet, path: "/v1/agent-admin/users/00000000-0000-0000-0000-000000000000"},
 		{method: http.MethodPost, path: "/v1/agent-admin/users/points-adjust"},
 		{method: http.MethodPatch, path: "/v1/agent-admin/subscription-plans/00000000-0000-0000-0000-000000000000"},
 		{method: http.MethodGet, path: "/v1/agent-admin/policies"},

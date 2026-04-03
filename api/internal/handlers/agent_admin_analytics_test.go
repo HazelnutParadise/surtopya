@@ -251,3 +251,61 @@ func TestAgentAdminHandler_GetSurveyResponseAnalytics_ReturnsStableEmptyArrays(t
 	require.Contains(t, w.Body.String(), `"warnings":[]`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestAgentAdminHandler_GetSurveyResponses_ReturnsPaginatedRowsForOwner(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	h, mock, cleanup := newAgentAdminHandlerForTest(t)
+	t.Cleanup(cleanup)
+
+	surveyID := uuid.New()
+	ownerID := uuid.New()
+	versionID := uuid.New()
+	responseID := uuid.New()
+	now := time.Now().UTC()
+
+	surveyRows, questionRows := surveyGetByIDRowsForTest(surveyID, ownerID, 0, true, versionID, 1)
+	mock.ExpectQuery("FROM surveys s\\s+LEFT JOIN survey_versions sv").
+		WithArgs(surveyID).
+		WillReturnRows(surveyRows)
+	mock.ExpectQuery("FROM questions WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(questionRows)
+
+	mock.ExpectQuery("FROM responses WHERE survey_id = \\$1").
+		WithArgs(surveyID, 20, 0).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "survey_id", "survey_version_id", "survey_version_number", "user_id", "anonymous_id", "status", "points_awarded",
+			"started_at", "completed_at", "created_at",
+		}).AddRow(responseID, surveyID, versionID, 1, ownerID, nil, "completed", 6, now, now, now))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM responses WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+
+	r := gin.New()
+	r.GET("/api/v1/agent-admin/surveys/:id/responses", func(c *gin.Context) {
+		c.Set("agentAdminIdentity", &agentadmin.AuthenticatedAgent{
+			Account: agentadmin.Account{
+				ID:                uuid.New(),
+				OwnerUserID:       ownerID,
+				OwnerIsSuperAdmin: false,
+				Permissions:       []string{"surveys.read"},
+			},
+			Scopes: map[string]struct{}{
+				"surveys.read": {},
+			},
+		})
+		h.GetSurveyResponses(c)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agent-admin/surveys/"+surveyID.String()+"/responses?limit=20&offset=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"responses":[`)
+	require.Contains(t, w.Body.String(), `"id":"`+responseID.String()+`"`)
+	require.Contains(t, w.Body.String(), `"survey_version_number":1`)
+	require.Contains(t, w.Body.String(), `"total":1`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

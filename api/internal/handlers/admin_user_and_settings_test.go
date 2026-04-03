@@ -26,6 +26,9 @@ func TestAdminHandler_GetUsers_AppliesFilters(t *testing.T) {
 	t.Cleanup(func() { database.DB = nil })
 
 	now := time.Now().UTC()
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM \\(").
+		WithArgs("%alice%", "pro", true).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("FROM users u").
 		WithArgs("%alice%", "pro", true, 20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -53,6 +56,50 @@ func TestAdminHandler_GetUsers_AppliesFilters(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Contains(t, w.Body.String(), `"isDisabled":true`)
 	require.Contains(t, w.Body.String(), `"pointsBalance":88`)
+	require.Contains(t, w.Body.String(), `"total":1`)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAdminHandler_GetUser_ReturnsDetail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	database.DB = db
+	t.Cleanup(func() { database.DB = nil })
+
+	userID := uuid.New()
+	now := time.Now().UTC()
+
+	mock.ExpectQuery("FROM users u").
+		WithArgs(userID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id",
+			"email",
+			"display_name",
+			"points_balance",
+			"membership_tier",
+			"period_end_at",
+			"membership_is_permanent",
+			"is_admin",
+			"is_super_admin",
+			"is_disabled",
+			"created_at",
+		}).AddRow(userID, "alice@example.com", "Alice", 88, "pro", nil, true, true, false, true, now))
+
+	h := NewAdminHandler()
+	r := gin.New()
+	r.GET("/admin/users/:id", h.GetUser)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/users/"+userID.String(), nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), `"id":"`+userID.String()+`"`)
+	require.Contains(t, w.Body.String(), `"membershipTier":"pro"`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

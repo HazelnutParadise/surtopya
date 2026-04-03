@@ -15,6 +15,8 @@
 
 ## Current Contracts
 - Use route handlers in `api/app/**` as the frontend BFF boundary for app operations.
+- Admin user detail now proxies through `api/app/admin/users/[id]/route.ts` for both `GET` and `PATCH`.
+- Admin policy bootstrap loads subscription plans separately from `/api/app/admin/policies`; do not expect `tiers` in the policies payload.
 - Authenticated survey taking flows use app-internal draft handlers under `api/app/surveys/[id]/drafts/**`; keep resume (`start`) and destructive restart (`restart`) semantics aligned with backend behavior.
 - `@slug` public author URLs are rewritten in middleware to internal `/author/[slug]` routes.
 - Keep route handler semantics aligned with backend router contracts (`/api/app/*` and `/v1/*`).

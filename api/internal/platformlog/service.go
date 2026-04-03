@@ -38,6 +38,7 @@ type EventInput struct {
 	Module              string
 	Action              string
 	Status              string
+	ClientIP            *string
 	ActorType           string
 	ActorUserID         *uuid.UUID
 	ActorAgentID        *uuid.UUID
@@ -93,14 +94,14 @@ func (l *Logger) Log(ctx context.Context, input EventInput) error {
 	_, err = l.db.ExecContext(ctx, `
 		INSERT INTO platform_event_logs (
 			id, correlation_id, event_type, module, action, status,
-			actor_type, actor_user_id, actor_agent_id, owner_user_id,
+			client_ip, actor_type, actor_user_id, actor_agent_id, owner_user_id,
 			resource_type, resource_id, resource_owner_user_id,
 			request_summary, response_summary, error_code, error_message, metadata
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10,
-			$11, $12, $13,
-			$14::jsonb, $15::jsonb, $16, $17, $18::jsonb
+			$7, $8, $9, $10, $11,
+			$12, $13, $14,
+			$15::jsonb, $16::jsonb, $17, $18, $19::jsonb
 		)
 	`,
 		uuid.New(),
@@ -109,6 +110,7 @@ func (l *Logger) Log(ctx context.Context, input EventInput) error {
 		defaultString(input.Module, "unknown"),
 		defaultString(input.Action, "unknown"),
 		defaultString(input.Status, "success"),
+		nullStringPointer(input.ClientIP),
 		defaultString(input.ActorType, ActorTypeAnonymous),
 		input.ActorUserID,
 		input.ActorAgentID,
@@ -481,18 +483,27 @@ func ExtractResponsePayload(status int, headers http.Header, body []byte) map[st
 	if contentType != "" {
 		summary["content_type"] = contentType
 	}
-	if len(body) == 0 {
+	if len(body) > 0 {
+		summary["body_size_bytes"] = len(body)
+	}
+	if len(body) == 0 || !strings.Contains(contentType, "application/json") {
 		return summary
 	}
-	if !strings.Contains(contentType, "application/json") {
-		summary["body"] = map[string]any{
-			"type":        "non_json",
-			"size_bytes":  len(body),
-			"description": "response body omitted",
-		}
+
+	decoded, ok := sanitizeJSONBytes(body).(map[string]any)
+	if !ok {
 		return summary
 	}
-	summary["body"] = sanitizeJSONBytes(body)
+	if code, ok := decoded["code"].(string); ok && strings.TrimSpace(code) != "" {
+		summary["error_code"] = code
+	}
+	if message, ok := decoded["message"].(string); ok && strings.TrimSpace(message) != "" {
+		summary["error_message"] = message
+		return summary
+	}
+	if message, ok := decoded["error"].(string); ok && strings.TrimSpace(message) != "" {
+		summary["error_message"] = message
+	}
 	return summary
 }
 
@@ -536,6 +547,17 @@ func marshalJSONB(payload map[string]any) (string, error) {
 		return "", fmt.Errorf("failed to marshal jsonb payload: %w", err)
 	}
 	return string(bytes), nil
+}
+
+func nullStringPointer(value *string) any {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return trimmed
 }
 
 func nullString(value string) any {

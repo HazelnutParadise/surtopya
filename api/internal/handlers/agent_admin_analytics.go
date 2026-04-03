@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/models"
@@ -11,6 +12,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+type agentSurveyResponseRow struct {
+	ID                  uuid.UUID  `json:"id"`
+	SurveyID            uuid.UUID  `json:"survey_id"`
+	SurveyVersionNumber int        `json:"survey_version_number"`
+	UserID              *uuid.UUID `json:"user_id,omitempty"`
+	AnonymousID         *string    `json:"anonymous_id,omitempty"`
+	Status              string     `json:"status"`
+	PointsAwarded       int        `json:"points_awarded"`
+	StartedAt           time.Time  `json:"started_at"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+}
 
 type agentResponseAnalyticsPayload struct {
 	SelectedVersion   string                        `json:"selected_version"`
@@ -98,6 +112,75 @@ func (h *AgentAdminHandler) GetSurveyResponseAnalytics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, mapAgentResponseAnalytics(report))
+}
+
+func (h *AgentAdminHandler) GetSurveyResponses(c *gin.Context) {
+	identity := currentAgentIdentity(c)
+	if identity == nil {
+		agentJSONError(c, http.StatusUnauthorized, "unauthorized", "Agent identity missing", nil)
+		return
+	}
+
+	surveyID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid survey ID", nil)
+		return
+	}
+
+	survey := h.loadSurveyForAgent(c, surveyID)
+	if survey == nil {
+		return
+	}
+	if !identity.OwnerIsSuperAdmin && survey.UserID != identity.OwnerUserID {
+		agentJSONError(c, http.StatusForbidden, "forbidden", "Agent permission denied", nil)
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	responseRepo := repository.NewResponseRepository(h.db)
+	responses, err := responseRepo.ListBySurveyIDPage(surveyID, limit, offset)
+	if err != nil {
+		agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to load survey responses", nil)
+		return
+	}
+	total, err := responseRepo.CountBySurveyID(surveyID)
+	if err != nil {
+		agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to load survey responses", nil)
+		return
+	}
+
+	rows := make([]agentSurveyResponseRow, 0, len(responses))
+	for _, response := range responses {
+		rows = append(rows, agentSurveyResponseRow{
+			ID:                  response.ID,
+			SurveyID:            response.SurveyID,
+			SurveyVersionNumber: response.SurveyVersionNumber,
+			UserID:              response.UserID,
+			AnonymousID:         response.AnonymousID,
+			Status:              response.Status,
+			PointsAwarded:       response.PointsAwarded,
+			StartedAt:           response.StartedAt,
+			CompletedAt:         response.CompletedAt,
+			CreatedAt:           response.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"responses": rows,
+		"meta": gin.H{
+			"limit":  limit,
+			"offset": offset,
+			"total":  total,
+		},
+	})
 }
 
 func (h *AgentAdminHandler) loadSurveyForAgent(c *gin.Context, surveyID uuid.UUID) *models.Survey {

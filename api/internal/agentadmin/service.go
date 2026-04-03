@@ -100,10 +100,13 @@ type ListLogsFilter struct {
 	Module        string
 	Action        string
 	Status        string
+	ActorType     string
 	ResourceType  string
 	ResourceID    string
+	From          *time.Time
+	To            *time.Time
 	Limit         int
-	Offset        int
+	Cursor        string
 }
 
 type EventLogRecord struct {
@@ -114,6 +117,7 @@ type EventLogRecord struct {
 	Module              string         `json:"module"`
 	Action              string         `json:"action"`
 	Status              string         `json:"status"`
+	ClientIP            *string        `json:"client_ip,omitempty"`
 	ActorType           string         `json:"actor_type"`
 	ActorUserID         *uuid.UUID     `json:"actor_user_id,omitempty"`
 	ActorAgentID        *uuid.UUID     `json:"actor_agent_id,omitempty"`
@@ -126,6 +130,13 @@ type EventLogRecord struct {
 	ErrorCode           *string        `json:"error_code,omitempty"`
 	ErrorMessage        *string        `json:"error_message,omitempty"`
 	Metadata            map[string]any `json:"metadata"`
+}
+
+type EventLogPage struct {
+	Logs       []EventLogRecord
+	Total      int
+	NextCursor *string
+	HasMore    bool
 }
 
 type Service struct {
@@ -561,69 +572,56 @@ func (s *Service) RotateKeyForAdmin(ctx context.Context, actorUserID uuid.UUID, 
 	return key, prefix, nil
 }
 
-func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filter ListLogsFilter) ([]EventLogRecord, error) {
+type eventLogCursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID `json:"id"`
+}
+
+func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filter ListLogsFilter) (EventLogPage, error) {
 	if s.db == nil {
-		return []EventLogRecord{}, nil
+		return EventLogPage{Logs: []EventLogRecord{}}, nil
 	}
 	if filter.Limit <= 0 || filter.Limit > 100 {
 		filter.Limit = 20
 	}
-	if filter.Offset < 0 {
-		filter.Offset = 0
+
+	baseWhere, baseArgs := buildListLogsWhere(actor, filter)
+
+	var total int
+	countQuery := "SELECT COUNT(*) FROM platform_event_logs WHERE 1=1" + baseWhere
+	if err := s.db.QueryRowContext(ctx, countQuery, baseArgs...).Scan(&total); err != nil {
+		return EventLogPage{}, err
+	}
+
+	cursorWhere := ""
+	args := append([]any{}, baseArgs...)
+	if strings.TrimSpace(filter.Cursor) != "" {
+		cursor, err := decodeEventLogCursor(filter.Cursor)
+		if err != nil {
+			return EventLogPage{}, err
+		}
+		args = append(args, cursor.CreatedAt, cursor.ID)
+		createdAtIndex := len(args) - 1
+		idIndex := len(args)
+		cursorWhere = fmt.Sprintf(" AND (created_at < $%d OR (created_at = $%d AND id < $%d))", createdAtIndex, createdAtIndex, idIndex)
 	}
 
 	query := `
 		SELECT
-			id, created_at, correlation_id, event_type, module, action, status, actor_type,
-			actor_user_id, actor_agent_id, owner_user_id,
+			id, created_at, correlation_id, event_type, module, action, status,
+			client_ip, actor_type, actor_user_id, actor_agent_id, owner_user_id,
 			resource_type, resource_id, resource_owner_user_id,
 			request_summary, response_summary, error_code, error_message, metadata
 		FROM platform_event_logs
 		WHERE 1=1
 	`
-	args := []any{}
-	index := 0
-
-	if actor != nil {
-		if !actor.OwnerIsSuperAdmin {
-			index++
-			query += fmt.Sprintf(" AND (owner_user_id = $%d OR resource_owner_user_id = $%d)", index, index)
-			args = append(args, actor.OwnerUserID)
-		}
-	}
-	if value := strings.TrimSpace(filter.CorrelationID); value != "" {
-		index++
-		query += fmt.Sprintf(" AND correlation_id::text = $%d", index)
-		args = append(args, value)
-	}
-	for _, item := range []struct {
-		field string
-		value string
-	}{
-		{field: "module", value: filter.Module},
-		{field: "action", value: filter.Action},
-		{field: "status", value: filter.Status},
-		{field: "resource_type", value: filter.ResourceType},
-		{field: "resource_id", value: filter.ResourceID},
-	} {
-		if strings.TrimSpace(item.value) == "" {
-			continue
-		}
-		index++
-		query += fmt.Sprintf(" AND %s = $%d", item.field, index)
-		args = append(args, item.value)
-	}
-
-	index++
-	query += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", index)
-	args = append(args, filter.Limit)
-	index++
-	query += fmt.Sprintf(" OFFSET $%d", index)
-	args = append(args, filter.Offset)
+	query += baseWhere + cursorWhere
+	args = append(args, filter.Limit+1)
+	query += fmt.Sprintf(" ORDER BY created_at DESC, id DESC LIMIT $%d", len(args))
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return EventLogPage{}, err
 	}
 	defer rows.Close()
 
@@ -631,6 +629,7 @@ func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filte
 	for rows.Next() {
 		var (
 			record          EventLogRecord
+			clientIP        sql.NullString
 			resourceType    sql.NullString
 			resourceID      sql.NullString
 			errorCode       sql.NullString
@@ -647,6 +646,7 @@ func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filte
 			&record.Module,
 			&record.Action,
 			&record.Status,
+			&clientIP,
 			&record.ActorType,
 			&record.ActorUserID,
 			&record.ActorAgentID,
@@ -660,8 +660,9 @@ func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filte
 			&errorMessage,
 			&metadata,
 		); err != nil {
-			return nil, err
+			return EventLogPage{}, err
 		}
+		record.ClientIP = nullableString(clientIP)
 		record.ResourceType = nullableString(resourceType)
 		record.ResourceID = nullableString(resourceID)
 		record.ErrorCode = nullableString(errorCode)
@@ -671,14 +672,32 @@ func (s *Service) ListLogs(ctx context.Context, actor *AuthenticatedAgent, filte
 		record.Metadata = decodeJSONMap(metadata)
 		logs = append(logs, record)
 	}
-	return logs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return EventLogPage{}, err
+	}
+
+	page := EventLogPage{
+		Logs:  logs,
+		Total: total,
+	}
+	if len(logs) > filter.Limit {
+		page.HasMore = true
+		logs = logs[:filter.Limit]
+		page.Logs = logs
+		cursor, err := encodeEventLogCursor(logs[len(logs)-1])
+		if err != nil {
+			return EventLogPage{}, err
+		}
+		page.NextCursor = &cursor
+	}
+	return page, nil
 }
 
 func (s *Service) GetLogByID(ctx context.Context, actor *AuthenticatedAgent, logID uuid.UUID) (*EventLogRecord, error) {
 	query := `
 		SELECT
-			id, created_at, correlation_id, event_type, module, action, status, actor_type,
-			actor_user_id, actor_agent_id, owner_user_id,
+			id, created_at, correlation_id, event_type, module, action, status,
+			client_ip, actor_type, actor_user_id, actor_agent_id, owner_user_id,
 			resource_type, resource_id, resource_owner_user_id,
 			request_summary, response_summary, error_code, error_message, metadata
 		FROM platform_event_logs
@@ -692,6 +711,7 @@ func (s *Service) GetLogByID(ctx context.Context, actor *AuthenticatedAgent, log
 
 	var (
 		record          EventLogRecord
+		clientIP        sql.NullString
 		resourceType    sql.NullString
 		resourceID      sql.NullString
 		errorCode       sql.NullString
@@ -708,6 +728,7 @@ func (s *Service) GetLogByID(ctx context.Context, actor *AuthenticatedAgent, log
 		&record.Module,
 		&record.Action,
 		&record.Status,
+		&clientIP,
 		&record.ActorType,
 		&record.ActorUserID,
 		&record.ActorAgentID,
@@ -727,6 +748,7 @@ func (s *Service) GetLogByID(ctx context.Context, actor *AuthenticatedAgent, log
 		}
 		return nil, err
 	}
+	record.ClientIP = nullableString(clientIP)
 	record.ResourceType = nullableString(resourceType)
 	record.ResourceID = nullableString(resourceID)
 	record.ErrorCode = nullableString(errorCode)
@@ -735,6 +757,69 @@ func (s *Service) GetLogByID(ctx context.Context, actor *AuthenticatedAgent, log
 	record.ResponseSummary = decodeJSONMap(responseSummary)
 	record.Metadata = decodeJSONMap(metadata)
 	return &record, nil
+}
+
+func buildListLogsWhere(actor *AuthenticatedAgent, filter ListLogsFilter) (string, []any) {
+	where := ""
+	args := []any{}
+
+	appendExact := func(clause string, value string) {
+		if strings.TrimSpace(value) == "" {
+			return
+		}
+		args = append(args, strings.TrimSpace(value))
+		where += fmt.Sprintf(" AND %s = $%d", clause, len(args))
+	}
+
+	if actor != nil && !actor.OwnerIsSuperAdmin {
+		args = append(args, actor.OwnerUserID)
+		where += fmt.Sprintf(" AND (owner_user_id = $%d OR resource_owner_user_id = $%d)", len(args), len(args))
+	}
+	if value := strings.TrimSpace(filter.CorrelationID); value != "" {
+		args = append(args, value)
+		where += fmt.Sprintf(" AND correlation_id::text = $%d", len(args))
+	}
+	appendExact("module", filter.Module)
+	appendExact("action", filter.Action)
+	appendExact("status", filter.Status)
+	appendExact("actor_type", filter.ActorType)
+	appendExact("resource_type", filter.ResourceType)
+	appendExact("resource_id", filter.ResourceID)
+	if filter.From != nil {
+		args = append(args, *filter.From)
+		where += fmt.Sprintf(" AND created_at >= $%d", len(args))
+	}
+	if filter.To != nil {
+		args = append(args, *filter.To)
+		where += fmt.Sprintf(" AND created_at <= $%d", len(args))
+	}
+	return where, args
+}
+
+func encodeEventLogCursor(record EventLogRecord) (string, error) {
+	data, err := json.Marshal(eventLogCursor{
+		CreatedAt: record.CreatedAt,
+		ID:        record.ID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to encode log cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
+func decodeEventLogCursor(value string) (eventLogCursor, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(value))
+	if err != nil {
+		return eventLogCursor{}, fmt.Errorf("invalid log cursor: %w", err)
+	}
+	var cursor eventLogCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return eventLogCursor{}, fmt.Errorf("invalid log cursor: %w", err)
+	}
+	if cursor.ID == uuid.Nil || cursor.CreatedAt.IsZero() {
+		return eventLogCursor{}, errors.New("invalid log cursor")
+	}
+	return cursor, nil
 }
 
 func (s *Service) getPermissions(ctx context.Context, accountID uuid.UUID) ([]string, error) {

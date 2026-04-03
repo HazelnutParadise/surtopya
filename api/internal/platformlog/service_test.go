@@ -47,15 +47,16 @@ func TestSanitizePayload_RedactsAnswersAndSecrets(t *testing.T) {
 	require.NotContains(t, answers, "items")
 }
 
-func TestExtractResponsePayload_HandlesPrimitiveJsonValuesWithoutRecursion(t *testing.T) {
+func TestExtractResponsePayload_StoresCompactMetadataOnly(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("Content-Type", "application/json")
 
-	got := ExtractResponsePayload(200, headers, []byte(`{"count":1,"ok":true,"label":"done"}`))
+	got := ExtractResponsePayload(422, headers, []byte(`{"code":"bad_request","message":"validation failed","details":{"field":"email"}}`))
 
-	body, ok := got["body"].(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, float64(1), body["count"])
-	require.Equal(t, true, body["ok"])
-	require.Equal(t, "done", body["label"])
+	require.Equal(t, 422, got["status_code"])
+	require.Equal(t, "application/json", got["content_type"])
+	require.Equal(t, len([]byte(`{"code":"bad_request","message":"validation failed","details":{"field":"email"}}`)), got["body_size_bytes"])
+	require.Equal(t, "bad_request", got["error_code"])
+	require.Equal(t, "validation failed", got["error_message"])
+	require.NotContains(t, got, "body")
 }

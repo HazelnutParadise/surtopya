@@ -883,8 +883,9 @@ export default function AdminPage() {
       setPolicyLoading(true);
       setSystemSettingsLoading(true);
       setError(null);
-      const [policiesResult, writersResult, settingsResult] =
+      const [plansResult, policiesResult, writersResult, settingsResult] =
         await Promise.allSettled([
+          fetch("/api/app/admin/subscription-plans", { cache: "no-store" }),
           fetch("/api/app/admin/policies", { cache: "no-store" }),
           fetch("/api/app/admin/policy-writers", { cache: "no-store" }),
           fetch("/api/app/admin/system-settings", { cache: "no-store" }),
@@ -894,11 +895,19 @@ export default function AdminPage() {
 
       let hasAnyLoadError = false;
 
+      if (plansResult.status === "fulfilled" && plansResult.value.ok) {
+        const plansPayload = await plansResult.value
+          .json()
+          .catch(() => ({}));
+        setTiers(plansPayload.plans || []);
+      } else {
+        hasAnyLoadError = true;
+      }
+
       if (policiesResult.status === "fulfilled" && policiesResult.value.ok) {
         const policiesPayload = await policiesResult.value
           .json()
           .catch(() => ({}));
-        setTiers(policiesPayload.tiers || []);
         setCapabilities(policiesPayload.capabilities || []);
         setMatrix(policiesPayload.matrix || []);
       } else {

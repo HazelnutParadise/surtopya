@@ -660,6 +660,9 @@ func TestResponseHandler_GetSurveyResponses_IncludesAnswers(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "response_id", "question_id", "value", "created_at"}).AddRow(
 			uuid.New(), responseID, questionID, []byte(`{"text":"foo"}`), now,
 		))
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM responses WHERE survey_id = \\$1").
+		WithArgs(surveyID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 	r := gin.New()
 	r.GET("/api/v1/surveys/:id/responses", func(c *gin.Context) {
@@ -675,6 +678,7 @@ func TestResponseHandler_GetSurveyResponses_IncludesAnswers(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"responses"`)
 	require.Contains(t, w.Body.String(), `"answers":[`)
 	require.Contains(t, w.Body.String(), `"text":"foo"`)
+	require.Contains(t, w.Body.String(), `"total":1`)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

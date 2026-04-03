@@ -30,6 +30,7 @@ type AdminHandler struct {
 	authors  *repository.AuthorRepository
 	datasets *repository.DatasetRepository
 	policies *policy.Service
+	users    *repository.AdminUserRepository
 }
 
 // NewAdminHandler creates a new AdminHandler.
@@ -40,6 +41,7 @@ func NewAdminHandler() *AdminHandler {
 		authors:  repository.NewAuthorRepository(db),
 		datasets: repository.NewDatasetRepository(db),
 		policies: policy.NewService(db),
+		users:    repository.NewAdminUserRepository(db),
 	}
 }
 
@@ -1323,73 +1325,28 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 	if limit > 100 {
 		limit = 100
 	}
-
-	query := `
-		SELECT
-			u.id,
-			u.email,
-			u.display_name,
-			u.points_balance,
-			COALESCE(mt.code, 'free') AS membership_tier,
-			um.period_end_at,
-			COALESCE(um.is_permanent, true) AS membership_is_permanent,
-			u.is_admin,
-			u.is_super_admin,
-			u.is_disabled,
-			u.created_at
-		FROM users u
-		LEFT JOIN user_memberships um ON um.user_id = u.id
-		LEFT JOIN membership_tiers mt ON mt.id = um.tier_id
-		WHERE 1=1
-	`
-	args := []interface{}{}
-	argCount := 0
-
-	if search != "" {
-		argCount++
-		query += " AND (u.email ILIKE $" + strconv.Itoa(argCount) + " OR u.display_name ILIKE $" + strconv.Itoa(argCount) + ")"
-		args = append(args, "%"+search+"%")
-	}
-	if role == "admin" {
-		query += " AND (u.is_admin = true OR u.is_super_admin = true)"
-	}
-	if role == "non_admin" {
-		query += " AND u.is_admin = false AND u.is_super_admin = false"
-	}
-	if membershipTier != "" && membershipTier != "all" {
-		argCount++
-		query += " AND COALESCE(mt.code, 'free') = $" + strconv.Itoa(argCount)
-		args = append(args, membershipTier)
-	}
+	var disabledFilter *bool
 	if isDisabled == "true" || isDisabled == "false" {
-		argCount++
-		query += " AND u.is_disabled = $" + strconv.Itoa(argCount)
-		args = append(args, isDisabled == "true")
+		value := isDisabled == "true"
+		disabledFilter = &value
 	}
 
-	argCount++
-	query += " ORDER BY u.created_at DESC LIMIT $" + strconv.Itoa(argCount)
-	args = append(args, limit)
-
-	argCount++
-	query += " OFFSET $" + strconv.Itoa(argCount)
-	args = append(args, offset)
-
-	rows, err := database.GetDB().Query(query, args...)
+	userRows, total, err := h.users.List(c.Request.Context(), repository.AdminUserFilter{
+		Search:         search,
+		Role:           role,
+		MembershipTier: membershipTier,
+		IsDisabled:     disabledFilter,
+		Limit:          limit,
+		Offset:         offset,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get users"})
 		return
 	}
-	defer rows.Close()
 
-	var users []AdminUser
-	for rows.Next() {
-		var user AdminUser
-		if err := rows.Scan(&user.ID, &user.Email, &user.DisplayName, &user.PointsBalance, &user.MembershipTier, &user.MembershipPeriodEndAt, &user.MembershipIsPermanent, &user.IsAdmin, &user.IsSuperAdmin, &user.IsDisabled, &user.CreatedAt); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read users"})
-			return
-		}
-		users = append(users, user)
+	users := make([]AdminUser, 0, len(userRows))
+	for _, row := range userRows {
+		users = append(users, adminUserFromRecord(row))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1397,8 +1354,45 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		"meta": gin.H{
 			"limit":  limit,
 			"offset": offset,
+			"total":  total,
 		},
 	})
+}
+
+func (h *AdminHandler) GetUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	user, err := h.users.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, adminUserFromRecord(*user))
+}
+
+func adminUserFromRecord(record repository.AdminUserRecord) AdminUser {
+	return AdminUser{
+		ID:                    record.ID,
+		Email:                 record.Email,
+		DisplayName:           record.DisplayName,
+		PointsBalance:         record.PointsBalance,
+		MembershipTier:        record.MembershipTier,
+		MembershipPeriodEndAt: record.MembershipPeriodEndAt,
+		MembershipIsPermanent: record.MembershipIsPermanent,
+		IsAdmin:               record.IsAdmin,
+		IsSuperAdmin:          record.IsSuperAdmin,
+		IsDisabled:            record.IsDisabled,
+		CreatedAt:             record.CreatedAt,
+	}
 }
 
 // UpdateUser handles PATCH /v1/admin/users/:id
@@ -1742,11 +1736,6 @@ func (h *AdminHandler) GetPolicies(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
 		return
 	}
-	tiers, err := h.policies.ListSubscriptionPlans(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
-		return
-	}
 	capabilities, err := h.policies.ListCapabilitiesAdmin(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load policies"})
@@ -1754,7 +1743,6 @@ func (h *AdminHandler) GetPolicies(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"tiers":        tiers,
 		"capabilities": capabilities,
 		"matrix":       matrix,
 	})

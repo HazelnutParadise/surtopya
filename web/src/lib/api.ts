@@ -746,6 +746,7 @@ export interface PlatformEventLog {
   module: string;
   action: string;
   status: string;
+  client_ip?: string;
   actor_type: string;
   actor_user_id?: string;
   actor_agent_id?: string;

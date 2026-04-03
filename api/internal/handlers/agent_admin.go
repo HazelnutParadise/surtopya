@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TimLai666/surtopya-api/internal/agentadmin"
 	"github.com/TimLai666/surtopya-api/internal/database"
@@ -80,6 +81,7 @@ var agentEndpointDocs = []agentEndpointDoc{
 	{Method: "GET", Path: "/v1/agent-admin/surveys/:id/versions", OpenAPIPath: "/surveys/{id}/versions", Purpose: "list survey versions", Summary: "List survey versions", Permission: "surveys.read"},
 	{Method: "GET", Path: "/v1/agent-admin/surveys/:id/versions/:versionNumber", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}", Purpose: "get survey version detail", Summary: "Get survey version", Permission: "surveys.read"},
 	{Method: "POST", Path: "/v1/agent-admin/surveys/:id/versions/:versionNumber/restore-draft", OpenAPIPath: "/surveys/{id}/versions/{versionNumber}/restore-draft", Purpose: "restore version as draft", Summary: "Restore survey version to draft", Permission: "surveys.write"},
+	{Method: "GET", Path: "/v1/agent-admin/surveys/:id/responses", OpenAPIPath: "/surveys/{id}/responses", Purpose: "list survey responses", Summary: "List survey responses", Permission: "surveys.read"},
 	{Method: "GET", Path: "/v1/agent-admin/surveys/:id/responses/analytics", OpenAPIPath: "/surveys/{id}/responses/analytics", Purpose: "get survey response analytics", Summary: "Get survey response analytics", Permission: "surveys.read"},
 	{Method: "GET", Path: "/v1/agent-admin/deid", OpenAPIPath: "/deid", Purpose: "de-identification workflow usage and queue summary", Summary: "Get de-identification usage index", Permission: "deid.read"},
 	{Method: "POST", Path: "/v1/agent-admin/deid/sessions/start", OpenAPIPath: "/deid/sessions/start", Purpose: "start next pending de-identification session", Summary: "Start de-identification session", Permission: "deid.write"},
@@ -92,6 +94,7 @@ var agentEndpointDocs = []agentEndpointDoc{
 	{Method: "DELETE", Path: "/v1/agent-admin/datasets/:id", OpenAPIPath: "/datasets/{id}", Purpose: "delete dataset", Summary: "Delete dataset", Permission: "datasets.write"},
 
 	{Method: "GET", Path: "/v1/agent-admin/users", OpenAPIPath: "/users", Purpose: "list users", Summary: "List users", Permission: "users.read"},
+	{Method: "GET", Path: "/v1/agent-admin/users/:id", OpenAPIPath: "/users/{id}", Purpose: "get user detail", Summary: "Get user", Permission: "users.read"},
 	{Method: "PATCH", Path: "/v1/agent-admin/users/:id", OpenAPIPath: "/users/{id}", Purpose: "update user", Summary: "Update user", Permission: "users.write"},
 	{Method: "POST", Path: "/v1/agent-admin/users/points-adjust", OpenAPIPath: "/users/points-adjust", Purpose: "adjust users points in batch", Summary: "Adjust users points", Permission: "users.write"},
 
@@ -430,26 +433,44 @@ func (h *AgentAdminHandler) ListLogs(c *gin.Context) {
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	logs, err := h.service.ListLogs(c.Request.Context(), identity, agentadmin.ListLogsFilter{
+	from, err := parseLogTimeQuery(c.Query("from"))
+	if err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid from query", nil)
+		return
+	}
+	to, err := parseLogTimeQuery(c.Query("to"))
+	if err != nil {
+		agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid to query", nil)
+		return
+	}
+	page, err := h.service.ListLogs(c.Request.Context(), identity, agentadmin.ListLogsFilter{
 		CorrelationID: c.Query("correlation_id"),
 		Module:        c.Query("module"),
 		Action:        c.Query("action"),
 		Status:        c.Query("status"),
+		ActorType:     c.Query("actor_type"),
 		ResourceType:  c.Query("resource_type"),
 		ResourceID:    c.Query("resource_id"),
+		From:          from,
+		To:            to,
 		Limit:         limit,
-		Offset:        offset,
+		Cursor:        c.Query("cursor"),
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "cursor") {
+			agentJSONError(c, http.StatusBadRequest, "invalid_request", "Invalid cursor query", nil)
+			return
+		}
 		agentJSONError(c, http.StatusInternalServerError, "server_error", "Failed to list logs", nil)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"logs": logs,
+		"logs": page.Logs,
 		"meta": gin.H{
-			"limit":  limit,
-			"offset": offset,
+			"limit":       limit,
+			"total":       page.Total,
+			"next_cursor": page.NextCursor,
+			"has_more":    page.HasMore,
 		},
 	})
 }
@@ -475,6 +496,18 @@ func (h *AgentAdminHandler) GetLog(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, record)
+}
+
+func parseLogTimeQuery(value string) (*time.Time, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse(time.RFC3339, trimmed)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func (h *AgentAdminHandler) ListAccounts(c *gin.Context) {
