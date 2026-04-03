@@ -72,7 +72,7 @@ services:
         source: ${POSTGRES_DATA_HOST_PATH:-./.data/postgres}
         target: /var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-surtopya}"]
       interval: 5s
       timeout: 5s
       retries: 5
