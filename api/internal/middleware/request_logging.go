@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -69,6 +70,7 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 			Module:          module,
 			Action:          action,
 			Status:          status,
+			ClientIP:        extractClientIP(c.Request),
 			ActorType:       platformlog.ActorTypeFromGin(c),
 			ActorUserID:     platformlog.ActorUserIDFromGin(c),
 			ActorAgentID:    platformlog.ActorAgentIDFromGin(c),
@@ -101,40 +103,133 @@ func inferModuleAndAction(method string, fullPath string, fallbackPath string) (
 	if strings.TrimSpace(path) == "" {
 		path = fallbackPath
 	}
-	path = strings.TrimPrefix(path, "/api/")
-	segments := strings.Split(strings.Trim(path, "/"), "/")
-	module := "api"
-	if len(segments) > 1 {
-		module = segments[1]
-	}
-	action := strings.ToLower(method)
-	if len(segments) > 2 {
-		action = strings.Join(segments[2:], ".")
-	}
-	return module, action
+	return inferModule(path), inferAction(method, path)
 }
 
 func inferErrorDetails(responseSummary map[string]any) (string, string) {
-	body, ok := responseSummary["body"].(map[string]any)
-	if !ok {
-		return "", ""
-	}
-	var (
-		code    string
-		message string
-	)
-	if rawCode, ok := body["code"].(string); ok {
-		code = rawCode
-	}
-	if rawError, ok := body["error"].(string); ok && message == "" {
-		message = rawError
-	}
-	if rawMessage, ok := body["message"].(string); ok && rawMessage != "" {
-		message = rawMessage
-	}
+	code, _ := responseSummary["error_code"].(string)
+	message, _ := responseSummary["error_message"].(string)
 	return code, message
 }
 
 func contextWithCorrelationID(ctx context.Context, correlationID uuid.UUID) context.Context {
 	return context.WithValue(ctx, platformlog.ContextKeyCorrelationID, correlationID)
+}
+
+func inferModule(path string) string {
+	switch {
+	case strings.HasPrefix(path, "/api/app/ui-events"):
+		return "ui"
+	case strings.HasPrefix(path, "/v1/agent-admin"), strings.HasPrefix(path, "/api/app/admin/agents"):
+		if strings.Contains(path, "/deid") {
+			return "deid"
+		}
+		if strings.Contains(path, "/users") {
+			return "users"
+		}
+		if strings.Contains(path, "/datasets") {
+			return "datasets"
+		}
+		if strings.Contains(path, "/responses") {
+			return "responses"
+		}
+		if strings.Contains(path, "/surveys") {
+			return "surveys"
+		}
+		if strings.Contains(path, "/subscription-plans") || strings.Contains(path, "/policies") || strings.Contains(path, "/policy-writers") || strings.Contains(path, "/capabilities") || strings.Contains(path, "/pricing") {
+			return "policies"
+		}
+		if strings.Contains(path, "/system-settings") {
+			return "system"
+		}
+		if strings.Contains(path, "/logs") || strings.Contains(path, "/agents") {
+			return "agent_admin"
+		}
+		return "agent_admin"
+	case strings.HasPrefix(path, "/api/app/me"), strings.HasPrefix(path, "/v1/authors"), strings.HasPrefix(path, "/api/app/authors"):
+		return "users"
+	case strings.Contains(path, "/auth"):
+		return "auth"
+	case strings.Contains(path, "/deid"):
+		return "deid"
+	case strings.Contains(path, "/datasets"):
+		return "datasets"
+	case strings.Contains(path, "/responses"):
+		return "responses"
+	case strings.Contains(path, "/surveys"):
+		return "surveys"
+	case strings.Contains(path, "/users"):
+		return "users"
+	case strings.Contains(path, "/subscription-plans"), strings.Contains(path, "/policies"), strings.Contains(path, "/policy-writers"), strings.Contains(path, "/capabilities"), strings.Contains(path, "/pricing"):
+		return "policies"
+	case strings.HasPrefix(path, "/v1/health"), strings.HasPrefix(path, "/v1/ready"), strings.HasPrefix(path, "/api/app/bootstrap"), strings.HasPrefix(path, "/api/app/config"), strings.HasPrefix(path, "/api/app/system-settings"):
+		return "system"
+	default:
+		return "system"
+	}
+}
+
+func inferAction(method string, path string) string {
+	action := strings.ToLower(method)
+	trimmed := strings.Trim(path, "/")
+	if trimmed == "" {
+		return action
+	}
+
+	segments := strings.Split(trimmed, "/")
+	for i := len(segments) - 1; i >= 0; i-- {
+		segment := strings.TrimSpace(segments[i])
+		if segment == "" || segment == "api" || segment == "app" || segment == "v1" || segment == "agent-admin" || segment == "admin" {
+			continue
+		}
+		if strings.HasPrefix(segment, ":") || strings.Contains(segment, "{") || strings.Contains(segment, "}") {
+			continue
+		}
+		if _, err := uuid.Parse(segment); err == nil {
+			continue
+		}
+		return action + "." + strings.ReplaceAll(segment, "-", "_")
+	}
+	return action
+}
+
+func extractClientIP(req *http.Request) *string {
+	if req == nil {
+		return nil
+	}
+
+	for _, candidate := range []string{
+		strings.TrimSpace(req.Header.Get("CF-Connecting-IP")),
+		firstForwardedIP(req.Header.Get("X-Forwarded-For")),
+		remoteAddressHost(req.RemoteAddr),
+	} {
+		if candidate == "" {
+			continue
+		}
+		value := candidate
+		return &value
+	}
+	return nil
+}
+
+func firstForwardedIP(value string) string {
+	for _, item := range strings.Split(value, ",") {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func remoteAddressHost(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(trimmed)
+	if err == nil {
+		return strings.TrimSpace(host)
+	}
+	return trimmed
 }

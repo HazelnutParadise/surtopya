@@ -124,6 +124,57 @@ func (r *ResponseRepository) GetBySurveyID(surveyID uuid.UUID) ([]models.Respons
 	return responses, nil
 }
 
+// ListBySurveyIDPage retrieves a page of responses for a survey without loading answer payloads.
+func (r *ResponseRepository) ListBySurveyIDPage(surveyID uuid.UUID, limit int, offset int) ([]models.Response, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	query := `
+		SELECT id, survey_id, survey_version_id, survey_version_number, user_id, anonymous_id, status, points_awarded,
+			started_at, completed_at, created_at
+		FROM responses WHERE survey_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.Query(query, surveyID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query responses page: %w", err)
+	}
+	defer rows.Close()
+
+	var responses []models.Response
+	for rows.Next() {
+		var response models.Response
+		err := rows.Scan(
+			&response.ID, &response.SurveyID, &response.SurveyVersionID, &response.SurveyVersionNumber,
+			&response.UserID, &response.AnonymousID,
+			&response.Status, &response.PointsAwarded, &response.StartedAt,
+			&response.CompletedAt, &response.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan response page row: %w", err)
+		}
+		responses = append(responses, response)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate response page rows: %w", err)
+	}
+	return responses, nil
+}
+
+func (r *ResponseRepository) CountBySurveyID(surveyID uuid.UUID) (int, error) {
+	var total int
+	if err := r.db.QueryRow(`SELECT COUNT(*) FROM responses WHERE survey_id = $1`, surveyID).Scan(&total); err != nil {
+		return 0, fmt.Errorf("failed to count responses: %w", err)
+	}
+	return total, nil
+}
+
 // HasSurveyResponseOnceLockForUser checks whether a user has already completed a survey.
 func (r *ResponseRepository) HasSurveyResponseOnceLockForUser(surveyID uuid.UUID, userID uuid.UUID) (bool, error) {
 	var exists bool

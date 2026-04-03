@@ -22,6 +22,11 @@
 - Route surfaces:
   - `/v1/*` for public/partner access.
   - `/api/app/*` for frontend internal BFF usage (requires internal signature).
+- Admin/detail additions now live on the same surfaces as list/update:
+  - `/api/app/admin/users/:id`
+  - `/v1/agent-admin/users/:id`
+  - `/v1/agent-admin/surveys/:id/responses`
+- Agent-admin logs use filtered cursor pagination on `(created_at, id)` and expose `meta.limit`, `meta.total`, `meta.next_cursor`, and `meta.has_more`.
 - Middleware chain is centralized in router setup and must remain consistent (CORS, logging/correlation, DB-ready guard, auth token processing).
 - Handler layer must not execute raw SQL directly; repository layer owns DB access.
 - Multi-step write operations must run in repository-managed DB transactions.

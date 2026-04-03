@@ -69,12 +69,8 @@ type CapabilityPatch struct {
 	ShowOnPricing   *bool              `json:"showOnPricing"`
 }
 
-func normalizeI18n(value map[string]string, fallback string) map[string]string {
-	out := map[string]string{
-		"zh-TW": strings.TrimSpace(fallback),
-		"en":    strings.TrimSpace(fallback),
-		"ja":    strings.TrimSpace(fallback),
-	}
+func normalizeI18n(value map[string]string) map[string]string {
+	out := map[string]string{}
 	for k, v := range value {
 		trimmed := strings.TrimSpace(v)
 		if trimmed != "" {
@@ -85,11 +81,16 @@ func normalizeI18n(value map[string]string, fallback string) map[string]string {
 }
 
 func validateI18n(value map[string]string) bool {
-	return strings.TrimSpace(value["zh-TW"]) != "" && strings.TrimSpace(value["en"]) != "" && strings.TrimSpace(value["ja"]) != ""
+	for _, item := range normalizeI18n(value) {
+		if strings.TrimSpace(item) != "" {
+			return true
+		}
+	}
+	return false
 }
 
-func i18nJSON(value map[string]string, fallback string) (string, error) {
-	payload, err := json.Marshal(normalizeI18n(value, fallback))
+func i18nJSON(value map[string]string) (string, error) {
+	payload, err := json.Marshal(normalizeI18n(value))
 	if err != nil {
 		return "", err
 	}
@@ -134,8 +135,8 @@ func (s *Service) ListSubscriptionPlans(ctx context.Context) ([]SubscriptionPlan
 		}
 		_ = json.Unmarshal(nameI18nRaw, &plan.NameI18n)
 		_ = json.Unmarshal(descriptionI18nRaw, &plan.DescriptionI18n)
-		plan.NameI18n = normalizeI18n(plan.NameI18n, plan.Name)
-		plan.DescriptionI18n = normalizeI18n(plan.DescriptionI18n, "")
+		plan.NameI18n = normalizeI18n(plan.NameI18n)
+		plan.DescriptionI18n = normalizeI18n(plan.DescriptionI18n)
 		if maxActiveSurveys.Valid {
 			value := int(maxActiveSurveys.Int64)
 			plan.MaxActiveSurveys = &value
@@ -163,15 +164,12 @@ func (s *Service) CreateSubscriptionPlan(ctx context.Context, input Subscription
 		return SubscriptionPlan{}, ErrInvalidMembershipGrant
 	}
 
-	name := strings.TrimSpace(input.NameI18n["en"])
-	if name == "" {
-		name = strings.TrimSpace(input.NameI18n["zh-TW"])
-	}
-	nameI18nJSON, err := i18nJSON(input.NameI18n, name)
+	name := localizedFromI18n(normalizeI18n(input.NameI18n), "zh-TW", input.Code)
+	nameI18nJSON, err := i18nJSON(input.NameI18n)
 	if err != nil {
 		return SubscriptionPlan{}, fmt.Errorf("failed to encode name i18n: %w", err)
 	}
-	descriptionI18nJSON, err := i18nJSON(input.DescriptionI18n, "")
+	descriptionI18nJSON, err := i18nJSON(input.DescriptionI18n)
 	if err != nil {
 		return SubscriptionPlan{}, fmt.Errorf("failed to encode description i18n: %w", err)
 	}
@@ -255,15 +253,12 @@ func (s *Service) UpdateSubscriptionPlan(ctx context.Context, id uuid.UUID, patc
 		return SubscriptionPlan{}, ErrInvalidMembershipGrant
 	}
 
-	name := strings.TrimSpace(target.NameI18n["en"])
-	if name == "" {
-		name = strings.TrimSpace(target.NameI18n["zh-TW"])
-	}
-	nameI18nJSON, err := i18nJSON(target.NameI18n, name)
+	name := localizedFromI18n(normalizeI18n(target.NameI18n), "zh-TW", target.Code)
+	nameI18nJSON, err := i18nJSON(target.NameI18n)
 	if err != nil {
 		return SubscriptionPlan{}, fmt.Errorf("failed to encode name i18n: %w", err)
 	}
-	descriptionI18nJSON, err := i18nJSON(target.DescriptionI18n, "")
+	descriptionI18nJSON, err := i18nJSON(target.DescriptionI18n)
 	if err != nil {
 		return SubscriptionPlan{}, fmt.Errorf("failed to encode description i18n: %w", err)
 	}
@@ -475,8 +470,8 @@ func (s *Service) ListCapabilitiesAdmin(ctx context.Context) ([]Capability, erro
 		}
 		_ = json.Unmarshal(nameI18nRaw, &c.NameI18n)
 		_ = json.Unmarshal(descriptionI18nRaw, &c.DescriptionI18n)
-		c.NameI18n = normalizeI18n(c.NameI18n, c.Name)
-		c.DescriptionI18n = normalizeI18n(c.DescriptionI18n, "")
+		c.NameI18n = normalizeI18n(c.NameI18n)
+		c.DescriptionI18n = normalizeI18n(c.DescriptionI18n)
 		capabilities = append(capabilities, c)
 	}
 	if err := capRows.Err(); err != nil {
@@ -514,20 +509,17 @@ func (s *Service) UpdateCapabilityDisplay(ctx context.Context, id uuid.UUID, pat
 		return Capability{}, ErrInvalidMembershipGrant
 	}
 
-	name := strings.TrimSpace(target.NameI18n["en"])
-	if name == "" {
-		name = strings.TrimSpace(target.NameI18n["zh-TW"])
-	}
-	nameI18nJSON, err := i18nJSON(target.NameI18n, name)
+	name := localizedFromI18n(normalizeI18n(target.NameI18n), "zh-TW", target.Key)
+	nameI18nJSON, err := i18nJSON(target.NameI18n)
 	if err != nil {
 		return Capability{}, fmt.Errorf("failed to encode capability name i18n: %w", err)
 	}
-	descriptionI18nJSON, err := i18nJSON(target.DescriptionI18n, "")
+	descriptionI18nJSON, err := i18nJSON(target.DescriptionI18n)
 	if err != nil {
 		return Capability{}, fmt.Errorf("failed to encode capability description i18n: %w", err)
 	}
 
-	description := strings.TrimSpace(target.DescriptionI18n["en"])
+	description := localizedFromI18n(normalizeI18n(target.DescriptionI18n), "zh-TW", "")
 	var descriptionValue *string
 	if description != "" {
 		descriptionValue = &description

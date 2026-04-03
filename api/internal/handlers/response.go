@@ -350,5 +350,16 @@ func (h *ResponseHandler) GetSurveyResponses(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"responses": responses})
+	total, err := h.responseRepo.CountBySurveyID(surveyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get responses"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"responses": responses,
+		"meta": gin.H{
+			"total": total,
+		},
+	})
 }

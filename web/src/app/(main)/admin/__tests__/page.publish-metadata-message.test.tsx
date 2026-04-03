@@ -133,8 +133,11 @@ describe("AdminPage publish metadata-only result", () => {
       if (url.startsWith("/api/app/admin/agents?")) {
         return Promise.resolve(buildJsonResponse({ accounts: [] }))
       }
+      if (url === "/api/app/admin/subscription-plans") {
+        return Promise.resolve(buildJsonResponse({ plans: [] }))
+      }
       if (url === "/api/app/admin/policies") {
-        return Promise.resolve(buildJsonResponse({ tiers: [], capabilities: [], matrix: [] }))
+        return Promise.resolve(buildJsonResponse({ capabilities: [], matrix: [] }))
       }
       if (url === "/api/app/admin/policy-writers") {
         return Promise.resolve(buildJsonResponse({ users: [] }))
@@ -170,6 +173,12 @@ describe("AdminPage publish metadata-only result", () => {
     render(<AdminPage />)
 
     await screen.findByText("Dataset A")
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/app/admin/subscription-plans",
+        expect.objectContaining({ cache: "no-store" }),
+      )
+    })
     const editButtons = await screen.findAllByRole("button", { name: "edit" })
     fireEvent.click(editButtons[0])
 
